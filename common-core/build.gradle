@@ -1,0 +1,32 @@
+// 공유 모듈 — 스프링 부트 애플리케이션이 아니다.
+// 앱 모듈 3개가 의존성으로 가져다 쓰는 라이브러리이므로 실행 가능한 jar 를 만들지 않는다.
+plugins {
+    id 'java-library'
+    // 테스트 지원 클래스(Testcontainers 베이스 등)를 앱 모듈 테스트에서 쓰기 위한 소스셋.
+    // main 에 두면 운영 jar 에 테스트 코드가 섞인다.
+    id 'java-test-fixtures'
+}
+
+dependencies {
+    // 공통 예외/에러코드, 커서 페이지네이션 유틸 등에 필요한 최소 범위만 둔다.
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.springframework:spring-web'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+    // 전역 예외 핸들러가 MVC 예외를 참조한다. 웹 앱에만 필요하므로 compileOnly.
+    compileOnly 'org.springframework:spring-webmvc'
+
+    // 영속성 — 앱 3개가 모두 DB 를 쓴다. 도메인 엔티티는 ERD 확정 후 각 파트가 추가한다.
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.flywaydb:flyway-core'
+    api 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // MockMvc 로 예외 핸들러 응답 형식을 검증하기 위한 테스트 전용 의존성
+    testImplementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // testFixtures — 앱 모듈들이 testImplementation(testFixtures(project(':common-core'))) 로 가져간다
+    testFixturesApi 'org.springframework.boot:spring-boot-starter-test'
+    testFixturesApi 'org.springframework.boot:spring-boot-testcontainers'
+    testFixturesApi 'org.testcontainers:junit-jupiter'
+    testFixturesApi 'org.testcontainers:mysql'
+}

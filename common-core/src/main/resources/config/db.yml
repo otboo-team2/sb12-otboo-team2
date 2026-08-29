@@ -1,0 +1,87 @@
+# 앱 3개가 공유하는 DB·인프라 설정. 여기 한 곳만 고치면 전부 반영된다.
+# 각 앱의 application.yml 에서 spring.config.import 로 가져간다.
+#
+# ⚠️ spring.config.import 로 가져온 문서가 가져간 쪽을 덮어쓴다.
+#    앱마다 달라야 하는 값(flyway.enabled 등)은 여기에 두지 말 것.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/otboo?serverTimezone=UTC&characterEncoding=UTF-8&rewriteBatchedStatements=true}
+    username: ${DB_USERNAME:otboo}
+    password: ${DB_PASSWORD:otboo}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    open-in-view: false          # 뷰 렌더링 중 커넥션을 잡고 있지 않는다
+    hibernate:
+      ddl-auto: validate         # 스키마는 Flyway 가 만든다. Hibernate 가 손대지 못하게 한다
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC         # ⚠️ 이 값이 빠지면 시간이 밀린다 (MoNew 9시간 오차 원인)
+          batch_size: 50
+
+  flyway:
+    # enabled 는 앱마다 달라서 여기에 두지 않는다 (app-api 만 수행).
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+---
+# ===== local — 개발용. docker-compose 기본값에 그대로 붙는다 =====
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace   # 바인딩 파라미터까지 본다
+    com.otboo: debug
+
+---
+# ===== test — Testcontainers 가 datasource 를 주입하므로 접속 정보는 비운다 =====
+spring:
+  config:
+    activate:
+      on-profile: test
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+
+---
+# ===== prod — 값은 전부 환경변수. 기본값을 두지 않는다 =====
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+logging:
+  level:
+    root: info
+    com.otboo: info

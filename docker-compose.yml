@@ -1,0 +1,47 @@
+# 로컬 개발 인프라. clone 후 `docker compose up -d` 하나로 개발 환경이 서야 한다.
+services:
+  mysql:
+    # 8.4 는 Flyway 11.7 의 검증 범위 밖이라 기동할 때마다 경고가 뜬다.
+    # RDS 에서도 8.0 이 가장 흔하다.
+    image: mysql:8.0
+    container_name: otboo-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-otboo}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-otboo}
+      MYSQL_USER: ${MYSQL_USER:-otboo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-otboo}
+      TZ: UTC
+    command:
+      # 이모지가 들어간다(피드 내용·의상 이름). utf8 은 3바이트라 이모지를 못 담는다.
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      # DB·JVM·응답을 전부 UTC 로 맞춘다. 이 값들이 어긋나면 시간이 밀린다.
+      - --default-time-zone=+00:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-otboo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: otboo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mysql-data:
+  redis-data:

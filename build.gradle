@@ -1,0 +1,83 @@
+// 루트 빌드 스크립트 — 모든 모듈의 공통 설정만 둔다.
+// 실제 의존성은 각 모듈의 build.gradle 에서 선언한다.
+//
+// 모듈 구조
+//   common-core   : 공유 라이브러리 (bootJar X / jar O)
+//   app-api       : REST API 앱
+//   app-realtime  : WebSocket + SSE 앱
+//   app-batch     : 배치 앱
+plugins {
+    id 'org.springframework.boot' version '3.5.16' apply false
+    id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+subprojects {
+    apply plugin: 'java'
+    // Boot 플러그인은 여기서 적용하지 않는다.
+    // common-core 에 적용되면 bootJar 로 패키징되어 다른 모듈이 의존성으로 쓸 수 없다.
+    apply plugin: 'io.spring.dependency-management'
+
+    group = 'com.otboo'
+    version = '0.0.1-SNAPSHOT'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    configurations {
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        }
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+        testCompileOnly 'org.projectlombok:lombok'
+        testAnnotationProcessor 'org.projectlombok:lombok'
+
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
+        // DB·JVM·응답 타임존을 UTC 로 통일한다. 테스트도 같은 기준이어야 한다.
+        jvmArgs '-Duser.timezone=UTC'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        // 파라미터명 유지 — @RequestParam, @PathVariable 이름 생략 시 필요
+        options.compilerArgs << '-parameters'
+    }
+}
+
+// 애플리케이션 모듈에만 Boot 플러그인을 적용한다.
+configure(subprojects.findAll { it.name.startsWith('app-') }) {
+    apply plugin: 'org.springframework.boot'
+
+    dependencies {
+        implementation project(':common-core')
+        // /actuator/prometheus 엔드포인트를 노출한다. 이게 없으면 설정만 있고 404 가 난다.
+        runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+        // Testcontainers 통합 테스트 베이스 등 공용 테스트 지원 클래스
+        testImplementation testFixtures(project(':common-core'))
+    }
+
+    tasks.named('bootRun') {
+        jvmArgs '-Duser.timezone=UTC'
+    }
+}

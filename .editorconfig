@@ -1,0 +1,20 @@
+# 팀 코드 포매터 기준. IDE 가 이 파일을 자동으로 읽는다.
+# 이게 없으면 PR 마다 공백·개행 diff 가 섞인다.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,xml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+end_of_line = crlf

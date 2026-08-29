@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: otboo-batch
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  config:
+    import: classpath:config/db.yml
+  jackson:
+    time-zone: UTC
+  flyway:
+    enabled: false          # 마이그레이션은 app-api 만 수행한다
+  main:
+    # 배치는 웹 서버를 띄우지 않는다. 단독 실행 후 종료되는 컨테이너.
+    web-application-type: none
+  batch:
+    job:
+      # 기동만으로 전체 잡이 도는 것을 막는다. 실행할 잡을 지정해서 돌린다.
+      enabled: false
