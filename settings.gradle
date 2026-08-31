@@ -1,0 +1,9 @@
+rootProject.name = 'otboo'
+
+// 공유 모듈 — 스프링 애플리케이션이 아닌 라이브러리. 앱 모듈들이 의존한다.
+include 'common-core'
+
+// 애플리케이션 모듈 — 각각 독립 실행되는 배포 단위(컨테이너 1개씩)
+include 'app-api'       // REST API
+include 'app-realtime'  // WebSocket(DM) + SSE(알림)
+include 'app-batch'     // 날씨 수집·집계 배치

@@ -1,0 +1,39 @@
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+### IDE ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.vscode/
+.settings/
+.classpath
+.project
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/.pnpm-store/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Log ###
+*.log
+logs/
+
+### 환경변수 / 자격증명 — 절대 커밋 금지 ###
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# 프로필 설정 파일은 값을 환경변수로만 참조하므로 커밋한다.
+# 실제 비밀값은 .env 와 배포 환경변수에만 둔다.
+**/src/main/resources/application-secret.yml

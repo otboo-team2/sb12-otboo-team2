@@ -1,0 +1,5 @@
+// 배치 애플리케이션 — 날씨 수집·집계. 상시 실행이 아니라 단독 컨테이너로 돈다.
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+}

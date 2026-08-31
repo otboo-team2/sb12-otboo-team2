@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: otboo-api
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}   # 배포에서는 prod 로 덮어쓴다
+  config:
+    import: classpath:config/db.yml           # 공통 DB·인프라 설정 (common-core)
+  jackson:
+    time-zone: UTC                            # 응답은 UTC 기준 ISO-8601
+  servlet:
+    multipart:
+      max-file-size: 10MB                     # 의상·프로필 이미지 업로드
+      max-request-size: 12MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+---
+# prod 에서는 관측 엔드포인트만 남기고 나머지를 닫는다
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus
+  endpoint:
+    health:
+      show-details: never

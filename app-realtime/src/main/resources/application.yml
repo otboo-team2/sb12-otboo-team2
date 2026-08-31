@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: otboo-realtime
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  config:
+    import: classpath:config/db.yml
+  jackson:
+    time-zone: UTC
+  flyway:
+    enabled: false          # 마이그레이션은 app-api 만 수행한다
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus

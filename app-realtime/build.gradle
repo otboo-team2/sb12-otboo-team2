@@ -1,0 +1,7 @@
+// 실시간 통신 애플리케이션 — WebSocket(DM) + SSE(알림)
+// API 와 분리한 이유: 커넥션 수에 비례해 확장 수요가 커서 API 와 확장 축이 다르다.
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+}
