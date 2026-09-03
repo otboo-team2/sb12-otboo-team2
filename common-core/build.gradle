@@ -15,6 +15,12 @@ dependencies {
     // 전역 예외 핸들러가 MVC 예외를 참조한다. 웹 앱에만 필요하므로 compileOnly.
     compileOnly 'org.springframework:spring-webmvc'
 
+    // 인증 — 앱 3개가 같은 토큰을 검증한다(realtime 은 WebSocket CONNECT 에서).
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'io.jsonwebtoken:jjwt-api:0.12.7'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.7'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.7'
+
     // 영속성 — 앱 3개가 모두 DB 를 쓴다. 도메인 엔티티는 ERD 확정 후 각 파트가 추가한다.
     api 'org.springframework.boot:spring-boot-starter-data-jpa'
     api 'org.flywaydb:flyway-core'
@@ -29,4 +35,5 @@ dependencies {
     testFixturesApi 'org.springframework.boot:spring-boot-testcontainers'
     testFixturesApi 'org.testcontainers:junit-jupiter'
     testFixturesApi 'org.testcontainers:mysql'
+    testFixturesApi 'org.springframework.security:spring-security-test'
 }
