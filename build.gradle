@@ -56,6 +56,14 @@ subprojects {
         useJUnitPlatform()
         // DB·JVM·응답 타임존을 UTC 로 통일한다. 테스트도 같은 기준이어야 한다.
         jvmArgs '-Duser.timezone=UTC'
+
+        // 기본 출력은 원인 스택을 잘라내서 컨텍스트 로딩 실패의 진짜 이유를 못 본다.
+        testLogging {
+            events 'failed'
+            exceptionFormat = 'full'
+            showCauses = true
+            showStackTraces = true
+        }
     }
 
     tasks.withType(JavaCompile).configureEach {
