@@ -9,8 +9,10 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.proxy.HibernateProxy;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -33,13 +35,16 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  * {@code LocalDateTime} 은 타임존 정보가 없어서 어디선가 한 번 어긋나면 추적이 안 된다.
  * 저장·전송 모두 UTC 기준이고, 표시 시점의 변환은 클라이언트 몫이다.
  *
- * <h2>PK 는 UUID / BINARY(16)</h2>
- * API 스펙이 UUID 라 저장도 UUID 로 간다. {@code CHAR(36)} 대신 {@code BINARY(16)} 인 이유는
- * InnoDB 에서 <b>모든 보조 인덱스가 PK 를 함께 저장</b>하기 때문에 20바이트 차이가 인덱스 전체에 곱해지기 때문이다.
- * 랜덤 UUID 라 삽입 위치가 흩어지는 문제(페이지 분할)가 있는데, 이건 부하 테스트로 확인된 뒤에 다룬다.
- * 컬럼 타입을 16바이트로 잡아뒀으므로 <b>생성 전략만 시간순 UUID 로 바꾸면 되고 스키마는 그대로다.</b>
+ * <h2>PK 는 UUID / CHAR(36) ascii (2026-09-01 팀 통일)</h2>
+ * API 스펙이 UUID 라 저장도 UUID 로 간다. 값을 눈으로 읽을 수 있어야 5명이 디버깅할 때 비용이 낮으므로
+ * {@code BINARY(16)} 대신 {@code CHAR(36)} 으로 통일했다.
  *
- * <p>디버깅 시 사람이 읽으려면: {@code SELECT BIN_TO_UUID(id) FROM clothes_tb;}
+ * <p><b>단 반드시 {@code CHARACTER SET ascii} 여야 한다.</b> 테이블 기본 문자셋이 utf8mb4 라
+ * 그냥 두면 문자당 4바이트로 잡혀 36자가 <b>144바이트</b>가 된다. InnoDB 는 모든 보조 인덱스에
+ * PK 를 함께 저장하므로 그 낭비가 인덱스 전체에 곱해진다. ascii 면 36바이트다.
+ *
+ * <p>랜덤 UUID 라 삽입 위치가 흩어지는 문제(페이지 분할)는 부하 테스트로 확인된 뒤에 다룬다.
+ * 생성 전략만 시간순 UUID 로 바꾸면 되고 컬럼 타입은 그대로다.
  */
 @Getter
 @MappedSuperclass
@@ -49,7 +54,8 @@ public abstract class BaseEntity {
     @Id
     @GeneratedValue
     @UuidGenerator
-    @Column(name = "id", columnDefinition = "BINARY(16)", nullable = false, updatable = false)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "id", columnDefinition = "CHAR(36)", nullable = false, updatable = false)
     private UUID id;
 
     @CreatedDate
