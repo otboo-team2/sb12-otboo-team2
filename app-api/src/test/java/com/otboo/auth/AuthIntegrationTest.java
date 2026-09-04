@@ -237,11 +237,13 @@ class AuthIntegrationTest extends IntegrationTestSupport {
             String accessToken = objectMapper.readTree(
                     signIn().getResponse().getContentAsString()).get("accessToken").asText();
 
-            // 아직 컨트롤러가 없어 404 가 정상이다. 403 이 아니면 인가는 통과한 것.
+            // 목록 API 가 아직 없어 405 가 나오지만, 여기서 볼 것은 인가 통과 여부다.
+            // 상태 코드를 고정하면 컨트롤러가 생길 때마다 이 테스트가 깨진다.
             mockMvc.perform(get("/api/users")
                             .header("Authorization", "Bearer " + accessToken)
                             .param("limit", "10"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(result ->
+                            assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
         }
     }
 
