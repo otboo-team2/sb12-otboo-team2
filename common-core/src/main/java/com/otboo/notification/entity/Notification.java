@@ -25,7 +25,7 @@ public class Notification extends BaseEntity {
     @Column(nullable = false, length = 32)
     private NotificationType type;
 
-    @Column(name = "related_entity_id")
+    @Column(name = "related_entity_id", columnDefinition = "CHAR(36)")
     private String relatedEntityId;
 
     @Column(nullable = false, length = 200)
