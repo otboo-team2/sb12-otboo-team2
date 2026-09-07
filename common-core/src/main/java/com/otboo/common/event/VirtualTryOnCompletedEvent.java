@@ -1,5 +1,7 @@
 package com.otboo.common.event;
 
+import com.otboo.notification.entity.NotificationType;
+
 import java.time.Instant;
 import java.util.UUID;
 
