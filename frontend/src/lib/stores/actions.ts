@@ -292,7 +292,12 @@ export function createPaginatedStoreActions<T, P extends CursorParams>(
       }
 
       try {
-        set({loading: true, error: undefined, data: []});
+        set({
+          loading: true,
+          error: undefined,
+          data: [],
+          cursorState: {hasNext: false, totalCount: 0},
+        });
 
         const {params} = get();
         const result = await fetchApi({...params, cursor: undefined, idAfter: undefined} as P);

@@ -16,3 +16,21 @@ spring:
     job:
       # 기동만으로 전체 잡이 도는 것을 막는다. 실행할 잡을 지정해서 돌린다.
       enabled: false
+
+otboo:
+  # ─────────── 외부 API 호출 정책 ───────────
+  # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
+  external-api:
+    defaults:
+      connect-timeout: 3s
+      read-timeout: 10s
+      max-retries: 0
+      backoff: 1s
+
+    apis:
+      # 박교현 — OpenWeatherMap 예보 수집
+      # 배치는 사용자를 기다리게 하지 않으므로 재시도에 여유를 둘 수 있다.
+      weather:
+        read-timeout: 5s      # TODO(담당자): 실제 응답 시간 재보고 조정
+        max-retries: 0        # TODO(담당자): 조회만 하므로 재시도해도 안전하면 2 로
+        backoff: 2s

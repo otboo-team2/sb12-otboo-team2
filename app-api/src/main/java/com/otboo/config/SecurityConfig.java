@@ -63,6 +63,8 @@ public class SecurityConfig {
                                 "/api/auth/reset-password", "/api/auth/csrf-token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
+                        // 프로필·의상 이미지. <img src> 로 불러가므로 토큰을 실을 수 없다.
+                        .requestMatchers(HttpMethod.GET, "/images/**").permitAll()
 
                         // 어드민 전용
                         .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")

@@ -38,7 +38,7 @@ interface AddClothesModalProps {
 export default function AddClothesModal({ open, onClose }: AddClothesModalProps) {
   const { data: auth } = useAuthStore();
   const { add } = useClothesStore();
-  const { data: attributeDefs, fetch: fetchAttributes } = useClothesAttributeDefStore();
+  const { data: attributeDefs, fetchAll: fetchAttributes } = useClothesAttributeDefStore();
   const [mode, setMode] = useState<ModalMode>('form');
   const [loading, setLoading] = useState(false);
   const { selectedImage, setSelectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
@@ -55,7 +55,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
   // 의상 속성 정의 로드
   useEffect(() => {
     if (open) {
-      fetchAttributes();
+      fetchAttributes(100);
     }
   }, [open, fetchAttributes]);
 

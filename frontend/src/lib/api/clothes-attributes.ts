@@ -3,7 +3,8 @@ import type {
   ClothesAttributeDefListParams,
   ClothesAttributeDefDto,
   ClothesAttributeDefCreateRequest,
-  ClothesAttributeDefUpdateRequest
+  ClothesAttributeDefUpdateRequest,
+  CursorResponse
 } from './types';
 
 /**
@@ -11,8 +12,8 @@ import type {
  */
 export const getClothesAttributeDef = async (
   params: ClothesAttributeDefListParams
-): Promise<ClothesAttributeDefDto[]> => {
-  return apiClient.get<ClothesAttributeDefDto[]>('/api/clothes/attribute-defs', { params });
+): Promise<CursorResponse<ClothesAttributeDefDto>> => {
+  return apiClient.get<CursorResponse<ClothesAttributeDefDto>>('/api/clothes/attribute-defs', { params });
 };
 
 /**

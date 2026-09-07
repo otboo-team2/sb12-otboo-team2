@@ -35,7 +35,7 @@ interface EditClothesModalProps {
 
 export default function EditClothesModal({ open, onClose, clothes }: EditClothesModalProps) {
   const { update } = useClothesStore();
-  const { data: attributeDefs, fetch: fetchAttributes } = useClothesAttributeDefStore();
+  const { data: attributeDefs, fetchAll: fetchAttributes } = useClothesAttributeDefStore();
   const [loading, setLoading] = useState(false);
   const { selectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
   
@@ -50,7 +50,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
   // 의상 속성 정의 로드
   useEffect(() => {
     if (open) {
-      fetchAttributes();
+      fetchAttributes(100);
     }
   }, [open, fetchAttributes]);
 
