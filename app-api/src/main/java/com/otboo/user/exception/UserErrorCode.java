@@ -21,10 +21,14 @@ public enum UserErrorCode implements ErrorCode {
     INVALID_EMAIL_FORMAT("USER_001", HttpStatus.BAD_REQUEST, "이메일 형식이 올바르지 않습니다."),
     INVALID_PASSWORD_FORMAT("USER_002", HttpStatus.BAD_REQUEST, "비밀번호 형식이 올바르지 않습니다."),
     INVALID_TEMPERATURE_SENSITIVITY("USER_003", HttpStatus.BAD_REQUEST, "온도 민감도는 1~5 사이여야 합니다."),
+    INVALID_SORT_BY("USER_004", HttpStatus.BAD_REQUEST, "지원하지 않는 정렬 기준입니다."),
 
     // 403
     LOCKED("USER_100", HttpStatus.FORBIDDEN, "잠긴 계정입니다."),
     NOT_OWNER("USER_101", HttpStatus.FORBIDDEN, "본인의 정보만 수정할 수 있습니다."),
+    // 관리자가 자기 자신을 잠그거나 권한을 내리면 관리자 화면에 아무도 못 들어간다.
+    CANNOT_CHANGE_OWN_ROLE("USER_102", HttpStatus.FORBIDDEN, "본인의 권한은 변경할 수 없습니다."),
+    CANNOT_LOCK_SELF("USER_103", HttpStatus.FORBIDDEN, "본인의 계정은 잠글 수 없습니다."),
 
     // 404
     NOT_FOUND("USER_200", HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),

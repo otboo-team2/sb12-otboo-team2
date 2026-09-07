@@ -13,6 +13,13 @@ spring:
       max-request-size: 12MB
 
 otboo:
+  # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
+  # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
+  storage:
+    base-dir: ${STORAGE_BASE_DIR:./data/images}
+    base-url: /images
+    max-size: 5242880          # 5MB. 프론트(ProfileImageUpload)와 같은 값
+
   jwt:
     # 운영에서는 반드시 환경변수로 덮어쓴다. 최소 32바이트.
     secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}
