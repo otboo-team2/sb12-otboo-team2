@@ -145,11 +145,15 @@ CREATE TABLE clothes
     name       VARCHAR(500)                                   NOT NULL,
     type       VARCHAR(32)                                    NOT NULL,
     image_url  VARCHAR(500)                                   NULL,
+    -- 즐겨찾기. NULL 을 허용하면 "안 눌렀다"와 "모른다"가 섞이고 필터 조건도 복잡해진다.
+    favorite   BOOLEAN                                        NOT NULL DEFAULT FALSE,
     created_at DATETIME(6)                                    NOT NULL,
     updated_at DATETIME(6)                                    NOT NULL,
     PRIMARY KEY (id),
     KEY idx_clothes_owner_type (owner_id, type, id),
     KEY idx_clothes_owner (owner_id, id),
+    -- 즐겨찾기만 모아 보기
+    KEY idx_clothes_owner_favorite (owner_id, favorite, id),
     -- 사용자가 지워졌다고 의상이 자동으로 사라지면 안 된다
     CONSTRAINT fk_clothes_owner FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE RESTRICT,
     CONSTRAINT ck_clothes_type CHECK (type IN
@@ -205,6 +209,30 @@ CREATE TABLE clothes_attribute_values
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '의상에 적용된 속성값';
 
 
+-- ── 사용자 선호 (AI 추천 입력) ───────────────────────────────────────────────
+
+CREATE TABLE user_preferences
+(
+    id                  CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    user_id             CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    -- 선호 스타일 등. 의상 속성 정의의 선택값을 그대로 재사용한다.
+    selectable_value_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_at          DATETIME(6)                                    NOT NULL,
+    updated_at          DATETIME(6)                                    NOT NULL,
+    PRIMARY KEY (id),
+    -- 같은 선호를 두 번 담지 못하게 한다
+    UNIQUE KEY uk_user_preferences (user_id, selectable_value_id),
+    KEY idx_user_preferences_value (selectable_value_id),
+    CONSTRAINT fk_user_preferences_user FOREIGN KEY (user_id)
+        REFERENCES users (id) ON DELETE CASCADE,
+    -- 선호로 쓰이는 선택값은 지울 수 없다
+    CONSTRAINT fk_user_preferences_value FOREIGN KEY (selectable_value_id)
+        REFERENCES clothes_attribute_selectable_values (id) ON DELETE RESTRICT
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT '사용자 선호 정보';
+-- 임베딩은 별도 벡터 저장소에 둔다. 여기에 사본을 만들지 않는다.
+-- 벡터 저장소의 문서 id 는 clothes.id / users.id 를 그대로 쓰면 연결 컬럼이 필요 없다.
+
+
 -- ── AI 추천 (류승지 + 박교현) ────────────────────────────────────────────────
 
 CREATE TABLE recommendation_histories
@@ -232,15 +260,26 @@ CREATE TABLE recommendation_items
     id                CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     recommendation_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     category          VARCHAR(30)                                    NOT NULL,
-    llm_keyword       VARCHAR(255)                                   NOT NULL,
-    image_source      VARCHAR(500)                                   NOT NULL,
+    -- 보유 의상을 추천한 경우. 옷장 밖 아이템을 제안한 경우에는 NULL 이다.
+    clothes_id        CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NULL,
+    -- 옷장 밖 아이템을 제안한 경우. 보유 의상 추천이면 NULL 이다.
+    llm_keyword       VARCHAR(255)                                   NULL,
+    image_source      VARCHAR(500)                                   NULL,
     order_index       INT                                            NOT NULL,
     created_at        DATETIME(6)                                    NOT NULL,
     updated_at        DATETIME(6)                                    NOT NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_recommendation_item_order (recommendation_id, order_index),
+    -- "다른 옷 추천" 시 이미 추천한 의상을 제외하려면 이 방향으로 훑는다
+    KEY idx_recommendation_item_clothes (clothes_id),
     CONSTRAINT fk_recommendation_item_history FOREIGN KEY (recommendation_id)
-        REFERENCES recommendation_histories (id) ON DELETE CASCADE
+        REFERENCES recommendation_histories (id) ON DELETE CASCADE,
+    -- 추천 이력이 남았는데 그 옷을 지우면 무엇을 추천했는지 알 수 없게 된다
+    CONSTRAINT fk_recommendation_item_clothes FOREIGN KEY (clothes_id)
+        REFERENCES clothes (id) ON DELETE RESTRICT,
+    -- 보유 의상이거나 외부 아이템이거나 둘 중 하나여야 한다. 둘 다 비면 빈 추천이다.
+    CONSTRAINT ck_recommendation_item_target
+        CHECK (clothes_id IS NOT NULL OR llm_keyword IS NOT NULL)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT 'AI 추천 항목';
 
 
