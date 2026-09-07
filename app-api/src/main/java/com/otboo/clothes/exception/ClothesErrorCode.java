@@ -17,6 +17,8 @@ public enum ClothesErrorCode implements ErrorCode {
             "CLOTHES_003", HttpStatus.BAD_REQUEST, "선택값은 중복될 수 없습니다."),
     EMPTY_ATTRIBUTE_UPDATE(
             "CLOTHES_004", HttpStatus.BAD_REQUEST, "변경할 속성 값이 없습니다."),
+    INVALID_ATTRIBUTE_DEFINITION_SORT(
+            "CLOTHES_005", HttpStatus.BAD_REQUEST, "지원하지 않는 의상 속성 정렬 기준입니다."),
 
     ATTRIBUTE_DEFINITION_NOT_FOUND(
             "CLOTHES_201", HttpStatus.NOT_FOUND, "의상 속성 정의를 찾을 수 없습니다."),
