@@ -22,6 +22,44 @@ otboo:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
 
+  # ─────────── 외부 API 호출 정책 ───────────
+  # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
+  # 블록이 없어도 defaults 로 동작하므로 앱이 안 뜨는 일은 없다.
+  #
+  # max-retries 기본값이 0 인 것은 의도적이다.
+  #   재시도가 안전한 API 만(= 재호출해도 과금·중복 생성이 없는 API) 담당자가 올린다.
+  external-api:
+    defaults:
+      connect-timeout: 3s
+      read-timeout: 10s
+      max-retries: 0
+      backoff: 1s
+
+    apis:
+      # 류승지 — Pinterest 코디 추천
+      pinterest:
+        read-timeout: 10s
+        max-retries: 0        # TODO(담당자): 조회만 하는 API 라면 2 로 올려도 안전합니다
+
+      # 안소현 — 링크 추출 / 파싱
+      link-extract:
+        read-timeout: 10s
+        max-retries: 0        # TODO(담당자): 상대 사이트 차단 정책 확인 후 결정
+
+      # 박교현 — 추천 LLM
+      llm:
+        read-timeout: 60s     # TODO(담당자): 실제 응답 시간 재보고 조정
+        max-retries: 0        # TODO(담당자): 재시도 = 토큰 재과금입니다. 올릴 거면 1 까지만
+        daily-limit: 500      # TODO(담당자): 남은 크레딧 기준으로 확정. 없으면 무제한
+
+      # 양정우 — 가상 피팅 AI
+      # ⚠️ 생성에 10초~2분이 걸려 HTTP 요청 하나로 기다릴 수 없습니다.
+      #    virtual_try_on_jobs 에 job 을 만들고 비동기로 처리하는 구조가 필요하고,
+      #    이 설정은 그 안에서 일어나는 '호출 한 번'에만 적용됩니다.
+      virtual-try-on:
+        read-timeout: 120s
+        max-retries: 0        # 재시도 = 재과금 + 결과물 중복 생성. 올리지 마세요
+
 server:
   port: ${SERVER_PORT:8080}
 

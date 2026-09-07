@@ -33,7 +33,10 @@ public enum CommonErrorCode implements ErrorCode {
     // 5xx — 서버 · 외부 연동
     INTERNAL_ERROR("COMMON_900", HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
     EXTERNAL_API_ERROR("COMMON_901", HttpStatus.BAD_GATEWAY, "외부 서비스 호출에 실패했습니다."),
-    EXTERNAL_API_TIMEOUT("COMMON_902", HttpStatus.GATEWAY_TIMEOUT, "외부 서비스 응답이 지연되었습니다.");
+    EXTERNAL_API_TIMEOUT("COMMON_902", HttpStatus.GATEWAY_TIMEOUT, "외부 서비스 응답이 지연되었습니다."),
+    // 상대가 막은 게 아니라 우리가 건 하루 호출 상한이다. 크레딧 방어용.
+    EXTERNAL_API_LIMIT_EXCEEDED("COMMON_903", HttpStatus.SERVICE_UNAVAILABLE,
+            "외부 서비스 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.");
 
     private final String code;
     private final HttpStatus status;
