@@ -37,3 +37,6 @@ logs/
 # 프로필 설정 파일은 값을 환경변수로만 참조하므로 커밋한다.
 # 실제 비밀값은 .env 와 배포 환경변수에만 둔다.
 **/src/main/resources/application-secret.yml
+
+# 업로드된 이미지(로컬 저장소)
+data/images/
