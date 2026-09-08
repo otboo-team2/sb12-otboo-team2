@@ -18,7 +18,7 @@ public class Notification extends BaseEntity {
     private User receiver;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actor_id", nullable = false)
+    @JoinColumn(name = "actor_id")
     private User actor;
 
     @Enumerated(EnumType.STRING)
