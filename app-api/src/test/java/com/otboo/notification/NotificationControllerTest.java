@@ -117,7 +117,7 @@ class NotificationControllerTest extends IntegrationTestSupport {
             mockMvc.perform(delete("/api/notifications/" + notification.getId())
                     .header("Authorization", "Bearer " + accessToken)
                     .with(csrf()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isForbidden());
 
             assertThat(notificationRepository.findById(notification.getId())).isPresent();
         }
@@ -128,5 +128,14 @@ class NotificationControllerTest extends IntegrationTestSupport {
             mockMvc.perform(delete("/api/notifications/" + UUID.randomUUID()).with(csrf()))
                 .andExpect(status().isUnauthorized());
         }
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 알림이면 404")
+    void notFound() throws Exception {
+        mockMvc.perform(delete("/api/notifications/" + UUID.randomUUID())
+                .header("Authorization", "Bearer " + accessToken)
+                .with(csrf()))
+            .andExpect(status().isNotFound());
     }
 }
