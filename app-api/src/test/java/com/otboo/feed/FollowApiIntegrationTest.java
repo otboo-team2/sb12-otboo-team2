@@ -196,6 +196,19 @@ class FollowApiIntegrationTest extends IntegrationTestSupport {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.exceptionName").value("FOLLOW_200"));
         }
+
+        @Test
+        @DisplayName("다른 요청이 먼저 지운 뒤에 와도 500 이 아니라 404")
+        void alreadyGone() throws Exception {
+            UUID followId = follow(me, other);
+            // 버튼을 빠르게 두 번 누른 상황. 엔티티를 읽고 delete(entity) 로 지우면
+            // Hibernate 가 ObjectOptimisticLockingFailureException 을 던져 500 이 나간다.
+            jdbc.update("DELETE FROM follows WHERE id = ?", followId.toString());
+
+            mockMvc.perform(authed(delete("/api/follows/" + followId), me))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.exceptionName").value("FOLLOW_200"));
+        }
     }
 
     @Nested

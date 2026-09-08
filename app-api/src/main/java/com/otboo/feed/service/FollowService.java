@@ -26,8 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 팔로우 · 언팔로우 · 목록 · 요약.
- *
+ * 팔로우 · 언팔로우 · 목록 · 요약
  * 좋아요와 같은 구조다. "조회해서 없으면 저장" 은 버튼을 두 번 빠르게 누르면 둘 다 통과.
  * 미리 확인은 <b>빠른 실패용</b>일 뿐이고 진짜 방어는 유니크 제약 위반을 잡는 쪽.
  */
@@ -81,17 +80,19 @@ public class FollowService {
      */
     @Transactional
     public void unfollow(AuthPrincipal me, UUID followId) {
-        Follow follow = followRepository.findById(followId)
-                .orElseThrow(() -> new BusinessException(FollowErrorCode.NOT_FOUND)
-                        .addDetail("followId", followId.toString()));
+        UUID ownerId = followRepository.findFollowerIdById(followId)
+                .orElseThrow(() -> notFound(followId));
 
-        // 지연 로딩이라 여기서 follower 프록시의 id 만 읽음. 추가 쿼리 x
-        if (me.isNot(follow.getFollower().getId())) {
+        if (me.isNot(ownerId)) {
             throw new BusinessException(FollowErrorCode.NOT_FOLLOWER)
                     .addDetail("followId", followId.toString());
         }
 
-        followRepository.delete(follow);
+        // 좋아요 취소와 같은 규칙 — 지워진 행 수로 판단한다.
+        // 읽고 나서 지우는 사이에 다른 요청이 먼저 지우면 delete(entity) 는 500 으로 터진다.
+        if (followRepository.deleteByIdAndFollowerId(followId, me.userId()) == 0) {
+            throw notFound(followId);
+        }
     }
 
     /** 팔로잉 목록  */
@@ -159,6 +160,11 @@ public class FollowService {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.NOT_FOUND)
                         .addDetail("userId", userId.toString()));
+    }
+
+    private static BusinessException notFound(UUID followId) {
+        return new BusinessException(FollowErrorCode.NOT_FOUND)
+                .addDetail("followId", followId.toString());
     }
 
     private static BusinessException alreadyFollowing(UUID followeeId, Throwable cause) {

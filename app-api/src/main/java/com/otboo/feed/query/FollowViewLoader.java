@@ -22,14 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 팔로우 조회. 응답에 양쪽 사용자의 이름·프로필 이미지가 다 실려야 해서
  * {@code users}·{@code profiles} 를 <b>두 번씩</b> 조인.
- *
  * <p>엔티티로 풀면 {@code Follow → User → Profile} 을 양방향으로 타면서 N+1 이 두 배로 난다.
  * 댓글 목록과 같은 이유로 조회는 JDBC 로 직접 읽는다.
- *
  * <h2>정렬은 서버가 정한다</h2>
  * 스펙의 팔로잉·팔로워 목록에 {@code sortBy} 가 없음.
  * 최근 팔로우가 위로 오도록 {@code created_at DESC, id DESC} 로 고정.
- *
  * <p><b>인덱스 정렬 X, {@code idx_follows_follower} 가
  * {@code (follower_id, id)} 라 {@code created_at} 정렬에는 filesort 추가.
  * 한 사람의 팔로우 수는 많아야 수천 건이라 지금은 문제가 없지만, 느려지면
@@ -91,7 +88,6 @@ public class FollowViewLoader {
     /**
      * 팔로잉 목록
      * {@code nameLike} -> <b>상대방(followee) 이름에 추가
-     *
      * @return {@link CursorRequest#fetchSize()} 만큼(= limit + 1) 조회한 결과
      */
     @Transactional(readOnly = true)
@@ -107,7 +103,7 @@ public class FollowViewLoader {
 
     /**
      * 팔로워 목록
-     * {@code nameLike} -> <b>상대방(followee) 이름에 추가
+     * {@code nameLike} -> <b>상대방(follower) 이름에 추가
      */
     @Transactional(readOnly = true)
     public List<FollowRow> loadFollowersSlice(UUID followeeId, CursorRequest page,
@@ -132,10 +128,8 @@ public class FollowViewLoader {
 
     /**
      * 프로필 화면의 팔로우 요약.
-     *
      * <p>카운트 두 개와 나와의 관계 두 개를 <b>한 번의 왕복</b>으로 읽음.
      * 네 번 나눠 던지면 프로필 화면을 열 때마다 쿼리가 네 개씩 출력
-     *
      * @param targetUserId 조회 대상
      * @param meId         로그인한 사용자. 비로그인이면 {@code null} — 관계 필드 null
      */

@@ -68,7 +68,6 @@ public class FollowController {
 
     /**
      * 팔로잉 목록 — {@code followerId} 가 팔로우하는 사람들.
-     *
      * {@code cursor · idAfter · limit} 을 한꺼번에 받는다
      * ({@link CursorRequest}) 스펙에 {@code sortBy} 가 없어 정렬은 서버가
      * {@code createdAt DESC} 로 고정 셋팅.
