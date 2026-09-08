@@ -2,14 +2,18 @@ package com.otboo.clothes;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.otboo.clothes.dto.ClothesCreateRequest;
+import com.otboo.clothes.entity.Clothes;
 import com.otboo.clothes.entity.ClothesType;
+import com.otboo.clothes.repository.ClothesRepository;
 import com.otboo.common.security.AuthPrincipal;
+import com.otboo.common.storage.ImageStorage;
 import com.otboo.common.test.IntegrationTestSupport;
 import com.otboo.user.entity.Role;
 import com.otboo.user.entity.User;
@@ -27,7 +31,13 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import org.springframework.web.multipart.MultipartFile;
 
 @AutoConfigureMockMvc
 @Transactional
@@ -41,6 +51,12 @@ class ClothesControllerTest extends IntegrationTestSupport {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    ClothesRepository clothesRepository;
+
+    @MockitoBean
+    ImageStorage imageStorage;
 
     @BeforeEach
     void setUp() {
@@ -82,6 +98,39 @@ class ClothesControllerTest extends IntegrationTestSupport {
                         .with(csrf()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.exceptionName").value("CLOTHES_100"));
+    }
+
+    @Test
+    @DisplayName("의상 삭제 API는 본인 소유 의상을 삭제하고 204를 반환한다")
+    void deletesOwnedClothes() throws Exception {
+        User owner = saveUser();
+        Clothes clothes = clothesRepository.saveAndFlush(
+                Clothes.create(owner.getId(), "삭제할 티셔츠", ClothesType.TOP, null));
+
+        mockMvc.perform(delete("/api/clothes/{clothesId}", clothes.getId())
+                        .with(authentication(ownerAuthentication(owner.getId())))
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("의상 등록 API는 선택 이미지 파트를 저장하고 URL을 반환한다")
+    void createsClothesWithImage() throws Exception {
+        User owner = saveUser();
+        given(imageStorage.store(any(MultipartFile.class), eq("clothes")))
+                .willReturn("/images/clothes/shirt.jpg");
+        ClothesCreateRequest request = new ClothesCreateRequest(
+                owner.getId(), "이미지 티셔츠", ClothesType.TOP, List.of());
+
+        mockMvc.perform(multipart("/api/clothes")
+                        .file(requestPart(request))
+                        .file(new MockMultipartFile(
+                                "image", "shirt.jpg", MediaType.IMAGE_JPEG_VALUE,
+                                "image".getBytes(StandardCharsets.UTF_8)))
+                        .with(authentication(ownerAuthentication(owner.getId())))
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrl").value("/images/clothes/shirt.jpg"));
     }
 
     private MockMultipartFile requestPart(ClothesCreateRequest request) throws Exception {

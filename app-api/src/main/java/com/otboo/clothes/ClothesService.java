@@ -21,6 +21,7 @@ import com.otboo.common.pagination.CursorCodec;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.pagination.SortDirection;
+import com.otboo.common.storage.ImageStorage;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,21 +34,37 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClothesService {
+
+    private static final String IMAGE_DIRECTORY = "clothes";
 
     private final ClothesRepository clothesRepository;
     private final ClothesAttributeDefinitionRepository definitionRepository;
     private final ClothesAttributeSelectableValueRepository selectableValueRepository;
     private final ClothesAttributeValueRepository attributeValueRepository;
+    private final ImageStorage imageStorage;
 
     @Transactional
     public ClothesDto create(UUID authenticatedUserId, ClothesCreateRequest request) {
+        return create(authenticatedUserId, request, null);
+    }
+
+    @Transactional
+    public ClothesDto create(
+            UUID authenticatedUserId,
+            ClothesCreateRequest request,
+            MultipartFile image
+    ) {
         if (!authenticatedUserId.equals(request.ownerId())) {
             throw new BusinessException(ClothesErrorCode.NOT_OWNER);
         }
@@ -74,8 +91,16 @@ public class ClothesService {
                 definitions,
                 selectableValuesByDefinitionId));
 
-        Clothes saved = clothesRepository.saveAndFlush(clothes);
-        return toDto(saved, saved.getAttributes(), definitions, selectableValuesByDefinitionId);
+        String storedImageUrl = null;
+        try {
+            storedImageUrl = storeImage(image);
+            clothes.changeImageUrl(storedImageUrl);
+            Clothes saved = clothesRepository.saveAndFlush(clothes);
+            return toDto(saved, saved.getAttributes(), definitions, selectableValuesByDefinitionId);
+        } catch (RuntimeException exception) {
+            deleteImageQuietly(storedImageUrl);
+            throw exception;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -108,30 +133,90 @@ public class ClothesService {
             UUID clothesId,
             ClothesUpdateRequest request
     ) {
+        return update(authenticatedUserId, clothesId, request, null);
+    }
+
+    @Transactional
+    public ClothesDto update(
+            UUID authenticatedUserId,
+            UUID clothesId,
+            ClothesUpdateRequest request,
+            MultipartFile image
+    ) {
         Clothes clothes = clothesRepository.findById(clothesId)
                 .orElseThrow(() -> new BusinessException(ClothesErrorCode.CLOTHES_NOT_FOUND));
         if (!authenticatedUserId.equals(clothes.getOwnerId())) {
             throw new BusinessException(ClothesErrorCode.NOT_OWNER);
         }
-        if (!request.hasChanges()) {
+        if (!request.hasChanges() && image == null) {
             throw new BusinessException(ClothesErrorCode.EMPTY_CLOTHES_UPDATE);
         }
 
-        if (request.attributes() != null) {
-            Map<UUID, UUID> selectableValueIdsByDefinitionId =
-                    validateAndResolveAttributes(request.attributes());
-            clothes.replaceAttributes(selectableValueIdsByDefinitionId);
+        Map<UUID, UUID> selectableValueIdsByDefinitionId = request.attributes() == null
+                ? null
+                : validateAndResolveAttributes(request.attributes());
+        String previousImageUrl = clothes.getImageUrl();
+        String storedImageUrl = null;
+        try {
+            storedImageUrl = storeImage(image);
+            if (selectableValueIdsByDefinitionId != null) {
+                clothes.replaceAttributes(selectableValueIdsByDefinitionId);
+            }
+            if (request.name() != null) {
+                clothes.changeName(request.name());
+            }
+            if (request.type() != null) {
+                clothes.changeType(request.type());
+            }
+            if (image != null) {
+                clothes.changeImageUrl(storedImageUrl);
+            }
+
+            List<ClothesAttributeValue> attributes = clothes.getAttributes();
+            AttributeMetadata metadata = loadAttributeMetadata(attributes);
+            ClothesDto result = toDto(
+                    clothes, attributes, metadata.definitions(), metadata.selectableValues());
+            clothesRepository.flush();
+            if (image != null) {
+                deleteImageQuietly(previousImageUrl);
+            }
+            return result;
+        } catch (RuntimeException exception) {
+            deleteImageQuietly(storedImageUrl);
+            throw exception;
         }
-        if (request.name() != null) {
-            clothes.changeName(request.name());
-        }
-        if (request.type() != null) {
-            clothes.changeType(request.type());
+    }
+
+    @Transactional
+    public void delete(UUID authenticatedUserId, UUID clothesId) {
+        Clothes clothes = clothesRepository.findById(clothesId)
+                .orElseThrow(() -> new BusinessException(ClothesErrorCode.CLOTHES_NOT_FOUND));
+        if (!authenticatedUserId.equals(clothes.getOwnerId())) {
+            throw new BusinessException(ClothesErrorCode.NOT_OWNER);
         }
 
-        List<ClothesAttributeValue> attributes = clothes.getAttributes();
-        AttributeMetadata metadata = loadAttributeMetadata(attributes);
-        return toDto(clothes, attributes, metadata.definitions(), metadata.selectableValues());
+        try {
+            clothesRepository.delete(clothes);
+            clothesRepository.flush();
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(ClothesErrorCode.CLOTHES_IN_USE, exception);
+        }
+        deleteImageQuietly(clothes.getImageUrl());
+    }
+
+    private String storeImage(MultipartFile image) {
+        return image == null ? null : imageStorage.store(image, IMAGE_DIRECTORY);
+    }
+
+    private void deleteImageQuietly(String imageUrl) {
+        if (imageUrl == null) {
+            return;
+        }
+        try {
+            imageStorage.delete(imageUrl);
+        } catch (RuntimeException exception) {
+            log.warn("의상 이미지 삭제 실패 url={}", imageUrl, exception);
+        }
     }
 
     private CursorRequest normalizeListRequest(CursorRequest request) {
