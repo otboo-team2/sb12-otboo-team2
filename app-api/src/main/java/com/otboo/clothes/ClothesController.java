@@ -39,12 +39,14 @@ public class ClothesController {
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) UUID idAfter,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) ClothesType typeEqual
+            @RequestParam(required = false) ClothesType typeEqual,
+            @RequestParam(required = false) Boolean favorite
     ) {
         int requestedLimit = limit == null ? CursorRequest.DEFAULT_LIMIT : limit;
         return clothesService.findAll(
                 ownerId,
                 typeEqual,
+                favorite,
                 new CursorRequest(cursor, idAfter, requestedLimit, "id", SortDirection.DESCENDING));
     }
 
@@ -74,6 +76,24 @@ public class ClothesController {
             @LoginUser AuthPrincipal me
     ) {
         clothesService.delete(me.userId(), clothesId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{clothesId}/favorite")
+    public ResponseEntity<Void> addFavorite(
+            @PathVariable UUID clothesId,
+            @LoginUser AuthPrincipal me
+    ) {
+        clothesService.addFavorite(me.userId(), clothesId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{clothesId}/favorite")
+    public ResponseEntity<Void> removeFavorite(
+            @PathVariable UUID clothesId,
+            @LoginUser AuthPrincipal me
+    ) {
+        clothesService.removeFavorite(me.userId(), clothesId);
         return ResponseEntity.noContent().build();
     }
 }

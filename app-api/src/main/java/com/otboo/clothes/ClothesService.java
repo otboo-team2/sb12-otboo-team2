@@ -109,12 +109,24 @@ public class ClothesService {
             ClothesType typeEqual,
             CursorRequest request
     ) {
+        return findAll(ownerId, typeEqual, null, request);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorResponse<ClothesDto> findAll(
+            UUID ownerId,
+            ClothesType typeEqual,
+            Boolean favorite,
+            CursorRequest request
+    ) {
         CursorRequest normalizedRequest = normalizeListRequest(request);
         UUID cursorId = CursorCodec.asUuid(normalizedRequest.cursor());
-        long totalCount = clothesRepository.countByOwnerIdAndType(ownerId, typeEqual);
+        long totalCount = clothesRepository.countByOwnerIdAndTypeAndFavorite(
+                ownerId, typeEqual, favorite);
         List<Clothes> clothes = clothesRepository.findAfterIdDescending(
                 ownerId,
                 typeEqual,
+                favorite,
                 cursorId,
                 PageRequest.of(0, normalizedRequest.fetchSize()));
 
@@ -125,6 +137,20 @@ public class ClothesService {
                 totalCount,
                 ClothesDto::id,
                 ClothesDto::id);
+    }
+
+    @Transactional
+    public void addFavorite(UUID authenticatedUserId, UUID clothesId) {
+        Clothes clothes = findOwnedClothes(authenticatedUserId, clothesId);
+        clothes.changeFavorite(true);
+        clothesRepository.flush();
+    }
+
+    @Transactional
+    public void removeFavorite(UUID authenticatedUserId, UUID clothesId) {
+        Clothes clothes = findOwnedClothes(authenticatedUserId, clothesId);
+        clothes.changeFavorite(false);
+        clothesRepository.flush();
     }
 
     @Transactional
@@ -206,6 +232,15 @@ public class ClothesService {
 
     private String storeImage(MultipartFile image) {
         return image == null ? null : imageStorage.store(image, IMAGE_DIRECTORY);
+    }
+
+    private Clothes findOwnedClothes(UUID authenticatedUserId, UUID clothesId) {
+        Clothes clothes = clothesRepository.findById(clothesId)
+                .orElseThrow(() -> new BusinessException(ClothesErrorCode.CLOTHES_NOT_FOUND));
+        if (!authenticatedUserId.equals(clothes.getOwnerId())) {
+            throw new BusinessException(ClothesErrorCode.NOT_OWNER);
+        }
+        return clothes;
     }
 
     private void deleteImageQuietly(String imageUrl) {
@@ -398,6 +433,7 @@ public class ClothesService {
                 clothes.getName(),
                 clothes.getImageUrl(),
                 clothes.getType(),
+                clothes.isFavorite(),
                 attributeDtos);
     }
 }

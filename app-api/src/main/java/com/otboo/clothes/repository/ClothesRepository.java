@@ -19,12 +19,14 @@ public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
             from Clothes clothes
             where clothes.ownerId = :ownerId
               and (:typeEqual is null or clothes.type = :typeEqual)
+              and (:favorite is null or clothes.favorite = :favorite)
               and (:cursor is null or clothes.id < :cursor)
             order by clothes.id desc
             """)
     List<Clothes> findAfterIdDescending(
             @Param("ownerId") UUID ownerId,
             @Param("typeEqual") ClothesType typeEqual,
+            @Param("favorite") Boolean favorite,
             @Param("cursor") UUID cursor,
             Pageable pageable
     );
@@ -34,9 +36,11 @@ public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
             from Clothes clothes
             where clothes.ownerId = :ownerId
               and (:typeEqual is null or clothes.type = :typeEqual)
+              and (:favorite is null or clothes.favorite = :favorite)
             """)
-    long countByOwnerIdAndType(
+    long countByOwnerIdAndTypeAndFavorite(
             @Param("ownerId") UUID ownerId,
-            @Param("typeEqual") ClothesType typeEqual
+            @Param("typeEqual") ClothesType typeEqual,
+            @Param("favorite") Boolean favorite
     );
 }
