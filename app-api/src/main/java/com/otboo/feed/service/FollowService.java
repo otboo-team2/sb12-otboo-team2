@@ -125,7 +125,11 @@ public class FollowService {
     @Transactional(readOnly = true)
     public FollowSummaryDto findSummary(AuthPrincipal me, UUID userId) {
         // 존재하지 않는 사용자를 팔로워 0 명으로 보여주면 오타를 알아챌 수 없음.
-        findUser(userId);
+        // 존재만 확인하면 되므로 엔티티를 통째로 읽지 않는다.
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(UserErrorCode.NOT_FOUND)
+                    .addDetail("userId", userId.toString());
+        }
         return viewLoader.loadSummary(userId, me == null ? null : me.userId());
     }
 
