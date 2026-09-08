@@ -1,6 +1,7 @@
 package com.otboo.clothes.dto;
 
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
+import java.util.Collection;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,18 @@ public record ClothesAttributeDefDto(
                 definition.getSelectableValues().stream()
                         .map(value -> value.getValue())
                         .toList()
+        );
+    }
+
+    public static ClothesAttributeDefDto from(
+            ClothesAttributeDefinition definition,
+            Collection<String> selectableValues
+    ) {
+        return new ClothesAttributeDefDto(
+                definition.getId(),
+                definition.getCreatedAt(),
+                definition.getName(),
+                List.copyOf(selectableValues)
         );
     }
 }

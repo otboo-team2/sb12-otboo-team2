@@ -8,6 +8,10 @@ import com.otboo.clothes.entity.ClothesAttributeDefinition;
 import com.otboo.clothes.exception.ClothesErrorCode;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.common.exception.BusinessException;
+import com.otboo.common.exception.CommonErrorCode;
+import com.otboo.common.pagination.CursorRequest;
+import com.otboo.common.pagination.CursorResponse;
+import com.otboo.common.pagination.SortDirection;
 import com.otboo.common.test.IntegrationTestSupport;
 import com.otboo.user.entity.User;
 import com.otboo.user.repository.UserRepository;
@@ -167,5 +171,128 @@ class ClothesAttributeDefinitionServiceTest extends IntegrationTestSupport {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(ClothesErrorCode.ATTRIBUTE_DEFINITION_IN_USE));
+    }
+
+    @Test
+    @DisplayName("속성 정의 목록을 이름 오름차순 커서로 조회한다")
+    void listsDefinitionsByNameCursor() {
+        var color = definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Color", List.of("Black", "White")));
+        var material = definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Material", List.of("Cotton")));
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Size", List.of("M", "L")));
+
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> firstPage =
+                service.findAll(new CursorRequest(null, null, 2, "name", SortDirection.ASCENDING), null);
+
+        assertThat(firstPage.data()).extracting("name")
+                .containsExactly("Color", "Material");
+        assertThat(firstPage.data().get(0).selectableValues())
+                .containsExactly("Black", "White");
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(firstPage.nextCursor()).isEqualTo("Material");
+        assertThat(firstPage.nextIdAfter()).isEqualTo(material.getId());
+
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> secondPage =
+                service.findAll(new CursorRequest(
+                        firstPage.nextCursor(), firstPage.nextIdAfter(), 2,
+                        "name", SortDirection.ASCENDING), null);
+
+        assertThat(secondPage.data()).extracting("name").containsExactly("Size");
+        assertThat(secondPage.hasNext()).isFalse();
+        assertThat(secondPage.totalCount()).isEqualTo(3);
+        assertThat(color.getId()).isNotEqualTo(secondPage.data().get(0).id());
+    }
+
+    @Test
+    @DisplayName("속성 정의 목록은 이름 부분 검색 결과만 반환한다")
+    void searchesDefinitionsByName() {
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Color", List.of("Black")));
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Material", List.of("Cotton")));
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Size", List.of("M")));
+
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> response =
+                service.findAll(new CursorRequest(null, null, 20, "name", SortDirection.ASCENDING), "olo");
+
+        assertThat(response.data()).extracting("name").containsExactly("Color");
+        assertThat(response.totalCount()).isEqualTo(1);
+        assertThat(response.hasNext()).isFalse();
+    }
+
+    @Test
+    @DisplayName("속성 정의 목록을 이름 내림차순으로 조회한다")
+    void listsDefinitionsByNameDescending() {
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Color", List.of("Black")));
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Material", List.of("Cotton")));
+        definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Size", List.of("M")));
+
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> response =
+                service.findAll(new CursorRequest(null, null, 20, "name", SortDirection.DESCENDING), null);
+
+        assertThat(response.data()).extracting("name")
+                .containsExactly("Size", "Material", "Color");
+        assertThat(response.sortDirection()).isEqualTo(SortDirection.DESCENDING);
+    }
+
+    @Test
+    @DisplayName("생성일 커서로 페이지를 넘겨도 의상 속성 정의가 중복되지 않는다")
+    void listsDefinitionsByCreatedAtCursor() {
+        var color = definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Color", List.of("Black")));
+        var material = definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Material", List.of("Cotton")));
+        var size = definitionRepository.saveAndFlush(
+                ClothesAttributeDefinition.create("Size", List.of("M")));
+
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> firstPage =
+                service.findAll(new CursorRequest(null, null, 1,
+                        "createdAt", SortDirection.ASCENDING), null);
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> secondPage =
+                service.findAll(new CursorRequest(
+                        firstPage.nextCursor(), firstPage.nextIdAfter(), 1,
+                        "createdAt", SortDirection.ASCENDING), null);
+        CursorResponse<com.otboo.clothes.dto.ClothesAttributeDefDto> thirdPage =
+                service.findAll(new CursorRequest(
+                        secondPage.nextCursor(), secondPage.nextIdAfter(), 1,
+                        "createdAt", SortDirection.ASCENDING), null);
+
+        assertThat(firstPage.data()).hasSize(1);
+        assertThat(secondPage.data()).hasSize(1);
+        assertThat(thirdPage.data()).hasSize(1);
+        assertThat(List.of(
+                firstPage.data().get(0).id(),
+                secondPage.data().get(0).id(),
+                thirdPage.data().get(0).id()))
+                .containsExactlyInAnyOrder(color.getId(), material.getId(), size.getId());
+        assertThat(thirdPage.hasNext()).isFalse();
+        assertThat(thirdPage.sortBy()).isEqualTo("createdAt");
+    }
+
+    @Test
+    @DisplayName("허용하지 않은 속성 정의 정렬 기준은 거부한다")
+    void rejectsUnsupportedSortBy() {
+        assertThatThrownBy(() -> service.findAll(
+                new CursorRequest(null, null, 20, "id", SortDirection.ASCENDING), null))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ClothesErrorCode.INVALID_ATTRIBUTE_DEFINITION_SORT));
+    }
+
+    @Test
+    @DisplayName("생성일 정렬의 잘못된 커서는 공통 커서 오류로 거부한다")
+    void rejectsInvalidCreatedAtCursor() {
+        assertThatThrownBy(() -> service.findAll(
+                new CursorRequest("not-an-instant", UUID.randomUUID(), 20,
+                        "createdAt", SortDirection.ASCENDING), null))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(CommonErrorCode.INVALID_CURSOR));
     }
 }

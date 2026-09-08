@@ -328,7 +328,7 @@ export interface ClothesListParams extends CursorParams {
   ownerId: string;
 }
 
-export interface ClothesAttributeDefListParams extends SortParams{
+export interface ClothesAttributeDefListParams extends CursorParams, SortParams {
   sortBy: "createdAt" | "name";
   keywordLike?: string;
 }
