@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
-import {useEffect} from "react";
+import {useEffect, useMemo} from "react";
 
 // 날씨 상태를 한국어로 변환하는 함수
 function getSkyStatusText(skyStatus: SkyStatus): string {
@@ -51,12 +51,21 @@ function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
 }
 export default function WeatherForecast() {
   const { data: weathers, loading, selectedWeather, selectWeather } = useWeatherStore();
+  const dailyWeathers = useMemo(() => {
+    const byDate = new Map<string, WeatherDto>();
+    for (const weather of weathers ?? []) {
+      const date = new Date(weather.forecastAt);
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      if (!byDate.has(key)) byDate.set(key, weather);
+    }
+    return [...byDate.values()].slice(0, 6);
+  }, [weathers]);
 
   useEffect(() => {
-    if (weathers && weathers.length > 0) {
-      selectWeather(weathers[0]);
+    if (dailyWeathers.length > 0) {
+      selectWeather(dailyWeathers[0]);
     }
-  }, [weathers, selectWeather])
+  }, [dailyWeathers, selectWeather])
 
   if (loading || !weathers || weathers.length === 0) {
     return (
@@ -64,7 +73,7 @@ export default function WeatherForecast() {
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
         
         {/* Skeleton for 5 weather items */}
-        {Array.from({ length: 5 }).map((_, index) => (
+        {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="content-stretch flex flex-col gap-1.5 items-center justify-center relative shrink-0 w-[120px]">
             {/* Date skeleton */}
             <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
@@ -77,17 +86,15 @@ export default function WeatherForecast() {
       </div>
     );
   }
-  const getForecastDate = (index: number) => {
+  const getForecastDate = (forecastAt: string) => {
+    const target = new Date(forecastAt);
     const today = new Date();
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + index);
-
-    switch (index) {
-      case 0: return "오늘";
-      case 1: return "내일";
-      case 2: return "모레";
-      default: return `${targetDate.getMonth() + 1}월 ${targetDate.getDate()}일`;
-    }
+    const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const dayOffset = Math.round((startOfDay(target) - startOfDay(today)) / 86_400_000);
+    if (dayOffset === 0) return "오늘";
+    if (dayOffset === 1) return "내일";
+    if (dayOffset === 2) return "모레";
+    return `${target.getMonth() + 1}월 ${target.getDate()}일`;
   };
 
   const getSkyStatus = (weather?: WeatherDto) => {
@@ -102,9 +109,9 @@ export default function WeatherForecast() {
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
 
         {
-          weathers.map((weather, dayOffset) => {
+          dailyWeathers.map((weather) => {
             const { temperature } = weather;
-            const date = getForecastDate(dayOffset);
+            const date = getForecastDate(weather.forecastAt);
             const skyStatus = getSkyStatus(weather)
             const isSelected = selectedWeather?.id === weather.id;
 
