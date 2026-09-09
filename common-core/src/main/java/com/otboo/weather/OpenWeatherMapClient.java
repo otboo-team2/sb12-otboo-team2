@@ -26,7 +26,7 @@ public class OpenWeatherMapClient {
         this.apiKey = apiKey;
     }
 
-    OpenWeatherMapClient(ExternalApiClient api, String apiKey) {
+    public OpenWeatherMapClient(ExternalApiClient api, String apiKey) {
         this.api = api;
         this.apiKey = apiKey;
     }
