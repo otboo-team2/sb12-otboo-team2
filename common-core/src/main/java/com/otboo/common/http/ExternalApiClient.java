@@ -2,6 +2,7 @@ package com.otboo.common.http;
 
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
+import com.otboo.common.logging.LogKeys;
 import java.time.Duration;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -82,8 +83,8 @@ public class ExternalApiClient {
     public <T> T exchange(String endpoint, Function<RestClient, T> call) {
         String logged = UriMasker.mask(endpoint);
         if (!counter.tryAcquire(settings.dailyLimit())) {
-            log.warn("external_call api={} endpoint={} result=limit_exceeded limit={}",
-                    apiName, logged, settings.dailyLimit());
+            log.warn("{} api={} endpoint={} result=limit_exceeded limit={}",
+                    LogKeys.EVENT_EXTERNAL_CALL, apiName, logged, settings.dailyLimit());
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_LIMIT_EXCEEDED)
                     .addDetail("api", apiName)
                     .addDetail("dailyLimit", String.valueOf(settings.dailyLimit()));
@@ -100,14 +101,14 @@ public class ExternalApiClient {
             long startedAt = System.nanoTime();
             try {
                 T result = call.apply(restClient);
-                log.info("external_call api={} endpoint={} result=ok attempt={} elapsed_ms={}",
-                        apiName, endpoint, attempt, elapsedMs(startedAt));
+                log.info("{} api={} endpoint={} result=ok attempt={} elapsed_ms={}",
+                        LogKeys.EVENT_EXTERNAL_CALL, apiName, endpoint, attempt, elapsedMs(startedAt));
                 return result;
             } catch (RestClientResponseException | ResourceAccessException e) {
                 last = e;
-                log.warn("external_call api={} endpoint={} result=fail attempt={} elapsed_ms={} "
+                log.warn("{} api={} endpoint={} result=fail attempt={} elapsed_ms={} "
                                 + "status={} retryable={}",
-                        apiName, endpoint, attempt, elapsedMs(startedAt), statusOf(e), retryable(e));
+                        LogKeys.EVENT_EXTERNAL_CALL, apiName, endpoint, attempt, elapsedMs(startedAt), statusOf(e), retryable(e));
                 if (!retryable(e) || attempt == maxAttempts) {
                     break;
                 }
