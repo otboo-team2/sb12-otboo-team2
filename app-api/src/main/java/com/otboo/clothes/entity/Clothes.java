@@ -98,6 +98,10 @@ public class Clothes extends BaseEntity {
         this.type = type;
     }
 
+    public void changeImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     /** 기존 속성 행은 가능한 한 재사용하고, 추가·변경·삭제만 반영한다. */
     public void replaceAttributes(Map<UUID, UUID> selectableValueIdsByDefinitionId) {
         Set<UUID> definitionIds = selectableValueIdsByDefinitionId.keySet();

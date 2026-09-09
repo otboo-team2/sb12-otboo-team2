@@ -11,6 +11,7 @@ public record ClothesDto(
         String name,
         String imageUrl,
         ClothesType type,
+        boolean favorite,
         List<ClothesAttributeWithDefDto> attributes
 ) {
 
@@ -25,6 +26,7 @@ public record ClothesDto(
                 clothes.getName(),
                 clothes.getImageUrl(),
                 clothes.getType(),
+                clothes.isFavorite(),
                 List.of()
         );
     }
