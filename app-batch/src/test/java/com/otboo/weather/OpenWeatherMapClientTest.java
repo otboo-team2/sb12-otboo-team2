@@ -47,7 +47,21 @@ class OpenWeatherMapClientTest {
 
         assertThatThrownBy(() -> client.fetch(37.5, 127))
                 .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR);
+                .extracting("errorCode").isEqualTo(CommonErrorCode.INTERNAL_ERROR);
+    }
+
+    @Test
+    void keepsValidEntriesWhenOneEntryIsInvalid() {
+        var api = mock(ExternalApiClient.class);
+        var valid = validEntry();
+        var invalid = new OpenWeatherMapForecast.Entry(
+                null, null, null, null, null, null, null, null);
+        when(api.get(anyString(), eq(OpenWeatherMapForecast.class)))
+                .thenReturn(new OpenWeatherMapForecast("200", List.of(valid, invalid)));
+
+        var result = new OpenWeatherMapClient(api, "test-key").fetch(37.5, 127);
+
+        assertThat(result.list()).containsExactly(valid);
     }
 
     private OpenWeatherMapForecast.Entry validEntry() {
