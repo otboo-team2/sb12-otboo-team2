@@ -19,6 +19,20 @@ management:
       exposure:
         include: health, info, metrics, prometheus
 
+otboo:
+  jwt:
+    secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}
+    access-expiry: 30m
+    refresh-expiry: 14d
+    cookie-secure: ${JWT_COOKIE_SECURE:false}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+
+sse:
+  timeout: 1800000            # 30분
+  event-queue-capacity: 1000  # 재연결 replay용 버퍼, 서버 전체 공용
+  heartbeat-interval: 20000   # 20초
+
 ---
 spring:
   config:

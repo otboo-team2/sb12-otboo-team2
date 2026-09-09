@@ -18,6 +18,10 @@ spring:
       enabled: false
 
 otboo:
+  weather:
+    api-key: ${WEATHER_API_KEY:}
+    kakao-api-key: ${KAKAO_REST_API_KEY:}
+
   # ─────────── 외부 API 호출 정책 ───────────
   # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
   external-api:
@@ -33,4 +37,8 @@ otboo:
       weather:
         read-timeout: 5s      # TODO(담당자): 실제 응답 시간 재보고 조정
         max-retries: 0        # TODO(담당자): 조회만 하므로 재시도해도 안전하면 2 로
+        backoff: 2s
+      kakao:
+        read-timeout: 5s
+        max-retries: 0
         backoff: 2s

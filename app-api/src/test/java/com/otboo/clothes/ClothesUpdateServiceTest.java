@@ -2,6 +2,10 @@ package com.otboo.clothes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.otboo.clothes.dto.ClothesAttributeDto;
 import com.otboo.clothes.dto.ClothesCreateRequest;
@@ -14,6 +18,7 @@ import com.otboo.clothes.exception.ClothesErrorCode;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesRepository;
 import com.otboo.common.exception.BusinessException;
+import com.otboo.common.storage.ImageStorage;
 import com.otboo.common.test.IntegrationTestSupport;
 import com.otboo.user.entity.User;
 import com.otboo.user.repository.UserRepository;
@@ -23,7 +28,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Transactional
 class ClothesUpdateServiceTest extends IntegrationTestSupport {
@@ -39,6 +47,9 @@ class ClothesUpdateServiceTest extends IntegrationTestSupport {
 
     @Autowired
     UserRepository userRepository;
+
+    @MockitoBean
+    ImageStorage imageStorage;
 
     @BeforeEach
     void setUp() {
@@ -82,6 +93,26 @@ class ClothesUpdateServiceTest extends IntegrationTestSupport {
 
         assertThat(result.name()).isEqualTo("티셔츠");
         assertThat(result.type()).isEqualTo(ClothesType.OUTER);
+    }
+
+    @Test
+    @DisplayName("이미지만 보내면 새 이미지로 교체하고 이전 이미지를 삭제한다")
+    void replacesImageOnly() {
+        User owner = saveUser();
+        Clothes clothes = clothesRepository.saveAndFlush(
+                Clothes.create(owner.getId(), "티셔츠", ClothesType.TOP,
+                        "/images/clothes/old.jpg"));
+        MockMultipartFile image = new MockMultipartFile(
+                "image", "new.jpg", "image/jpeg", "image".getBytes());
+        given(imageStorage.store(any(MultipartFile.class), eq("clothes")))
+                .willReturn("/images/clothes/new.jpg");
+
+        ClothesDto result = clothesService.update(
+                owner.getId(), clothes.getId(), new ClothesUpdateRequest(null, null, null), image);
+
+        assertThat(result.imageUrl()).isEqualTo("/images/clothes/new.jpg");
+        verify(imageStorage).store(image, "clothes");
+        verify(imageStorage).delete("/images/clothes/old.jpg");
     }
 
     @Test

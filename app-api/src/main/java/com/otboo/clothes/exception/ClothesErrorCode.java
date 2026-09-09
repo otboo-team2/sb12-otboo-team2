@@ -37,7 +37,9 @@ public enum ClothesErrorCode implements ErrorCode {
     ATTRIBUTE_DEFINITION_IN_USE(
             "CLOTHES_302", HttpStatus.CONFLICT, "사용 중인 의상 속성 정의는 삭제할 수 없습니다."),
     SELECTABLE_VALUE_IN_USE(
-            "CLOTHES_303", HttpStatus.CONFLICT, "사용 중인 의상 속성 선택값은 제거할 수 없습니다.");
+            "CLOTHES_303", HttpStatus.CONFLICT, "사용 중인 의상 속성 선택값은 제거할 수 없습니다."),
+    CLOTHES_IN_USE(
+            "CLOTHES_304", HttpStatus.CONFLICT, "다른 기능에서 사용 중인 의상은 삭제할 수 없습니다.");
 
     private final String code;
     private final HttpStatus status;
