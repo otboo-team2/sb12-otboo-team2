@@ -37,6 +37,8 @@ class NotificationRepositoryTest extends IntegrationTestSupport {
     void setUp() {
         notificationRepository.deleteAll();
         userRepository.deleteAll();
+        entityManager.flush();
+
         user1 = userRepository.save(User.createOAuth("user111@otboo.io", "사용자1"));
         user2 = userRepository.save(User.createOAuth("user222@otboo.io", "사용자2"));
         actor = userRepository.save(User.createOAuth("actor@otboo.io", "보낸사람"));

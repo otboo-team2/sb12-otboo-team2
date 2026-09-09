@@ -125,5 +125,22 @@ class NotificationServiceTest extends IntegrationTestSupport {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(NotificationErrorCode.NOT_FOUND);
         }
+
+        @Test
+        @DisplayName("다른 사람 알림이면 ACCESS_DENIED 예외를 던진다")
+        void accessDenied() {
+            notificationService.create(
+                user1, actor,
+                NotificationType.FOLLOW_CREATED, UUID.randomUUID().toString(),
+                "제목", "내용",
+                NotificationLevel.INFO
+            );
+            UUID notificationId = notificationRepository.findAll().getFirst().getId();
+
+            assertThatThrownBy(() -> notificationService.delete(notificationId, user2.getId()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(NotificationErrorCode.ACCESS_DENIED);
+        }
     }
 }

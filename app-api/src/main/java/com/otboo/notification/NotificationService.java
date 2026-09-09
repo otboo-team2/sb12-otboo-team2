@@ -4,6 +4,7 @@ import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorCodec;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
+import com.otboo.common.pagination.SortDirection;
 import com.otboo.notification.dto.NotificationDto;
 import com.otboo.notification.entity.Notification;
 import com.otboo.notification.entity.NotificationLevel;
@@ -54,14 +55,28 @@ public class NotificationService {
         List<NotificationDto> notificationDtos = notifications.stream().map(NotificationDto::from).toList();
         long totalCount = notificationRepository.countByReceiverId(receiverId);
 
-        return CursorResponse.of(notificationDtos, request, totalCount, NotificationDto::createdAt, NotificationDto::id);
+        CursorResponse<NotificationDto> response =
+            CursorResponse.of(notificationDtos, request, totalCount, NotificationDto::createdAt, NotificationDto::id);
+
+        return new CursorResponse<>(
+            response.data(),
+            response.nextCursor(),
+            response.nextIdAfter(),
+            response.hasNext(),
+            response.totalCount(),
+            "createdAt",
+            SortDirection.DESCENDING
+        );
     }
 
     @Transactional
     public void delete(UUID notificationId, UUID receiverId) {
         int deleted = notificationRepository.deleteByIdAndReceiverId(notificationId, receiverId);
         if (deleted == 0) {
-            throw new BusinessException(NotificationErrorCode.NOT_FOUND);
+            if (!notificationRepository.existsById(notificationId)) {
+                throw new BusinessException(NotificationErrorCode.NOT_FOUND);
+            }
+            throw new BusinessException(NotificationErrorCode.ACCESS_DENIED);
         }
     }
 }
