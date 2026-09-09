@@ -1,0 +1,54 @@
+name: CI (frontend)
+
+# 프론트가 바뀔 때만 돈다. 백엔드 CI 와 반대 조건이라 둘이 겹쳐 돌지 않는다.
+on:
+  pull_request:
+    branches: [ main, dev, int ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ci-frontend.yml'
+  push:
+    branches: [ main, dev, int ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/ci-frontend.yml'
+
+concurrency:
+  group: ci-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  build:
+    name: 타입체크 · 빌드
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # corepack 은 Node 에 기본 포함이라 외부 액션을 하나 덜 쓴다
+      - name: pnpm 활성화
+        run: corepack enable
+        working-directory: .
+
+      - name: Node 22 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: 의존성 설치
+        # lockfile 과 어긋나면 실패시킨다. 각자 다른 버전으로 도는 것을 막는다.
+        run: pnpm install --frozen-lockfile
+
+      - name: 타입체크 · 빌드
+        # tsc -b && vite build. 타입 오류와 빌드 오류를 모두 잡는다.
+        run: pnpm build
