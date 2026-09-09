@@ -23,7 +23,10 @@ public record ClothesCreateRequest(
         @NotNull(message = "의상 타입을 선택해주세요.")
         ClothesType type,
 
-        List<@NotNull(message = "속성 항목은 비어 있을 수 없습니다.") @Valid ClothesAttributeDto> attributes
+        List<@NotNull(message = "속성 항목은 비어 있을 수 없습니다.") @Valid ClothesAttributeDto> attributes,
+
+        @Size(max = 2048, message = "원격 이미지 주소는 2048자 이하여야 합니다.")
+        String sourceImageUrl
 ) {
 
     public ClothesCreateRequest {
@@ -31,5 +34,17 @@ public record ClothesCreateRequest(
         attributes = attributes == null
                 ? List.of()
                 : Collections.unmodifiableList(new ArrayList<>(attributes));
+        sourceImageUrl = sourceImageUrl == null || sourceImageUrl.isBlank()
+                ? null
+                : sourceImageUrl.trim();
+    }
+
+    public ClothesCreateRequest(
+            UUID ownerId,
+            String name,
+            ClothesType type,
+            List<ClothesAttributeDto> attributes
+    ) {
+        this(ownerId, name, type, attributes, null);
     }
 }
