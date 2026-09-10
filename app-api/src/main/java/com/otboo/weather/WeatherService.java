@@ -11,6 +11,9 @@ import com.otboo.weather.dto.WindSpeedDto;
 import com.otboo.weather.repository.WeatherRegionRepository;
 import com.otboo.weather.repository.WeatherRepository;
 import com.otboo.weather.entity.WeatherRegion;
+import com.otboo.weather.entity.Weather;
+import java.math.BigDecimal;
+import java.util.Comparator;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -79,17 +82,48 @@ public class WeatherService {
     }
 
     private WeatherDto toDto(com.otboo.weather.entity.Weather weather, WeatherApiLocation location) {
+        BigDecimal temperatureCompared = weather.getTemperatureComparedToDayBefore();
+        BigDecimal humidityCompared = weather.getHumidityComparedToDayBefore();
+        Weather previous = null;
+        if (temperatureCompared == null || humidityCompared == null) {
+            previous = findPreviousWeather(weather);
+        }
+        if (previous != null) {
+            if (temperatureCompared == null) {
+                temperatureCompared = weather.getTemperatureCurrent()
+                        .subtract(previous.getTemperatureCurrent());
+            }
+            if (humidityCompared == null) {
+                humidityCompared = weather.getHumidityCurrent()
+                        .subtract(previous.getHumidityCurrent());
+            }
+        }
         return new WeatherDto(weather.getId(), weather.getForecastedAt(), weather.getForecastAt(), location,
                 weather.getSkyStatus(),
                 new PrecipitationDto(weather.getPrecipitationType(),
                         weather.getPrecipitationAmount().doubleValue(),
                         weather.getPrecipitationProbability().doubleValue()),
                 new HumidityDto(weather.getHumidityCurrent().doubleValue(),
-                        value(weather.getHumidityComparedToDayBefore())),
+                        value(humidityCompared)),
                 new TemperatureDto(weather.getTemperatureCurrent().doubleValue(),
-                        value(weather.getTemperatureComparedToDayBefore()),
+                        value(temperatureCompared),
                         weather.getTemperatureMin().doubleValue(), weather.getTemperatureMax().doubleValue()),
                 new WindSpeedDto(weather.getWindSpeed().doubleValue(), weather.getWindSpeedAsWord()));
+    }
+
+    private Weather findPreviousWeather(Weather weather) {
+        var target = weather.getForecastAt().minus(24, ChronoUnit.HOURS);
+        var exact = weatherRepository.findTopByGridXAndGridYAndForecastAtOrderByForecastedAtDesc(
+                weather.getGridX(), weather.getGridY(), target);
+        if (exact.isPresent()) {
+            return exact.get();
+        }
+        return weatherRepository.findLatestByGridAndForecastAtRange(
+                        weather.getGridX(), weather.getGridY(),
+                        target.minus(6, ChronoUnit.HOURS), target.plus(6, ChronoUnit.HOURS)).stream()
+                .min(Comparator.comparingLong(candidate -> Math.abs(
+                        candidate.getForecastAt().toEpochMilli() - target.toEpochMilli())))
+                .orElse(null);
     }
 
     private static Double value(java.math.BigDecimal value) {
