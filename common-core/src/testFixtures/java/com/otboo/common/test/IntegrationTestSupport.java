@@ -2,6 +2,9 @@ package com.otboo.common.test;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -42,8 +45,27 @@ public abstract class IntegrationTestSupport {
                     "--default-time-zone=+00:00"
             );
 
+    /**
+     * 알림 발행이 Redis pub/sub 을 탄다(app-api → app-realtime). 그 경로를 지나는 테스트가
+     * 로컬에서는 docker compose 의 redis 에 붙어 통과하고 CI 에서는 붙을 데가 없어 깨졌다.
+     * MySQL 과 같은 방식으로 테스트가 직접 띄운다.
+     *
+     * <p>{@code @ServiceConnection} 은 MySQLContainer 처럼 종류를 아는 컨테이너에만 붙는다.
+     * GenericContainer 는 무엇인지 알 수 없으므로 접속 정보를 직접 넣어준다.
+     */
+    static final GenericContainer<?> REDIS =
+            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+                    .withExposedPorts(6379);
+
     static {
         // 클래스마다 재기동하지 않도록 한 번만 띄운다. JVM 종료 시 Ryuk 이 정리한다.
         MYSQL.start();
+        REDIS.start();
+    }
+
+    @DynamicPropertySource
+    static void redisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
     }
 }
