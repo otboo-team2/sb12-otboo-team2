@@ -23,6 +23,18 @@ public enum ClothesErrorCode implements ErrorCode {
             "CLOTHES_006", HttpStatus.BAD_REQUEST, "같은 속성 정의는 한 의상에 중복할 수 없습니다."),
     EMPTY_CLOTHES_UPDATE(
             "CLOTHES_007", HttpStatus.BAD_REQUEST, "변경할 의상 정보가 없습니다."),
+    INVALID_PRODUCT_URL(
+            "CLOTHES_008", HttpStatus.BAD_REQUEST, "상품 URL이 올바르지 않습니다."),
+    UNSAFE_PRODUCT_URL(
+            "CLOTHES_009", HttpStatus.BAD_REQUEST, "접근할 수 없는 상품 URL입니다."),
+    PRODUCT_DATA_NOT_FOUND(
+            "CLOTHES_010", HttpStatus.BAD_REQUEST, "상품 정보를 찾을 수 없습니다."),
+    INVALID_REMOTE_IMAGE(
+            "CLOTHES_011", HttpStatus.BAD_REQUEST, "상품 이미지가 올바르지 않습니다."),
+    IMAGE_SOURCE_CONFLICT(
+            "CLOTHES_012", HttpStatus.BAD_REQUEST, "이미지 파일과 원격 이미지를 함께 사용할 수 없습니다."),
+    REMOTE_RESOURCE_TOO_LARGE(
+            "CLOTHES_013", HttpStatus.PAYLOAD_TOO_LARGE, "외부 상품 데이터 크기가 허용 범위를 초과했습니다."),
 
     NOT_OWNER(
             "CLOTHES_100", HttpStatus.FORBIDDEN, "본인의 의상만 등록하거나 수정할 수 있습니다."),
