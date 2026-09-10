@@ -14,8 +14,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 class OpenWeatherMapWeatherServiceTest {
+
+    @Test
+    void fetchAndSaveUsesIndependentTransaction() throws NoSuchMethodException {
+        var transaction = OpenWeatherMapWeatherService.class
+                .getMethod("fetchAndSave", double.class, double.class, int.class, int.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transaction.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
 
     @Test
     void convertsAndSavesForecastAndConvertsProbabilityToPercent() {
@@ -37,17 +48,19 @@ class OpenWeatherMapWeatherServiceTest {
     }
 
     @Test
-    void skipsForecastAlreadyStored() {
+    void updatesForecastAlreadyStored() {
         var repository = mock(WeatherRepository.class);
+        var existing = mock(Weather.class);
         when(repository.findByGridXAndGridYAndForecastedAtAndForecastAt(
-                anyInt(), anyInt(), any(), any())).thenReturn(Optional.of(mock(Weather.class)));
+                anyInt(), anyInt(), any(), any())).thenReturn(Optional.of(existing));
+        when(repository.save(existing)).thenReturn(existing);
 
         var service = new OpenWeatherMapWeatherService(mock(OpenWeatherMapClient.class), repository);
         var result = service.saveForecast(60, 127, Instant.now(),
                 new OpenWeatherMapForecast("200", List.of(entry(0))));
 
-        assertThat(result).isEmpty();
-        verify(repository, never()).save(any());
+        assertThat(result).containsExactly(existing);
+        verify(repository).save(existing);
     }
 
     @Test
@@ -63,6 +76,25 @@ class OpenWeatherMapWeatherServiceTest {
 
         assertThat(result.getFirst().getWindSpeed()).isEqualByComparingTo("4.00");
         assertThat(result.getFirst().getWindSpeedAsWord()).isEqualTo(WindStrength.MODERATE);
+    }
+
+    @Test
+    void savesOnlyForecastsWithinNext120Hours() {
+        var repository = mock(WeatherRepository.class);
+        when(repository.findByGridXAndGridYAndForecastedAtAndForecastAt(
+                anyInt(), anyInt(), any(), any())).thenReturn(Optional.empty());
+        when(repository.save(any(Weather.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var now = Instant.now();
+        var result = new OpenWeatherMapWeatherService(mock(OpenWeatherMapClient.class), repository)
+                .saveForecast(60, 127, now,
+                        new OpenWeatherMapForecast("200", List.of(
+                                entryAt(now.minusSeconds(1), 0),
+                                entryAt(now.plusSeconds(119 * 3600L), 0),
+                                entryAt(now.plusSeconds(121 * 3600L), 0))));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().getForecastAt()).isAfter(now);
     }
 
     @Test
@@ -97,8 +129,16 @@ class OpenWeatherMapWeatherServiceTest {
     }
 
     private OpenWeatherMapForecast.Entry entry(double probability, String windSpeed) {
+        return entryAt(Instant.now().plusSeconds(3600), probability, windSpeed);
+    }
+
+    private OpenWeatherMapForecast.Entry entryAt(Instant forecastAt, double probability) {
+        return entryAt(forecastAt, probability, "3.12");
+    }
+
+    private OpenWeatherMapForecast.Entry entryAt(Instant forecastAt, double probability, String windSpeed) {
         return new OpenWeatherMapForecast.Entry(
-                1788822000L,
+                forecastAt.getEpochSecond(),
                 new OpenWeatherMapForecast.Main(
                         new BigDecimal("23.10"), new BigDecimal("22.00"),
                         new BigDecimal("24.00"), new BigDecimal("60.00")),

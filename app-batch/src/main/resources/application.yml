@@ -13,11 +13,15 @@ spring:
     # 배치는 웹 서버를 띄우지 않는다. 단독 실행 후 종료되는 컨테이너.
     web-application-type: none
   batch:
+    jdbc:
+      initialize-schema: always
     job:
       # 기동만으로 전체 잡이 도는 것을 막는다. 실행할 잡을 지정해서 돌린다.
       enabled: false
 
 otboo:
+  jwt:
+    secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}
   weather:
     api-key: ${WEATHER_API_KEY:}
     kakao-api-key: ${KAKAO_REST_API_KEY:}

@@ -5,11 +5,13 @@ import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.http.ExternalApiClient;
 import com.otboo.common.http.ExternalApiClientFactory;
 import com.otboo.weather.exception.WeatherErrorCode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class OpenWeatherMapClient {
 
     private final ExternalApiClient api;
@@ -24,7 +26,7 @@ public class OpenWeatherMapClient {
         this.apiKey = apiKey;
     }
 
-    OpenWeatherMapClient(ExternalApiClient api, String apiKey) {
+    public OpenWeatherMapClient(ExternalApiClient api, String apiKey) {
         this.api = api;
         this.apiKey = apiKey;
     }
@@ -35,7 +37,7 @@ public class OpenWeatherMapClient {
             throw new BusinessException(WeatherErrorCode.INVALID_COORDINATE);
         }
         if (apiKey == null || apiKey.isBlank()) {
-            throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR);
         }
 
         OpenWeatherMapForecast forecast = api.get(
@@ -43,11 +45,20 @@ public class OpenWeatherMapClient {
                         .formatted(latitude, longitude, apiKey),
                 OpenWeatherMapForecast.class);
         if (forecast == null || !"200".equals(forecast.cod())
-                || forecast.list() == null || forecast.list().isEmpty()
-                || forecast.list().stream().anyMatch(OpenWeatherMapClient::invalid)) {
+                || forecast.list() == null || forecast.list().isEmpty()) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
-        return forecast;
+        var validEntries = forecast.list().stream()
+                .filter(entry -> !invalid(entry))
+                .toList();
+        int invalidCount = forecast.list().size() - validEntries.size();
+        if (invalidCount > 0) {
+            log.warn("weather_forecast_invalid_entries count={}", invalidCount);
+        }
+        if (validEntries.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
+        }
+        return invalidCount == 0 ? forecast : new OpenWeatherMapForecast(forecast.cod(), validEntries);
     }
 
     private static boolean invalid(OpenWeatherMapForecast.Entry entry) {
