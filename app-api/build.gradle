@@ -3,4 +3,13 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // 피드 검색. Spring Data 의 Repository/@Document 는 쓰지 않고 ElasticsearchClient 만 쓴다.
+    // 검색 조건(커서·정렬·필터)이 스펙에 고정돼 있어 Repository 추상화가 오히려 방해가 된다.
+    // starter 를 쓰는 이유는 spring.elasticsearch.* 로 클라이언트가 자동 구성되기 때문이다.
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+
+    // 검색 통합 테스트는 실제 ES 컨테이너에 붙는다. nori 가 없는 공식 이미지로는
+    // 한국어 분석 결과가 달라져 테스트가 운영을 대변하지 못한다(otboo-elasticsearch 이미지 사용).
+    testImplementation 'org.testcontainers:elasticsearch'
 }
