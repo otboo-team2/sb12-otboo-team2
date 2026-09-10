@@ -15,6 +15,16 @@ spring:
 otboo:
   weather:
     kakao-api-key: ${KAKAO_REST_API_KEY:}
+  clothes:
+    extraction:
+      gemini-api-key: ${GEMINI_API_KEY:}
+      gemini-model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+      max-redirects: 3
+      max-html-bytes: 2097152
+      max-image-bytes: 10485760
+      max-total-image-bytes: 26214400
+      max-detail-images: 4
+      max-page-text-chars: 15000
   # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
   # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
   storage:
@@ -54,6 +64,12 @@ otboo:
       link-extract:
         read-timeout: 10s
         max-retries: 0        # TODO(담당자): 상대 사이트 차단 정책 확인 후 결정
+
+      # 안소현 — 의상 Gemini 자동입력
+      clothes-gemini:
+        read-timeout: 60s
+        max-retries: 0
+        daily-limit: ${CLOTHES_GEMINI_DAILY_LIMIT:50}
 
       # 박교현 — 추천 LLM
       llm:
