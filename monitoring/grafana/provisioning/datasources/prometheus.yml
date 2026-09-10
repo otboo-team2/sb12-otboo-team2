@@ -1,0 +1,14 @@
+# Grafana 가 뜰 때 데이터소스를 자동으로 등록한다.
+# 이게 없으면 팀원마다 UI 에서 직접 추가해야 하고, 각자 다르게 설정한다.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # 대시보드 JSON 이 이 uid 로 데이터소스를 찾는다. 바꾸면 대시보드가 비어 보인다.
+    uid: otboo-prometheus
+    access: proxy
+    # 같은 compose 네트워크 안이라 서비스 이름으로 붙는다.
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
