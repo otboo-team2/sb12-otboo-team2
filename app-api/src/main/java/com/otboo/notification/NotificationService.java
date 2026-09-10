@@ -5,6 +5,8 @@ import com.otboo.common.pagination.CursorCodec;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.pagination.SortDirection;
+import com.otboo.notification.broadcast.EventBroadcaster;
+import com.otboo.notification.broadcast.NotificationBroadcastMessage;
 import com.otboo.notification.dto.NotificationDto;
 import com.otboo.notification.entity.Notification;
 import com.otboo.notification.entity.NotificationLevel;
@@ -13,6 +15,7 @@ import com.otboo.notification.exception.NotificationErrorCode;
 import com.otboo.notification.repository.NotificationRepository;
 import com.otboo.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,12 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class NotificationService {
 
+    private static final String NOTIFICATION_CHANNEL = "notification-broadcast";
+
     private final NotificationRepository notificationRepository;
+    private final EventBroadcaster eventBroadcaster;
 
     @Transactional
     public void create(
@@ -41,6 +48,9 @@ public class NotificationService {
             title, content,
             level);
         notificationRepository.save(notification);
+        // log.info("[NOTIFICATION] save() 완료, id={}", notification.getId());
+        eventBroadcaster.broadcast(NOTIFICATION_CHANNEL, NotificationBroadcastMessage.from(notification));
+        // log.info("[NOTIFICATION] broadcast() 완료");
     }
 
     public CursorResponse<NotificationDto> getNotifications(UUID receiverId, CursorRequest request) {

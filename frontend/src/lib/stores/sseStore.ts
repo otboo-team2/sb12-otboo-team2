@@ -54,17 +54,16 @@ export const useSseStore = create<SseState>((set, get) => ({
     }
   },
 
-  disconnect: () => {
-    const { eventSource, isConnected, subscriptions } = get();
-    if (eventSource && isConnected) {
-      // 모든 구독 해제
-      subscriptions.forEach((callback, topic) => {
-        eventSource.removeEventListener(topic, callback);
-      });
-      eventSource.close();
-      set({ eventSource: null, isConnected: false });
-    }
-  },
+    disconnect: () => {
+        const { eventSource, isConnected, subscriptions } = get();
+        if (eventSource && isConnected) {
+            subscriptions.forEach((callback, topic) => {
+                eventSource.removeEventListener(topic, callback);
+            });
+            eventSource.close();
+        }
+        set({ eventSource: null, isConnected: false, subscriptions: new Map() });
+    },
 
   subscribe: (topic, callback) => {
     const { eventSource, isConnected, subscriptions } = get();
