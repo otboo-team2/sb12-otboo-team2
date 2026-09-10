@@ -1,5 +1,7 @@
 package com.otboo.weather;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.http.ExternalApiClient;
@@ -7,29 +9,19 @@ import com.otboo.common.http.ExternalApiClientFactory;
 import com.otboo.weather.exception.WeatherErrorCode;
 import java.util.List;
 import java.util.stream.Stream;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class KakaoRegionClient {
-
     private final ExternalApiClient api;
     private final String apiKey;
 
-    @Autowired
-    public KakaoRegionClient(
-            ExternalApiClientFactory factory,
-            @Value("${otboo.weather.kakao-api-key:}") String apiKey
-    ) {
+    public KakaoRegionClient(ExternalApiClientFactory factory,
+            @Value("${otboo.weather.kakao-api-key:}") String apiKey) {
         this.api = factory.create("kakao", builder -> builder
                 .baseUrl("https://dapi.kakao.com")
                 .defaultHeader("Authorization", "KakaoAK " + apiKey));
-        this.apiKey = apiKey;
-    }
-
-    KakaoRegionClient(ExternalApiClient api, String apiKey) {
-        this.api = api;
         this.apiKey = apiKey;
     }
 
@@ -41,30 +33,30 @@ public class KakaoRegionClient {
         if (apiKey == null || apiKey.isBlank()) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
-
-        // 카카오 Local API는 WGS84 경도를 x, 위도를 y로 받는다
-        KakaoRegionResponse response = api.get(
+        var response = api.get(
                 "/v2/local/geo/coord2regioncode.json?x=%s&y=%s&input_coord=WGS84"
-                        .formatted(longitude, latitude),
-                KakaoRegionResponse.class);
+                        .formatted(longitude, latitude), KakaoRegionResponse.class);
         if (response == null || response.documents() == null) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
-
         return response.documents().stream()
-                // H는 카카오가 정의한 행정구역 문서 유형
-                .filter(document -> document != null && "H".equals(document.regionType()))
-                .findFirst()
-                .map(this::names)
+                .filter(d -> d != null && "H".equals(d.regionType()))
+                .findFirst().map(d -> Stream.of(d.region1DepthName(), d.region2DepthName(),
+                        d.region3DepthName(), d.region4DepthName())
+                        .filter(n -> n != null && !n.isBlank()).distinct().toList())
                 .filter(names -> !names.isEmpty())
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR));
     }
 
-    private List<String> names(KakaoRegionResponse.Document document) {
-        return Stream.of(document.region1DepthName(), document.region2DepthName(),
-                        document.region3DepthName(), document.region4DepthName())
-                .filter(name -> name != null && !name.isBlank())
-                .distinct()
-                .toList();
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record KakaoRegionResponse(List<Document> documents) {
+        @JsonIgnoreProperties(ignoreUnknown = true)
+        private record Document(
+                @JsonProperty("region_type") String regionType,
+                @JsonProperty("region_1depth_name") String region1DepthName,
+                @JsonProperty("region_2depth_name") String region2DepthName,
+                @JsonProperty("region_3depth_name") String region3DepthName,
+                @JsonProperty("region_4depth_name") String region4DepthName) {
+        }
     }
 }

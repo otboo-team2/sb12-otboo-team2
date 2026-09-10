@@ -11,13 +11,18 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 @Service
 public class OpenWeatherMapWeatherService {
 
     private static final BigDecimal PERCENT = BigDecimal.valueOf(100);
+    private static final int FORECAST_HOURS = 120;
 
     private final OpenWeatherMapClient client;
     private final WeatherRepository repository;
@@ -27,7 +32,7 @@ public class OpenWeatherMapWeatherService {
         this.repository = repository;
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<Weather> fetchAndSave(
             double latitude, double longitude, int gridX, int gridY) {
         var calculated = WeatherGridConverter.toGrid(latitude, longitude);
@@ -45,17 +50,31 @@ public class OpenWeatherMapWeatherService {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
 
+        Instant now = Instant.now();
+        Instant until = now.plus(FORECAST_HOURS, ChronoUnit.HOURS);
+        Map<Instant, OpenWeatherMapForecast.Entry> entries = forecast.list().stream()
+                .collect(Collectors.toMap(OpenWeatherMapForecast.Entry::forecastAt, Function.identity(), (a, b) -> b));
         return forecast.list().stream()
-                .map(entry -> toWeather(gridX, gridY, forecastedAt, entry))
-                .filter(weather -> repository.findByGridXAndGridYAndForecastedAtAndForecastAt(
-                        weather.getGridX(), weather.getGridY(),
-                        weather.getForecastedAt(), weather.getForecastAt()).isEmpty())
-                .map(repository::save)
+                .map(entry -> toWeather(gridX, gridY, forecastedAt, entry, entries.get(entry.forecastAt().minus(24, ChronoUnit.HOURS))))
+                .filter(weather -> !weather.getForecastAt().isBefore(now)
+                        && weather.getForecastAt().isBefore(until))
+                .map(this::upsert)
                 .toList();
     }
 
+    private Weather upsert(Weather incoming) {
+        return repository.findByGridXAndGridYAndForecastedAtAndForecastAt(
+                        incoming.getGridX(), incoming.getGridY(),
+                        incoming.getForecastedAt(), incoming.getForecastAt())
+                .map(existing -> {
+                    existing.updateFrom(incoming);
+                    return repository.save(existing);
+                })
+                .orElseGet(() -> repository.save(incoming));
+    }
+
     private Weather toWeather(int gridX, int gridY, Instant forecastedAt,
-            OpenWeatherMapForecast.Entry entry) {
+            OpenWeatherMapForecast.Entry entry, OpenWeatherMapForecast.Entry previousDay) {
         int conditionCode = entry.weather().getFirst().id();
         BigDecimal precipitationAmount = entry.rain() != null
                 ? entry.rain().threeHours()
@@ -82,6 +101,10 @@ public class OpenWeatherMapWeatherService {
                 .windSpeed(windSpeed)
                 .windSpeedAsWord(OpenWeatherMapWeatherMapper.toWindStrength(
                         windSpeed.doubleValue()))
+                .humidityComparedToDayBefore(previousDay == null ? null
+                        : scale(entry.main().humidity().subtract(previousDay.main().humidity())))
+                .temperatureComparedToDayBefore(previousDay == null ? null
+                        : scale(entry.main().temp().subtract(previousDay.main().temp())))
                 .build();
     }
 

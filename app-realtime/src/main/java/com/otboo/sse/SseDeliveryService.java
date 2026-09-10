@@ -31,6 +31,7 @@ public class SseDeliveryService {
         emitter.onError(e -> sseEmitterRepository.remove(receiverId, emitter));
 
         sseEmitterRepository.save(receiverId, emitter);
+        // log.info("[SSE-CONNECT] emitter 저장 완료, receiverId={}", receiverId);
 
         if (lastEventId != null) {
             sendMissedMessage(receiverId, emitter, lastEventId);
@@ -42,11 +43,15 @@ public class SseDeliveryService {
     }
 
     public void deliver(NotificationBroadcastMessage data) {
+        // log.info("[SSE-DELIVER] deliver 호출됨, receiverId={}", data.receiverId());
         SseMessage message = sseMessageRepository.save(SseMessage.of(data));
         SseEmitter emitter = sseEmitterRepository.findByUserId(data.receiverId());
 
         if (emitter != null) {
+            // log.info("[SSE-DELIVER] emitter 찾음, 전송 시도");
             sendTo(emitter, message);
+        } else {
+            // log.warn("[SSE-DELIVER] emitter 없음! receiverId={}", data.receiverId());
         }
     }
 

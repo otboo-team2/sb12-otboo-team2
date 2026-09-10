@@ -2,4 +2,5 @@
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-batch'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'jakarta.servlet:jakarta.servlet-api'
 }

@@ -13,6 +13,8 @@ spring:
       max-request-size: 12MB
 
 otboo:
+  weather:
+    kakao-api-key: ${KAKAO_REST_API_KEY:}
   # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
   # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
   storage:
@@ -78,6 +80,18 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    tags:
+      # 지표마다 붙는 라벨. 나중에 앱이 여러 개가 되면 이걸로 구분한다.
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        # 이게 없으면 http_server_requests_seconds_bucket 이 안 나가고,
+        # 그러면 Grafana 에서 p95 를 계산할 수 없다(평균만 볼 수 있다).
+        http.server.requests: true
+      slo:
+        # 이 경계로 버킷이 생긴다. "300ms 안에 몇 %가 끝났나"를 바로 볼 수 있다.
+        http.server.requests: 100ms, 300ms, 1s, 3s
 
 ---
 # prod 에서는 관측 엔드포인트만 남기고 나머지를 닫는다

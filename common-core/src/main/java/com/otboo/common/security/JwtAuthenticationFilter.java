@@ -1,5 +1,6 @@
 package com.otboo.common.security;
 
+import com.otboo.common.logging.LogKeys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,6 +37,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .flatMap(jwtProvider::parse)
                 .ifPresent(this::authenticate);
         chain.doFilter(request, response);
+        // MDC 정리는 RequestLoggingFilter 가 한다. 여기서 지우면 그 필터가 접근 로그를
+        // 남기는 시점(더 바깥이라 나중에 실행된다)에는 이미 값이 사라져 user=null 이 된다.
     }
 
     private java.util.Optional<String> resolveToken(HttpServletRequest request) {
@@ -51,5 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 List.of(new SimpleGrantedAuthority(principal.role().authority()))
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
+        // 이 요청이 남기는 모든 로그 줄에 userId 가 붙는다. 서비스가 따로 넘기지 않아도 된다.
+        MDC.put(LogKeys.USER_ID, principal.userId().toString());
     }
 }

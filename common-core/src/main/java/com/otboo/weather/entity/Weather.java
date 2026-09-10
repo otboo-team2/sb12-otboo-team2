@@ -133,6 +133,21 @@ public class Weather extends BaseEntity {
         this.temperatureComparedToDayBefore = temperatureComparedToDayBefore;
     }
 
+    public void updateFrom(Weather source) {
+        this.skyStatus = source.skyStatus;
+        this.precipitationType = source.precipitationType;
+        this.precipitationAmount = source.precipitationAmount;
+        this.precipitationProbability = source.precipitationProbability;
+        this.humidityCurrent = source.humidityCurrent;
+        this.temperatureCurrent = source.temperatureCurrent;
+        this.temperatureMin = source.temperatureMin;
+        this.temperatureMax = source.temperatureMax;
+        this.windSpeed = source.windSpeed;
+        this.windSpeedAsWord = source.windSpeedAsWord;
+        this.humidityComparedToDayBefore = source.humidityComparedToDayBefore;
+        this.temperatureComparedToDayBefore = source.temperatureComparedToDayBefore;
+    }
+
     private static void validateNumber(BigDecimal value, String field, String min, String max) {
 
         if (value == null || value.stripTrailingZeros().scale() > 2
