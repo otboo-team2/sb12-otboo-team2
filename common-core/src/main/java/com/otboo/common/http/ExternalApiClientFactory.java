@@ -51,18 +51,27 @@ public class ExternalApiClientFactory {
     }
 
     public ExternalApiClient create(String apiName, String baseUrl) {
-        return create(apiName, builder -> builder.baseUrl(baseUrl));
+        return create(apiName, HttpClient.Redirect.NORMAL, builder -> builder.baseUrl(baseUrl));
     }
 
     /** 기본 헤더 등을 직접 붙여야 할 때 쓴다. 타임아웃은 설정에서 이미 적용된 상태로 넘어온다. */
     public ExternalApiClient create(String apiName, Consumer<RestClient.Builder> customizer) {
+        return create(apiName, HttpClient.Redirect.NORMAL, customizer);
+    }
+
+    /** 리다이렉트 정책을 호출별로 선택할 때 쓴다. */
+    public ExternalApiClient create(
+            String apiName,
+            HttpClient.Redirect redirect,
+            Consumer<RestClient.Builder> customizer
+    ) {
         ApiSettings settings = properties.forApi(apiName);
 
         // JDK HttpClient 는 연결 타임아웃을, Spring 의 팩토리가 읽기 타임아웃을 담당한다.
         // 둘 다 걸어야 한다. 읽기 타임아웃만 걸면 연결 단계에서 무한 대기가 남는다.
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(settings.connectTimeout())
-                .followRedirects(HttpClient.Redirect.NORMAL)
+                .followRedirects(redirect)
                 .build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(settings.readTimeout());

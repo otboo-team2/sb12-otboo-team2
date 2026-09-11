@@ -16,10 +16,15 @@ import com.otboo.notification.repository.NotificationRepository;
 import com.otboo.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +39,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final EventBroadcaster eventBroadcaster;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void create(
@@ -49,8 +55,16 @@ public class NotificationService {
             level);
         notificationRepository.save(notification);
         // log.info("[NOTIFICATION] save() 완료, id={}", notification.getId());
-        eventBroadcaster.broadcast(NOTIFICATION_CHANNEL, NotificationBroadcastMessage.from(notification));
-        // log.info("[NOTIFICATION] broadcast() 완료");
+
+        eventPublisher.publishEvent(NotificationBroadcastMessage.from(notification));
+    }
+
+    @Async
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onNotificationCreated(NotificationBroadcastMessage message) {
+        eventBroadcaster.broadcast(NOTIFICATION_CHANNEL, message);
+        // log.info("[NOTIFICATION] broadcast() 완료, id={}", message.id());
     }
 
     public CursorResponse<NotificationDto> getNotifications(UUID receiverId, CursorRequest request) {

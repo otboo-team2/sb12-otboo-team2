@@ -12,4 +12,6 @@ dependencies {
     // 검색 통합 테스트는 실제 ES 컨테이너에 붙는다. nori 가 없는 공식 이미지로는
     // 한국어 분석 결과가 달라져 테스트가 운영을 대변하지 못한다(otboo-elasticsearch 이미지 사용).
     testImplementation 'org.testcontainers:elasticsearch'
+    implementation 'org.jsoup:jsoup:1.23.2'
+    implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.0'
 }
