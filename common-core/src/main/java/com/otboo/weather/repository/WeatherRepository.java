@@ -25,6 +25,9 @@ public interface WeatherRepository extends JpaRepository<Weather, UUID> {
     Optional<Weather> findByGridXAndGridYAndForecastedAtAndForecastAt(
             int gridX, int gridY, Instant forecastedAt, Instant forecastAt);
 
+    Optional<Weather> findTopByGridXAndGridYAndForecastAtOrderByForecastedAtDesc(
+            int gridX, int gridY, Instant forecastAt);
+
     List<Weather> findByGridXAndGridYAndForecastedAtOrderByForecastAtAsc(
             int gridX, int gridY, Instant forecastedAt);
 
