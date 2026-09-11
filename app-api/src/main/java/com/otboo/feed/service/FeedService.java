@@ -75,9 +75,15 @@ public class FeedService {
 
     @Transactional
     public void delete(AuthPrincipal me, UUID feedId) {
-        Feed feed = findDeletableFeed(me, feedId);
+        findDeletableFeed(me, feedId);
+
+        // delete(entity) 는 연타 시 -> 두 번째 요청이 500.  한 문장으로 지우고 행 수로 판단한다.
         // feed_clothes · feed_likes · comments 는 DB 의 ON DELETE CASCADE 로 함께 지워진다.
-        feedRepository.delete(feed);
+        // (FeedConcurrencyIntegrationTest A6)
+        if (feedRepository.removeById(feedId) == 0) {
+            throw new BusinessException(FeedErrorCode.NOT_FOUND)
+                    .addDetail("feedId", feedId.toString());
+        }
     }
 
     /**
