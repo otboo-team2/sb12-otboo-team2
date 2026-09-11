@@ -8,6 +8,7 @@ import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.pagination.SortDirection;
 import com.otboo.common.test.IntegrationTestSupport;
+import com.otboo.notification.broadcast.EventBroadcaster;
 import com.otboo.notification.dto.NotificationDto;
 import com.otboo.notification.entity.NotificationLevel;
 import com.otboo.notification.entity.NotificationType;
@@ -21,12 +22,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 class NotificationServiceTest extends IntegrationTestSupport {
 
     @Autowired NotificationService notificationService;
     @Autowired NotificationRepository notificationRepository;
     @Autowired UserRepository userRepository;
+    @MockitoBean EventBroadcaster eventBroadcaster;
 
     private User user1;
     private User user2;
