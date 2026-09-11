@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -75,6 +76,25 @@ public class OpenWeatherMapWeatherService {
 
     private Weather toWeather(int gridX, int gridY, Instant forecastedAt,
             OpenWeatherMapForecast.Entry entry, OpenWeatherMapForecast.Entry previousDay) {
+        BigDecimal previousHumidity = previousDay == null ? null : previousDay.main().humidity();
+        BigDecimal previousTemperature = previousDay == null ? null : previousDay.main().temp();
+        if (previousDay == null) {
+            var previousForecastAt = entry.forecastAt().minus(24, ChronoUnit.HOURS);
+            var storedPrevious = repository
+                    .findTopByGridXAndGridYAndForecastAtOrderByForecastedAtDesc(
+                            gridX, gridY, previousForecastAt);
+            if (storedPrevious.isEmpty()) {
+                storedPrevious = repository.findLatestByGridAndForecastAtRange(
+                                gridX, gridY,
+                                previousForecastAt.minus(6, ChronoUnit.HOURS),
+                                previousForecastAt.plus(6, ChronoUnit.HOURS)).stream()
+                        .min(Comparator.comparingLong(weather -> Math.abs(
+                                weather.getForecastAt().toEpochMilli() - previousForecastAt.toEpochMilli())));
+            }
+            previousHumidity = storedPrevious.map(Weather::getHumidityCurrent).orElse(null);
+            previousTemperature = storedPrevious.map(Weather::getTemperatureCurrent).orElse(null);
+        }
+
         int conditionCode = entry.weather().getFirst().id();
         BigDecimal precipitationAmount = entry.rain() != null
                 ? entry.rain().threeHours()
@@ -101,10 +121,10 @@ public class OpenWeatherMapWeatherService {
                 .windSpeed(windSpeed)
                 .windSpeedAsWord(OpenWeatherMapWeatherMapper.toWindStrength(
                         windSpeed.doubleValue()))
-                .humidityComparedToDayBefore(previousDay == null ? null
-                        : scale(entry.main().humidity().subtract(previousDay.main().humidity())))
-                .temperatureComparedToDayBefore(previousDay == null ? null
-                        : scale(entry.main().temp().subtract(previousDay.main().temp())))
+                .humidityComparedToDayBefore(previousHumidity == null ? null
+                        : scale(entry.main().humidity().subtract(previousHumidity)))
+                .temperatureComparedToDayBefore(previousTemperature == null ? null
+                        : scale(entry.main().temp().subtract(previousTemperature)))
                 .build();
     }
 

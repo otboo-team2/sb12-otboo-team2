@@ -9,6 +9,9 @@ spring:
     time-zone: UTC
   flyway:
     enabled: false          # 마이그레이션은 app-api 만 수행한다
+  security:
+    filter:
+      dispatcher-types: REQUEST, ERROR
 
 server:
   port: ${SERVER_PORT:8081}

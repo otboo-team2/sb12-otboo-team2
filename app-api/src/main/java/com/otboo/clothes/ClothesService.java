@@ -250,7 +250,7 @@ public class ClothesService {
         try {
             imageStorage.delete(imageUrl);
         } catch (RuntimeException exception) {
-            log.warn("의상 이미지 삭제 실패 url={}", imageUrl, exception);
+            log.warn("image_delete_failed", exception);
         }
     }
 

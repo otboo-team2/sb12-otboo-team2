@@ -11,6 +11,7 @@ import com.otboo.weather.exception.WeatherErrorCode;
 import com.otboo.weather.repository.WeatherRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,43 @@ class OpenWeatherMapWeatherServiceTest {
         assertThat(result.getFirst().getPrecipitationAmount()).isEqualByComparingTo("1.20");
         assertThat(result.getFirst().getPrecipitationType()).isEqualTo(PrecipitationType.RAIN);
         verify(repository).save(any(Weather.class));
+    }
+
+    @Test
+    void usesStoredForecastWhenResponseDoesNotContainPreviousDay() {
+        var repository = mock(WeatherRepository.class);
+        var forecastAt = Instant.now().plus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.HOURS);
+        var previous = Weather.builder()
+                .gridX(60).gridY(127)
+                .forecastedAt(forecastAt.minus(24, ChronoUnit.HOURS))
+                .forecastAt(forecastAt.minus(24, ChronoUnit.HOURS))
+                .skyStatus(SkyStatus.CLEAR)
+                .precipitationType(PrecipitationType.NONE)
+                .precipitationAmount(BigDecimal.ZERO)
+                .precipitationProbability(BigDecimal.ZERO)
+                .humidityCurrent(new BigDecimal("50.00"))
+                .temperatureCurrent(new BigDecimal("20.00"))
+                .temperatureMin(new BigDecimal("20.00"))
+                .temperatureMax(new BigDecimal("20.00"))
+                .windSpeed(BigDecimal.ONE)
+                .windSpeedAsWord(WindStrength.WEAK)
+                .build();
+        when(repository.findTopByGridXAndGridYAndForecastAtOrderByForecastedAtDesc(
+                60, 127, forecastAt.minus(24, ChronoUnit.HOURS)))
+                .thenReturn(Optional.empty());
+        when(repository.findLatestByGridAndForecastAtRange(
+                eq(60), eq(127), any(), any())).thenReturn(List.of(previous));
+        when(repository.findByGridXAndGridYAndForecastedAtAndForecastAt(
+                anyInt(), anyInt(), any(), any())).thenReturn(Optional.empty());
+        when(repository.save(any(Weather.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = new OpenWeatherMapWeatherService(mock(OpenWeatherMapClient.class), repository)
+                .saveForecast(60, 127, Instant.now(),
+                        new OpenWeatherMapForecast("200", List.of(
+                                entryAt(forecastAt, 0))));
+
+        assertThat(result.getFirst().getTemperatureComparedToDayBefore()).isEqualByComparingTo("3.10");
+        assertThat(result.getFirst().getHumidityComparedToDayBefore()).isEqualByComparingTo("10.00");
     }
 
     @Test
