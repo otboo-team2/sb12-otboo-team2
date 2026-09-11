@@ -2,6 +2,8 @@ package com.otboo.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.otboo.clothes.extraction.ClothesExtractionConfig;
+import com.otboo.clothes.extraction.ClothesExtractionProperties;
 import com.otboo.common.config.ExternalApiConfig;
 import com.otboo.common.http.ApiSettings;
 import com.otboo.common.http.ExternalApiProperties;
@@ -23,7 +25,7 @@ class ExternalApiSettingsBindingTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
-            .withUserConfiguration(ExternalApiConfig.class);
+            .withUserConfiguration(ExternalApiConfig.class, ClothesExtractionConfig.class);
 
     private void withProperties(java.util.function.Consumer<ExternalApiProperties> assertion) {
         runner.run((AssertableApplicationContext context) ->
@@ -47,6 +49,27 @@ class ExternalApiSettingsBindingTest {
             assertThat(properties.forApi("llm").dailyLimit()).isEqualTo(500L);
             assertThat(properties.forApi("virtual-try-on").readTimeout())
                     .isEqualTo(Duration.ofSeconds(120));
+            assertThat(properties.forApi("clothes-gemini").readTimeout())
+                    .isEqualTo(Duration.ofSeconds(60));
+            assertThat(properties.forApi("clothes-gemini").maxRetries()).isZero();
+            assertThat(properties.forApi("clothes-gemini").dailyLimit()).isEqualTo(50L);
+        });
+    }
+
+    @Test
+    @DisplayName("의상 추출 제한과 Gemini 설정이 바인딩된다")
+    void 의상_추출_설정이_바인딩된다() {
+        runner.run(context -> {
+            ClothesExtractionProperties properties =
+                    context.getBean(ClothesExtractionProperties.class);
+
+            assertThat(properties.geminiModel()).isEqualTo("gemini-3.5-flash-lite");
+            assertThat(properties.maxRedirects()).isEqualTo(3);
+            assertThat(properties.maxHtmlBytes()).isEqualTo(2 * 1024 * 1024);
+            assertThat(properties.maxImageBytes()).isEqualTo(10 * 1024 * 1024);
+            assertThat(properties.maxTotalImageBytes()).isEqualTo(25 * 1024 * 1024);
+            assertThat(properties.maxDetailImages()).isEqualTo(4);
+            assertThat(properties.maxPageTextChars()).isEqualTo(15_000);
         });
     }
 
