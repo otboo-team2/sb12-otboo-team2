@@ -12,7 +12,29 @@ spring:
       max-file-size: 10MB                     # 의상·프로필 이미지 업로드
       max-request-size: 12MB
 
+  # ─────────── 소셜 로그인 ───────────
+  # 프론트가 /oauth2/authorization/google 로 보내고, 구글은 /login/oauth2/code/google 로
+  # 돌려준다. 둘 다 스프링 시큐리티 기본 경로라 따로 만들 것이 없다.
+  #
+  # ⚠️ client-id 가 빈 문자열이면 앱이 기동조차 안 된다. 그래서 자리표시자를 기본값으로 둔다.
+  #    실제 값은 .env 의 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET 으로 넣는다.
+  #    설정하지 않으면 버튼을 눌렀을 때 구글 쪽에서 거부하고 로그인 화면으로 돌아온다.
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:not-configured}
+            scope:
+              - email
+              - profile
+
 otboo:
+  oauth:
+    # 요청 파라미터로 받지 않는다. 받으면 ?redirect=https://공격자 로 오픈 리다이렉트가 된다.
+    success-redirect: ${OAUTH_SUCCESS_REDIRECT:/}
+    failure-redirect: ${OAUTH_FAILURE_REDIRECT:/auth/login}
   weather:
     kakao-api-key: ${KAKAO_REST_API_KEY:}
   clothes:

@@ -7,9 +7,13 @@ import com.otboo.common.security.JwtProvider;
 import com.otboo.user.dto.UserDto;
 import com.otboo.user.entity.RefreshToken;
 import com.otboo.user.entity.User;
+import com.otboo.user.entity.UserOAuthAccount;
 import com.otboo.user.repository.RefreshTokenRepository;
+import com.otboo.user.repository.UserOAuthAccountRepository;
 import com.otboo.user.repository.UserRepository;
+import com.otboo.user.entity.OAuthProvider;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserOAuthAccountRepository oauthAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
 
@@ -74,6 +79,20 @@ public class AuthService {
         refreshTokenRepository.deleteByTokenHash(jwtProvider.hashRefreshToken(rawRefreshToken));
     }
 
+    /**
+     * 이미 신원이 확인된 사용자에게 토큰을 발급한다. 소셜 로그인이 쓴다.
+     *
+     * <p>비밀번호 검사를 건너뛰므로 <b>호출 전에 신원 확인이 끝나 있어야 한다.</b>
+     * 지금은 {@code OtbooOAuth2UserService} 만 부른다 — 거기서 제공자 인증이 끝난다.
+     */
+    @Transactional
+    public SignInResult issueFor(User user) {
+        if (user.isLocked()) {
+            throw new BusinessException(AuthErrorCode.ACCOUNT_LOCKED);
+        }
+        return issue(user);
+    }
+
     private SignInResult issue(User user) {
         Instant now = Instant.now();
         String accessToken = jwtProvider.createAccessToken(user, now);
@@ -85,7 +104,14 @@ public class AuthService {
                 jwtProvider.refreshTokenExpiry(now)
         ));
 
-        return new SignInResult(new JwtDto(UserDto.from(user), accessToken), rawRefreshToken);
+        // 프론트가 "연결된 소셜"을 표시한다. 여기서 채우지 않으면 항상 빈 배열이 나간다.
+        List<String> linkedProviders = oauthAccountRepository.findAllByUserId(user.getId()).stream()
+                .map(UserOAuthAccount::getProvider)
+                .map(OAuthProvider::code)
+                .toList();
+
+        return new SignInResult(
+                new JwtDto(UserDto.from(user, linkedProviders), accessToken), rawRefreshToken);
     }
 
     public record SignInResult(JwtDto jwt, String refreshToken) {
