@@ -16,6 +16,7 @@ subprojects {
     // Boot 플러그인은 여기서 적용하지 않는다.
     // common-core 에 적용되면 bootJar 로 패키징되어 다른 모듈이 의존성으로 쓸 수 없다.
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'jacoco'
 
     group = 'com.otboo'
     version = '0.0.1-SNAPSHOT'
@@ -64,6 +65,34 @@ subprojects {
             showCauses = true
             showStackTraces = true
         }
+
+        // 테스트가 끝나면 커버리지 리포트를 자동으로 만든다.
+        // 따로 실행하게 두면 아무도 안 돌려서 숫자가 낡는다.
+        finalizedBy tasks.named('jacocoTestReport')
+    }
+
+    // 커버리지에서 빼는 것 — 테스트로 검증할 로직이 없는 클래스들.
+    // 넣어두면 분모만 키워서 "실제로 안 짠 테스트"가 얼마나 되는지 흐려진다.
+    def coverageExcludes = [
+            '**/Otboo*Application*',          // main 메서드뿐
+            '**/config/**',                   // 스프링 설정 — 컨텍스트가 뜨면 검증된 것
+            '**/*Properties*',                // @ConfigurationProperties 레코드
+            '**/dto/**',                      // record 접근자. 컴파일러가 만든 코드다
+            '**/entity/**Type*', '**/entity/**Status*', '**/entity/**Level*',  // enum
+    ]
+
+    tasks.named('jacocoTestReport') {
+        dependsOn tasks.named('test')
+        reports {
+            // XML 은 사람이 안 읽는다. SonarCloud 같은 도구가 먹는다.
+            xml.required = true
+            html.required = true
+        }
+        classDirectories.setFrom(
+                files(classDirectories.files.collect {
+                    fileTree(dir: it, exclude: coverageExcludes)
+                })
+        )
     }
 
     tasks.withType(JavaCompile).configureEach {
@@ -87,5 +116,55 @@ configure(subprojects.findAll { it.name.startsWith('app-') }) {
 
     tasks.named('bootRun') {
         jvmArgs '-Duser.timezone=UTC'
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 전체 커버리지 합산 리포트 :  ./gradlew coverageReport
+//
+// 왜 필요한가 — 모듈별 리포트만 보면 숫자가 틀린다.
+//   common-core 의 JwtProvider·LocalImageStorage 는 app-api 통합 테스트가 실제로 실행시킨다.
+//   그런데 app-api 의 리포트는 자기 모듈 클래스만 대상으로 잡아서 그 기록을 버리고,
+//   common-core 의 리포트는 자기 모듈 테스트만 돌린 기록이라 0% 로 나온다.
+//   실행 기록(exec)을 전부 모아 클래스 전체에 맞춰야 진짜 숫자가 나온다.
+// ─────────────────────────────────────────────────────────────────────────────
+apply plugin: 'jacoco'
+
+// 루트에는 repositories 가 없었다(subprojects 블록 안에만 있다).
+// jacoco 플러그인이 리포트 생성 도구를 내려받아야 해서 여기도 필요하다.
+repositories {
+    mavenCentral()
+}
+
+tasks.register('coverageReport', JacocoReport) {
+    group = 'verification'
+    description = '모든 모듈의 테스트 실행 기록을 합쳐 커버리지를 낸다'
+
+    dependsOn subprojects.collect { it.tasks.named('test') }
+
+    executionData.setFrom(files(subprojects.collect {
+        "${it.layout.buildDirectory.get()}/jacoco/test.exec"
+    }).filter { it.exists() })
+
+    sourceDirectories.setFrom(files(subprojects.collect {
+        it.sourceSets.main.allSource.srcDirs
+    }))
+
+    // 모듈별 리포트와 같은 제외 규칙을 쓴다. 두 숫자가 다르면 헷갈린다.
+    classDirectories.setFrom(files(subprojects.collect {
+        fileTree(dir: "${it.layout.buildDirectory.get()}/classes/java/main", exclude: [
+                '**/Otboo*Application*',
+                '**/config/**',
+                '**/*Properties*',
+                '**/dto/**',
+                '**/entity/**Type*', '**/entity/**Status*', '**/entity/**Level*',
+        ])
+    }))
+
+    reports {
+        xml.required = true
+        html.required = true
+        xml.outputLocation = layout.buildDirectory.file('reports/jacoco/coverage.xml')
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco/html')
     }
 }
