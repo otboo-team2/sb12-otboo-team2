@@ -35,7 +35,7 @@ export const useSseStore = create<SseState>((set, get) => ({
       });
 
       eventSource.onopen = () => {
-        set({ eventSource, isConnected: true, isConnecting: false });
+        set({ isConnected: true, isConnecting: false });
         console.log('[SSE] Connected');
       };
 
@@ -47,7 +47,8 @@ export const useSseStore = create<SseState>((set, get) => ({
           eventSource: null,
         });
       };
-      set({ eventSource, isConnected: true, isConnecting: false });
+
+      set({ eventSource });
     } catch (error) {
       console.error('SSE 연결 시도 중 에러:', error);
       set({ isConnected: false, isConnecting: false, eventSource: null });
