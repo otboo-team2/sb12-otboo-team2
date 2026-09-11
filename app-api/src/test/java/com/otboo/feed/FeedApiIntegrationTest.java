@@ -1,6 +1,7 @@
 package com.otboo.feed;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -22,7 +23,9 @@ import com.otboo.user.entity.User;
 import com.otboo.user.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,7 +96,10 @@ class FeedApiIntegrationTest extends IntegrationTestSupport {
         // feeds 를 지우면 feed_clothes·feed_likes·comments 는 CASCADE 로 따라간다.
         // clothes 는 users 를 RESTRICT 로 참조하므로 users 보다 먼저 지워야 한다.
         jdbc.update("DELETE FROM feeds");
+        // clothes 를 지우면 clothes_attribute_values 는 CASCADE 로 따라간다.
         jdbc.update("DELETE FROM clothes");
+        // 정의 이름은 유니크라 남기면 다음 테스트의 같은 이름 INSERT 가 깨진다. 선택지는 CASCADE.
+        jdbc.update("DELETE FROM clothes_attribute_definitions");
         jdbc.update("DELETE FROM weathers");
         userRepository.deleteAll();
     }
@@ -169,6 +175,105 @@ class FeedApiIntegrationTest extends IntegrationTestSupport {
                                     weatherId, List.of(myTopId, myTopId), "중복 착장"))))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.ootds.length()").value(1));
+        }
+    }
+
+    /**
+     * 착장의 의상 속성. {@code FeedViewLoader} 의 속성 조회 SQL 두 개({@code ATTRIBUTE_SQL} ·
+     * {@code SELECTABLE_SQL})는 속성이 달린 옷이 있어야만 실행.
+     * 손으로 쓴 SQL 이라 컬럼명이 틀려도 컴파일은 통과하므로 실제로 MySQL 에 던져 확인.
+     */
+    @Nested
+    @DisplayName("착장 속성")
+    class OotdAttributes {
+
+        private AttributeDef color;
+        private AttributeDef season;
+
+        @BeforeEach
+        void setUpAttributes() {
+            // 응답의 속성 순서는 정의 생성 순서다(ORDER BY d.created_at, d.id).
+            // 같은 시각이면 랜덤 UUID 순이 되어 테스트가 흔들리므로 시각을 벌려 둔다.
+            // 응답이 정렬됬는지 확인
+            color = insertDefinition("색상", now().minusSeconds(2), "흰색", "검정", "빨강");
+            season = insertDefinition("계절", now().minusSeconds(1), "여름", "겨울", "봄");
+        }
+
+        @Test
+        @DisplayName("속성값과 함께 그 속성의 선택지 전체가 정의 순서대로 나간다")
+        void includesAttributesWithSelectableValues() throws Exception {
+            // 값을 넣는 순서와 응답 순서는 무관해야 한다.
+            insertAttributeValue(myTopId, season, "겨울");
+            insertAttributeValue(myTopId, color, "흰색");
+
+            mockMvc.perform(authed(post("/api/feeds"), me)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new FeedCreateRequest(
+                                    weatherId, List.of(myTopId), "속성 있는 착장"))))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.ootds[0].attributes.length()").value(2))
+                    .andExpect(jsonPath("$.ootds[0].attributes[0].definitionId")
+                            .value(color.id().toString()))
+                    .andExpect(jsonPath("$.ootds[0].attributes[0].definitionName").value("색상"))
+                    .andExpect(jsonPath("$.ootds[0].attributes[0].value").value("흰색"))
+                    // 프론트가 수정 폼의 선택지. 고른 값 하나가 아니라 전체.
+                    .andExpect(jsonPath("$.ootds[0].attributes[0].selectableValues",
+                            contains("검정", "빨강", "흰색")))
+                    .andExpect(jsonPath("$.ootds[0].attributes[1].definitionId")
+                            .value(season.id().toString()))
+                    .andExpect(jsonPath("$.ootds[0].attributes[1].definitionName").value("계절"))
+                    .andExpect(jsonPath("$.ootds[0].attributes[1].value").value("겨울"))
+                    .andExpect(jsonPath("$.ootds[0].attributes[1].selectableValues",
+                            contains("겨울", "봄", "여름")));
+        }
+
+        @Test
+        @DisplayName("같은 속성을 쓰는 옷은 각자의 값을 갖고, 속성이 없는 옷은 빈 목록이다")
+        void keepsAttributesPerClothes() throws Exception {
+            UUID bottomId = insertClothes(me.getId(), "검정 슬랙스", "BOTTOM");
+            UUID shoesId = insertClothes(me.getId(), "흰 운동화", "SHOES");
+            insertAttributeValue(myTopId, color, "흰색");
+            insertAttributeValue(bottomId, color, "검정");
+
+            mockMvc.perform(authed(post("/api/feeds"), me)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new FeedCreateRequest(
+                                    weatherId, List.of(myTopId, bottomId, shoesId), "세 벌 착장"))))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.ootds[*].clothesId", contains(
+                            myTopId.toString(), bottomId.toString(), shoesId.toString())))
+                    .andExpect(jsonPath("$.ootds[0].attributes[*].value", contains("흰색")))
+                    .andExpect(jsonPath("$.ootds[1].attributes[*].value", contains("검정")))
+                    // 선택지는 정의 단위로 한 번만 읽어 옷마다 나눠 붙인다. 두 번째 옷에도 전부 붙어야 한다.
+                    .andExpect(jsonPath("$.ootds[1].attributes[0].selectableValues",
+                            contains("검정", "빨강", "흰색")))
+                    // 속성이 없는 옷은 null x -> 빈 배열이어야 프론트가 분기 없이 그린다.
+                    .andExpect(jsonPath("$.ootds[2].attributes").isArray())
+                    .andExpect(jsonPath("$.ootds[2].attributes").isEmpty());
+        }
+
+        @Test
+        @DisplayName("목록에서도 피드마다 자기 착장의 속성이 붙는다 (여러 피드를 한 번에 조립)")
+        void attachesAttributesAcrossFeeds() throws Exception {
+            UUID bottomId = insertClothes(me.getId(), "검정 슬랙스", "BOTTOM");
+            insertAttributeValue(myTopId, color, "흰색");
+            insertAttributeValue(bottomId, color, "검정");
+            insertAttributeValue(bottomId, season, "봄");
+
+            UUID topFeed = createFeed(me, weatherId, "맨투맨 피드", List.of(myTopId));
+            UUID bottomFeed = createFeed(me, weatherId, "슬랙스 피드", List.of(bottomId));
+
+            // 단건 응답은 피드 하나만 조립한다.
+            // 여러 피드의 속성을 한 번의 IN 조회로 읽어 옷별로 다시 나누는 경로는 목록 조회
+            mockMvc.perform(feedSearch(me, 10))
+                    .andExpect(status().isOk())
+                    // 최신순이라 나중에 올린 슬랙스 피드 우선
+                    .andExpect(jsonPath("$.data[0].id").value(bottomFeed.toString()))
+                    .andExpect(jsonPath("$.data[0].ootds[0].attributes[*].value",
+                            contains("검정", "봄")))
+                    .andExpect(jsonPath("$.data[1].id").value(topFeed.toString()))
+                    .andExpect(jsonPath("$.data[1].ootds[0].attributes[*].value",
+                            contains("흰색")));
         }
     }
 
@@ -497,9 +602,14 @@ class FeedApiIntegrationTest extends IntegrationTestSupport {
     }
 
     private UUID createFeed(User author, UUID weather, String content) throws Exception {
+        return createFeed(author, weather, content, List.of());
+    }
+
+    private UUID createFeed(User author, UUID weather, String content, List<UUID> clothesIds)
+            throws Exception {
         JsonNode created = readJson(mockMvc.perform(authed(post("/api/feeds"), author)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new FeedCreateRequest(weather, List.of(), content))))
+                        .content(json(new FeedCreateRequest(weather, clothesIds, content))))
                 .andExpect(status().isCreated()));
         return UUID.fromString(created.get("id").asText());
     }
@@ -540,6 +650,40 @@ class FeedApiIntegrationTest extends IntegrationTestSupport {
                 VALUES (?, ?, ?, ?, NULL, ?, ?)
                 """, id.toString(), ownerId.toString(), name, type, now(), now());
         return id;
+    }
+
+    /** 의상 속성 정의와 그 선택지. 선택지 id 가 있어야 속성값을 넣을 수 있다(복합 FK). */
+    private record AttributeDef(UUID id, Map<String, UUID> valueIds) {
+    }
+
+    private AttributeDef insertDefinition(String name, LocalDateTime createdAt, String... values) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO clothes_attribute_definitions (id, name, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """, id.toString(), name, createdAt, createdAt);
+
+        Map<String, UUID> valueIds = new LinkedHashMap<>();
+        for (String value : values) {
+            UUID valueId = UUID.randomUUID();
+            jdbc.update("""
+                    INSERT INTO clothes_attribute_selectable_values
+                        (id, definition_id, value, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, valueId.toString(), id.toString(), value, now(), now());
+            valueIds.put(value, valueId);
+        }
+        return new AttributeDef(id, valueIds);
+    }
+
+    private void insertAttributeValue(UUID clothesId, AttributeDef definition, String value) {
+        jdbc.update("""
+                        INSERT INTO clothes_attribute_values
+                            (id, clothes_id, definition_id, selectable_value_id, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                UUID.randomUUID().toString(), clothesId.toString(), definition.id().toString(),
+                definition.valueIds().get(value).toString(), now(), now());
     }
 
     private LocalDateTime now() {
