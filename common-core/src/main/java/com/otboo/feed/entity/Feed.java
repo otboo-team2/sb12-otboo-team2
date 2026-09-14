@@ -18,6 +18,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -36,9 +37,17 @@ import org.hibernate.type.SqlTypes;
  * <p>대신 값이 어긋나지 않게 <b>세터를 열지 않는다.</b> 증감은 반드시
  * {@code FeedRepository} 의 원자적 UPDATE 로만 한다. 엔티티에서 {@code count++} 를 하면
  * 동시에 좋아요를 누른 두 요청 중 하나가 사라진다(lost update).
+ *
+ * <h2>{@code @DynamicUpdate} 를 지우지 말 것</h2>
+ * 세터를 닫아도 dirty checking 이 같은 lost update 를 뒷문으로 일으킨다.
+ * 기본 설정의 Hibernate 는 내용만 바꿔도 UPDATE 에 모든 컬럼을 포함.
+ * 수정 트랜잭션이 피드를 읽음 -> 들어온 좋아요 · 댓글 수를 읽어 둔 옛 값으로 덮어씀
+ * 바뀐 컬럼(content · updated_at)만 UPDATE, 카운터 컬럼에는 원자적 UPDATE 외의 쓰기 x
+ * ({@code FeedConcurrencyIntegrationTest} C1)
  */
 @Entity
 @Getter
+@DynamicUpdate
 @Table(name = "feeds")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Feed extends BaseEntity {

@@ -47,9 +47,11 @@ public class CommentService {
         User author = userRepository.findById(me.userId())
                 .orElseThrow(() -> new BusinessException(UserErrorCode.NOT_FOUND));
 
+        // 피드 행 X 락을 가장 먼저 잡는다. 댓글 INSERT 가 먼저면 FK 검사의 공유 락끼리 교착한다.
+        // (FeedLikeService 클래스 주석, FeedConcurrencyIntegrationTest B2)
+        feedRepository.increaseCommentCount(feedId);
         Comment comment = commentRepository.saveAndFlush(
                 Comment.create(feed, author, request.content()));
-        feedRepository.increaseCommentCount(feedId);
 
         // 조회 전용 SQL 로 다시 읽는다. flush -> INSERT 되지 않은 행을 못 찾는 일이 없다.
         CommentDto created = viewLoader.loadOne(comment.getId());
@@ -101,8 +103,15 @@ public class CommentService {
                     .addDetail("commentId", commentId.toString());
         }
 
-        commentRepository.delete(comment);
+        // 작성과 같은 순서로 피드 행 X 락부터 잡는다.
         feedRepository.decreaseCommentCount(feedId);
+
+        // delete(entity) 는 연타 시 두 번째 요청 -> 500. 한 문장으로 지우고 행 수로 판단.
+        // 0 이면 예외로 롤백 -> 내린 카운터도 되돌아감.(FeedConcurrencyIntegrationTest A5)
+        if (commentRepository.deleteByIdAndFeedId(commentId, feedId) == 0) {
+            throw new BusinessException(CommentErrorCode.NOT_FOUND)
+                    .addDetail("commentId", commentId.toString());
+        }
     }
 
     private Feed findFeed(UUID feedId) {
