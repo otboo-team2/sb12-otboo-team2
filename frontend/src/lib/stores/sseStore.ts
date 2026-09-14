@@ -56,14 +56,19 @@ export const useSseStore = create<SseState>((set, get) => ({
   },
 
     disconnect: () => {
-        const { eventSource, isConnected, subscriptions } = get();
-        if (eventSource && isConnected) {
-            subscriptions.forEach((callback, topic) => {
-                eventSource.removeEventListener(topic, callback);
-            });
-            eventSource.close();
-        }
-        set({ eventSource: null, isConnected: false, subscriptions: new Map() });
+      const { eventSource, subscriptions } = get();
+      if (eventSource) {
+        subscriptions.forEach((callback, topic) => {
+          eventSource.removeEventListener(topic, callback);
+        });
+        eventSource.close();
+      }
+      set({
+        eventSource: null,
+        isConnected: false,
+        isConnecting: false,
+        subscriptions: new Map(),
+      });
     },
 
   subscribe: (topic, callback) => {
