@@ -1,5 +1,8 @@
 package com.otboo.config;
 
+import com.otboo.auth.oauth.OAuth2FailureHandler;
+import com.otboo.auth.oauth.OAuth2SuccessHandler;
+import com.otboo.auth.oauth.OtbooOAuth2UserService;
 import com.otboo.common.security.JwtAuthenticationFilter;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -10,8 +13,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -27,15 +28,13 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final SecurityErrorResponder securityErrorResponder;
+    private final OtbooOAuth2UserService otbooOAuth2UserService;
+    private final OAuth2SuccessHandler oauth2SuccessHandler;
+    private final OAuth2FailureHandler oauth2FailureHandler;
 
     /** 프론트가 쿠키를 함께 보내므로(withCredentials) 와일드카드를 쓸 수 없다. */
     @Value("${otboo.cors.allowed-origins}")
     private List<String> allowedOrigins;
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -62,6 +61,8 @@ public class SecurityConfig {
                                 "/api/auth/sign-in", "/api/auth/refresh",
                                 "/api/auth/reset-password", "/api/auth/csrf-token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+                        // 소셜 로그인 시작·콜백. 아직 인증 전이라 열어둬야 한다.
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         // 프로필·의상 이미지. <img src> 로 불러가므로 토큰을 실을 수 없다.
                         .requestMatchers(HttpMethod.GET, "/images/**").permitAll()
@@ -76,6 +77,11 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
+                // 소셜 로그인은 우리 토큰을 발급하는 입구일 뿐이다. 세션은 만들지 않는다.
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo.userService(otbooOAuth2UserService))
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

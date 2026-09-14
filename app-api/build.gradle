@@ -3,6 +3,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 소셜 로그인. /oauth2/authorization/{provider} 와 /login/oauth2/code/{provider} 를 제공한다.
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 
     // 피드 검색. Spring Data 의 Repository/@Document 는 쓰지 않고 ElasticsearchClient 만 쓴다.
     // 검색 조건(커서·정렬·필터)이 스펙에 고정돼 있어 Repository 추상화가 오히려 방해가 된다.
