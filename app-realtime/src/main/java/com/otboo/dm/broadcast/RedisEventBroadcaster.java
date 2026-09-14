@@ -1,4 +1,4 @@
-package com.otboo.notification.broadcast;
+package com.otboo.dm.broadcast;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,7 +1,6 @@
 package com.otboo.config;
 
-import com.otboo.dm.broadcast.DmRedisSubscriber;
-import com.otboo.notification.broadcast.NotificationRedisSubscriber;
+import com.otboo.dm.broadcast.DirectMessageNotificationSubscriber;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,18 +12,15 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 @RequiredArgsConstructor
 public class RedisSubscriberConfig {
 
-    private static final String NOTIFICATION_CHANNEL = "notification-broadcast";
     private static final String DM_CHANNEL = "dm-broadcast";
 
-    private final NotificationRedisSubscriber notificationRedisSubscriber;
-    private final DmRedisSubscriber dmRedisSubscriber;
+    private final DirectMessageNotificationSubscriber directMessageNotificationSubscriber;
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(notificationRedisSubscriber, new ChannelTopic(NOTIFICATION_CHANNEL));
-        container.addMessageListener(dmRedisSubscriber, new ChannelTopic(DM_CHANNEL));
+        container.addMessageListener(directMessageNotificationSubscriber, new ChannelTopic(DM_CHANNEL));
         return container;
     }
 }
