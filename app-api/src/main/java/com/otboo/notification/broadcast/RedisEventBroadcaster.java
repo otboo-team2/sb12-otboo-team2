@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RedisEventBroadcaster implements EventBroadcaster {
+public class RedisEventBroadcaster implements com.otboo.common.broadcast.EventBroadcaster {
 
     private final RedisTemplate<String, Object> redisTemplate;
 

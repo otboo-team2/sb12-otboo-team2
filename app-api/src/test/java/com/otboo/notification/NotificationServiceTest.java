@@ -3,12 +3,12 @@ package com.otboo.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.otboo.common.broadcast.EventBroadcaster;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.pagination.SortDirection;
 import com.otboo.common.test.IntegrationTestSupport;
-import com.otboo.notification.broadcast.EventBroadcaster;
 import com.otboo.notification.dto.NotificationDto;
 import com.otboo.notification.entity.NotificationLevel;
 import com.otboo.notification.entity.NotificationType;
