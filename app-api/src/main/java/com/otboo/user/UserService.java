@@ -16,10 +16,12 @@ import com.otboo.user.entity.Profile;
 import com.otboo.user.entity.Role;
 import com.otboo.user.entity.User;
 import com.otboo.user.exception.UserErrorCode;
+import com.otboo.user.query.OAuthProviderViewLoader;
 import com.otboo.user.repository.ProfileRepository;
 import com.otboo.user.repository.RefreshTokenRepository;
 import com.otboo.user.repository.UserRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,6 +42,7 @@ public class UserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher eventPublisher;
+    private final OAuthProviderViewLoader oauthProviderViewLoader;
 
     @Transactional
     public UserDto create(UserCreateRequest request) {
@@ -80,7 +83,12 @@ public class UserService {
                 filter.and(UserSpecifications.afterCursor(request, sortField)),
                 PageRequest.of(0, request.fetchSize(), sort)).getContent();
 
-        List<UserDto> data = fetched.stream().map(UserDto::from).toList();
+        Map<UUID, List<String>> providersByUserId = oauthProviderViewLoader.load(
+                fetched.stream().map(User::getId).toList());
+        List<UserDto> data = fetched.stream()
+                .map(user -> UserDto.from(
+                        user, providersByUserId.getOrDefault(user.getId(), List.of())))
+                .toList();
         long totalCount = userRepository.count(filter);
 
         return CursorResponse.of(data, request, totalCount,
@@ -105,7 +113,7 @@ public class UserService {
             // 토큰에 role 이 들어 있어 재로그인 전까지 이전 권한이 그대로 먹는다.
             refreshTokenRepository.deleteAllByUser(user);
         }
-        return UserDto.from(user);
+        return toDto(user);
     }
 
     @Transactional
@@ -120,7 +128,7 @@ public class UserService {
             // 잠갔는데 기존 세션이 살아 있으면 잠근 의미가 없다.
             refreshTokenRepository.deleteAllByUser(user);
         }
-        return UserDto.from(user);
+        return toDto(user);
     }
 
     /**
@@ -140,6 +148,12 @@ public class UserService {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(UserErrorCode.NOT_FOUND)
                         .addDetail("userId", userId.toString()));
+    }
+
+    private UserDto toDto(User user) {
+        List<String> providers = oauthProviderViewLoader.load(List.of(user.getId()))
+                .getOrDefault(user.getId(), List.of());
+        return UserDto.from(user, providers);
     }
 
     private static Sort sortOf(UserSortField sortField, SortDirection direction) {
