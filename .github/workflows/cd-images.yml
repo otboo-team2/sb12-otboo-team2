@@ -1,0 +1,99 @@
+name: CD (images)
+
+# dev·main 에 반영될 때마다 컨테이너 이미지를 만들어 GHCR 에 올린다.
+#
+# 배포(어디에 띄울지)는 아직 없다. 이미지를 먼저 쌓아두는 이유 —
+# 배포 대상이 EC2 든 ECS 든 "이미지를 만들어 올린다"까지는 똑같고,
+# 이 부분이 CD 작업량의 대부분이다. 대상이 정해지면 마지막 스텝만 붙이면 된다.
+#
+# 레지스트리를 GHCR 로 잡은 것도 같은 이유다. 레포에 딸려 있어 계정·권한을
+# 따로 만들 필요가 없고, 나중에 ECR 로 옮겨도 태그 규칙은 그대로 쓴다.
+
+on:
+  push:
+    branches: [ dev, main ]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write        # GHCR 푸시에 필요하다
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # 하나가 깨져도 나머지는 만들어둔다. 어디가 문제인지 한 번에 보인다.
+      fail-fast: false
+      matrix:
+        include:
+          - image: app-api
+            context: .
+            file: Dockerfile
+            module: app-api
+          - image: app-realtime
+            context: .
+            file: Dockerfile
+            module: app-realtime
+          - image: app-batch
+            context: .
+            file: Dockerfile
+            module: app-batch
+          - image: frontend
+            context: frontend
+            file: frontend/Dockerfile
+            module: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buildx 설정
+        # 레이어 캐시(type=gha)와 build-arg 캐시를 쓰려면 기본 빌더로는 안 된다
+        uses: docker/setup-buildx-action@v3
+
+      - name: GHCR 로그인
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 태그 만들기
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.image }}
+          tags: |
+            # 브랜치 이름 — 항상 최신을 가리킨다(dev, main)
+            type=ref,event=branch
+            # 커밋 해시 — 배포에는 이쪽을 쓴다. 롤백할 때 무엇으로 돌아가는지 분명하다
+            type=sha,format=long,prefix=sha-
+
+      - name: 빌드 · 푸시
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-args: MODULE=${{ matrix.module }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 이미지별로 캐시를 나눈다. 섞으면 서로 밀어내서 매번 처음부터 빌드한다.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: 결과 요약
+        run: |
+          {
+            echo "### \`${{ matrix.image }}\`"
+            echo ''
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
