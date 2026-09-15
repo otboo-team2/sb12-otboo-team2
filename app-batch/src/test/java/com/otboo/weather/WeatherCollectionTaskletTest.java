@@ -13,6 +13,7 @@ import com.otboo.weather.entity.WeatherRegion;
 import com.otboo.weather.repository.WeatherRegionRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class WeatherCollectionTaskletTest {
 
@@ -27,7 +28,7 @@ class WeatherCollectionTaskletTest {
                 .thenThrow(new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR))
                 .thenReturn(List.of());
 
-        new WeatherCollectionTasklet(regions, service).execute(null, null);
+        new WeatherCollectionTasklet(regions, service, new SimpleMeterRegistry()).execute(null, null);
 
         verify(service, times(2)).fetchAndSave(anyDouble(), anyDouble(), anyInt(), anyInt());
     }
