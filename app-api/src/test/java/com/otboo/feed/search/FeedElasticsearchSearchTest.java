@@ -112,8 +112,8 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("형태소로 쪼개므로 합성어 안의 낱말로도 찾는다")
         void findsWordInsideCompound() throws Exception {
-            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다", 0);
-            insertFeed(author, clearWeatherId, "반팔 티셔츠 하나로 충분한 날", 0);
+            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다");
+            insertFeed(author, clearWeatherId, "반팔 티셔츠 하나로 충분한 날");
             reindex();
 
             assertThat(searchIds("코트")).containsExactly(coat);
@@ -122,7 +122,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("띄어쓰기·순서가 달라도 낱말이 모두 있으면 찾는다 (MySQL LIKE 로는 못 찾던 것)")
         void findsAcrossWordBoundaries() throws Exception {
-            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다", 0);
+            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다");
             reindex();
 
             // LIKE '%겨울 코트%' 는 원문에 그 문자열이 없어 0건이었다.
@@ -133,7 +133,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("낱말 중간에 걸친 부분 문자열도 ngram 으로 찾는다")
         void findsPartialSubstring() throws Exception {
-            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다", 0);
+            UUID coat = insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다");
             reindex();
 
             assertThat(searchIds("울코")).containsExactly(coat);
@@ -142,7 +142,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("낱말이 하나라도 빠지면 찾지 않는다 (검색이 필터 구실을 해야 한다)")
         void requiresAllWords() throws Exception {
-            insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다", 0);
+            insertFeed(author, clearWeatherId, "겨울코트를 꺼냈다");
             reindex();
 
             assertThat(searchIds("겨울 패딩")).isEmpty();
@@ -151,8 +151,8 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("본문뿐 아니라 작성자 이름으로도 찾는다")
         void findsByAuthorName() throws Exception {
-            UUID mine = insertFeed(author, clearWeatherId, "아무 내용", 0);
-            insertFeed(otherAuthor, clearWeatherId, "남의 피드", 0);
+            UUID mine = insertFeed(author, clearWeatherId, "아무 내용");
+            insertFeed(otherAuthor, clearWeatherId, "남의 피드");
             reindex();
 
             assertThat(searchIds("류승지")).containsExactly(mine);
@@ -161,8 +161,8 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("연산자 문자만 든 검색어는 조건 없이 전체를 돌려준다 (500 이 나면 안 된다)")
         void toleratesOperatorOnlyKeyword() throws Exception {
-            insertFeed(author, clearWeatherId, "첫 번째", 0);
-            insertFeed(author, clearWeatherId, "두 번째", 0);
+            insertFeed(author, clearWeatherId, "첫 번째");
+            insertFeed(author, clearWeatherId, "두 번째");
             reindex();
 
             assertThat(search("+++", null, null, "createdAt").totalCount()).isEqualTo(2);
@@ -176,9 +176,9 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("날씨·강수·작성자 조건이 검색어와 함께 걸린다")
         void combinesFilters() throws Exception {
-            UUID rainy = insertFeed(author, rainyWeatherId, "비 오는 날 코트", 0);
-            insertFeed(author, clearWeatherId, "맑은 날 코트", 0);
-            insertFeed(otherAuthor, rainyWeatherId, "남의 비 오는 날 코트", 0);
+            UUID rainy = insertFeed(author, rainyWeatherId, "비 오는 날 코트");
+            insertFeed(author, clearWeatherId, "맑은 날 코트");
+            insertFeed(otherAuthor, rainyWeatherId, "남의 비 오는 날 코트");
             reindex();
 
             FeedSearchResultIds result = new FeedSearchResultIds(
@@ -194,7 +194,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("createdAt 순으로 끝까지 넘겨도 중복·누락이 없다")
         void walksByCreatedAt() throws Exception {
-            Set<UUID> inserted = insertMany(23);
+            Set<UUID> inserted = insertMany();
             reindex();
 
             assertThat(walkAllPages("createdAt", 5)).containsExactlyInAnyOrderElementsOf(inserted);
@@ -203,7 +203,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         @Test
         @DisplayName("likeCount 순으로 끝까지 넘겨도 중복·누락이 없다")
         void walksByLikeCount() throws Exception {
-            Set<UUID> inserted = insertMany(23);
+            Set<UUID> inserted = insertMany();
             reindex();
 
             assertThat(walkAllPages("likeCount", 5)).containsExactlyInAnyOrderElementsOf(inserted);
@@ -265,7 +265,7 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
             if (!hasNext || page.isEmpty()) {
                 return collected;
             }
-            UUID last = page.get(page.size() - 1);
+            UUID last = page.getLast();
             cursor = cursorValueOf(last, sortBy);
             idAfter = last;
         }
@@ -287,17 +287,17 @@ class FeedElasticsearchSearchTest extends IntegrationTestSupport {
         return createdAt.toInstant(ZoneOffset.UTC).toString();
     }
 
-    private Set<UUID> insertMany(int count) {
+    private Set<UUID> insertMany() {
         LocalDateTime base = LocalDateTime.of(2026, 9, 10, 0, 0);
         Set<UUID> ids = new LinkedHashSet<>();
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < 23; i++) {
             ids.add(insertFeedAt(author, clearWeatherId, "피드 " + i, i, base.plusSeconds(i)));
         }
         return ids;
     }
 
-    private UUID insertFeed(User owner, UUID weatherId, String content, long likeCount) {
-        return insertFeedAt(owner, weatherId, content, likeCount, LocalDateTime.now(ZoneOffset.UTC));
+    private UUID insertFeed(User owner, UUID weatherId, String content) {
+        return insertFeedAt(owner, weatherId, content, 0, LocalDateTime.now(ZoneOffset.UTC));
     }
 
     private UUID insertFeedAt(

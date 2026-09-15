@@ -122,14 +122,15 @@ public class FeedService {
         return feed;
     }
 
-    /** 삭제는 관리자도 할 수 있어야 신고 처리가 된다. */
-    private Feed findDeletableFeed(AuthPrincipal me, UUID feedId) {
+    /**
+     * 삭제는 관리자도 할 수 있어야 신고 처리가 된다.
+     */
+    private void findDeletableFeed(AuthPrincipal me, UUID feedId) {
         Feed feed = findFeedWithAuthor(feedId);
         if (!feed.isAuthor(me.userId()) && !me.isAdmin()) {
             throw new BusinessException(FeedErrorCode.NOT_AUTHOR)
                     .addDetail("feedId", feedId.toString());
         }
-        return feed;
     }
 
     private Feed findFeedWithAuthor(UUID feedId) {

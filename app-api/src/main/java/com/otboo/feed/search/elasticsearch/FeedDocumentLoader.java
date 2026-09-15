@@ -6,6 +6,7 @@ import static com.otboo.feed.query.JdbcColumns.uuid;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -65,9 +66,9 @@ public class FeedDocumentLoader {
 
     private static FeedDocument map(ResultSet rs) throws SQLException {
         return FeedDocument.of(
-                uuid(rs, "feed_id"),
+            Objects.requireNonNull(uuid(rs, "feed_id")),
                 rs.getString("content"),
-                uuid(rs, "author_id"),
+            Objects.requireNonNull(uuid(rs, "author_id")),
                 rs.getString("author_name"),
                 rs.getString("sky_status"),
                 rs.getString("precipitation_type"),

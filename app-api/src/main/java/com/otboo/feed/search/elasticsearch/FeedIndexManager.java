@@ -95,7 +95,7 @@ public class FeedIndexManager {
                 }
                 bulkIndex(next, batch);
                 indexed += batch.size();
-                afterId = UUID.fromString(batch.get(batch.size() - 1).id());
+                afterId = UUID.fromString(batch.getLast().id());
             }
             // 별칭을 옮기기 전에 새 인덱스를 검색 가능한 상태로 만든다.
             // 이게 없으면 스왑 직후 몇 초 동안 "검색은 되는데 0건" 이 나온다.
