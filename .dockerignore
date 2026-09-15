@@ -1,0 +1,20 @@
+# 빌드 컨텍스트에서 뺄 것. 여기 없으면 .git 과 frontend/node_modules 까지
+# 통째로 도커 데몬에 전송돼 빌드가 느려지고, 캐시가 아무 커밋에서나 깨진다.
+
+.git
+.github
+.gradle
+build
+*/build
+.idea
+*.iml
+
+frontend
+docs
+monitoring
+data
+
+**/.env
+**/.env.*
+*.log
+.DS_Store
