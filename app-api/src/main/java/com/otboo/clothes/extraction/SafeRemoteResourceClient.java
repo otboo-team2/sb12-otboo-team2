@@ -22,6 +22,9 @@ public class SafeRemoteResourceClient {
     private static final String USER_AGENT = "OtbooProductExtractor/1.0";
     private static final String ACCEPT = "text/html,application/xhtml+xml,image/*";
     private static final String PRODUCT_PAGE_ENDPOINT = "GET product-page";
+    private static final String JPEG = "image/jpeg";
+    private static final String PNG = "image/png";
+    private static final String WEBP = "image/webp";
 
     private final ExternalApiClient api;
     private final ProductUrlValidator urlValidator;
@@ -76,8 +79,10 @@ public class SafeRemoteResourceClient {
                 throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
             }
 
-            validateContentType(response.contentType(), image);
-            return new RemoteResource(current, response.contentType(), response.body());
+            String contentType = image
+                    ? detectImageContentType(response.body())
+                    : validateHtmlContentType(response.contentType());
+            return new RemoteResource(current, contentType, response.body());
         }
     }
 
@@ -148,15 +153,61 @@ public class SafeRemoteResourceClient {
         return output.toByteArray();
     }
 
-    private static void validateContentType(String contentType, boolean image) {
-        if (image && (contentType == null || !contentType.toLowerCase().startsWith("image/"))) {
-            throw new BusinessException(ClothesErrorCode.INVALID_REMOTE_IMAGE);
-        }
-        if (!image && contentType != null
+    private static String validateHtmlContentType(String contentType) {
+        if (contentType != null
                 && !contentType.toLowerCase().startsWith("text/html")
                 && !contentType.toLowerCase().startsWith("application/xhtml+xml")) {
             throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
         }
+        return contentType;
+    }
+
+    private static String detectImageContentType(byte[] bytes) {
+        if (hasJpegMagic(bytes)) {
+            return JPEG;
+        }
+        if (hasPngMagic(bytes)) {
+            return PNG;
+        }
+        if (hasWebpMagic(bytes)) {
+            return WEBP;
+        }
+        throw new BusinessException(ClothesErrorCode.INVALID_REMOTE_IMAGE);
+    }
+
+    private static boolean hasJpegMagic(byte[] bytes) {
+        return bytes != null
+                && bytes.length >= 3
+                && (bytes[0] & 0xff) == 0xff
+                && (bytes[1] & 0xff) == 0xd8
+                && (bytes[2] & 0xff) == 0xff;
+    }
+
+    private static boolean hasPngMagic(byte[] bytes) {
+        byte[] signature = {
+                (byte) 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+        if (bytes == null || bytes.length < signature.length) {
+            return false;
+        }
+        for (int index = 0; index < signature.length; index++) {
+            if (bytes[index] != signature[index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hasWebpMagic(byte[] bytes) {
+        return bytes != null
+                && bytes.length >= 12
+                && bytes[0] == 'R'
+                && bytes[1] == 'I'
+                && bytes[2] == 'F'
+                && bytes[3] == 'F'
+                && bytes[8] == 'W'
+                && bytes[9] == 'E'
+                && bytes[10] == 'B'
+                && bytes[11] == 'P';
     }
 
     private static BusinessException tooLarge(ErrorCodeForResource errorCode) {
