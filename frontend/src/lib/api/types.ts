@@ -136,6 +136,32 @@ export interface ClothesDto {
   attributes: ClothesAttributeWithDefDto[];
 }
 
+export type ClothesExtractionSource =
+  | 'STRUCTURED_DATA'
+  | 'PAGE_TEXT'
+  | 'DETAIL_IMAGE';
+
+export interface ExtractedClothesAttributeDto {
+  definitionId: string;
+  definitionName: string;
+  value: string;
+  evidence: string;
+  source: ClothesExtractionSource;
+}
+
+export interface ClothesExtractionFailureDto {
+  field: string;
+  reason: string;
+}
+
+export interface ClothesExtractionDto {
+  name?: string;
+  type?: ClothesType;
+  attributes: ExtractedClothesAttributeDto[];
+  imageUrl?: string;
+  failures: ClothesExtractionFailureDto[];
+}
+
 export interface OotdDto {
   clothesId: string;
   name: string;
@@ -275,6 +301,7 @@ export interface ClothesCreateRequest {
   name: string;
   type: ClothesType;
   attributes: ClothesAttributeDto[];
+  sourceImageUrl?: string;
 }
 
 export interface ClothesUpdateRequest {
