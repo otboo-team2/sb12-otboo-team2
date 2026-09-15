@@ -1,0 +1,641 @@
+{
+  "uid": "otboo-feed-search",
+  "title": "otboo 피드 검색",
+  "description": "피드 검색 엔진(MySQL · Elasticsearch) 비교용. 같은 부하를 엔진만 바꿔 넣고 engine 라벨로 나란히 본다.",
+  "tags": [
+    "otboo",
+    "feed",
+    "search"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "검색 엔진 — otboo_feed_search (조건에 맞는 id 를 골라내는 시간만)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "검색 p95 — 엔진 × 검색어",
+      "description": "성공한 검색만. keyword=false 는 목록 조회라 엔진 차이가 작고, 비교의 핵심은 keyword=true 다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, engine, keyword) (rate(otboo_feed_search_seconds_bucket{job=\"otboo-api\", outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "{{engine}} keyword={{keyword}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "검색 p50 · p99 — 검색어 있음",
+      "description": "p50 은 보통의 요청, p99 는 가장 느린 1%. ES 로 옮기면 특히 p99 가 줄어야 한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 12,
+        "h": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le, engine) (rate(otboo_feed_search_seconds_bucket{job=\"otboo-api\", keyword=\"true\", outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "{{engine}} p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (le, engine) (rate(otboo_feed_search_seconds_bucket{job=\"otboo-api\", keyword=\"true\", outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "{{engine}} p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "검색 처리량",
+      "description": "엔진 · 검색어 유무별 초당 검색 수. 두 엔진을 비교할 때 이 값이 비슷해야 공정한 비교다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (engine, keyword) (rate(otboo_feed_search_seconds_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{engine}} keyword={{keyword}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "300ms 안에 끝난 비율 — 검색어 있음",
+      "description": "application.yml 의 slo 경계(300ms) 버킷으로 계산한다. 1 에 가까울수록 좋다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (engine) (rate(otboo_feed_search_seconds_bucket{job=\"otboo-api\", keyword=\"true\", outcome=\"success\", le=\"0.3\"}[$__rate_interval])) / sum by (engine) (rate(otboo_feed_search_seconds_count{job=\"otboo-api\", keyword=\"true\", outcome=\"success\"}[$__rate_interval]))",
+          "legendFormat": "{{engine}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "검색 실패 (건/분)",
+      "description": "엔진이 예외를 던진 검색. 0 이 정상이다. ES 폴백이 생기면 폴백 횟수도 여기서 함께 본다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (engine) (increase(otboo_feed_search_seconds_count{job=\"otboo-api\", outcome=\"error\"}[1m])) or sum by (engine) (0 * otboo_feed_search_seconds_count{job=\"otboo-api\"})",
+          "legendFormat": "{{engine}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "API — 사용자가 체감하는 시간 (응답 조립 포함)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "GET /api/feeds p95",
+      "description": "200 응답만. 검색 시간에 응답 조립(FeedViewLoader)까지 더한 값이라 검색 p95 보다 크다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"otboo-api\", uri=\"/api/feeds\", method=\"GET\", status=\"200\"}[$__rate_interval])))",
+          "legendFormat": "GET /api/feeds"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "쓰기 API p95 — 피드 · 좋아요 · 댓글",
+      "description": "ES 를 적용하면 이 경로들이 색인 이벤트를 발행한다. 색인은 커밋 후 비동기라 여기 값은 거의 변하지 않아야 한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, method, uri) (rate(http_server_requests_seconds_bucket{job=\"otboo-api\", uri=~\"/api/feeds.*\", method!=\"GET\"}[$__rate_interval])))",
+          "legendFormat": "{{method}} {{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "자원",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "HikariCP 커넥션",
+      "description": "pending 이 0 보다 크면 커넥션을 기다리는 요청이 있다. 검색을 ES 로 옮기면 active 가 줄어야 한다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(hikaricp_connections_active{job=\"otboo-api\"})",
+          "legendFormat": "active"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "B",
+          "expr": "sum(hikaricp_connections_pending{job=\"otboo-api\"})",
+          "legendFormat": "pending"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "C",
+          "expr": "sum(hikaricp_connections_max{job=\"otboo-api\"})",
+          "legendFormat": "max"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "비동기 실행기 — 색인 · 알림",
+      "description": "@Async 작업(알림, ES 적용 후에는 색인)이 도는 스레드 풀. queued 가 계속 쌓이면 색인이 밀리고 있다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (name) (executor_active_threads{job=\"otboo-api\"})",
+          "legendFormat": "{{name}} active"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "B",
+          "expr": "sum by (name) (executor_queued_tasks{job=\"otboo-api\"})",
+          "legendFormat": "{{name}} queued"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "process 는 앱 JVM, system 은 호스트 전체. 로컬에서는 MySQL · ES 컨테이너도 같은 호스트를 쓴다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "otboo-prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 28,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": true
+          },
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "A",
+          "expr": "max(process_cpu_usage{job=\"otboo-api\"})",
+          "legendFormat": "process"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "otboo-prometheus"
+          },
+          "refId": "B",
+          "expr": "max(system_cpu_usage{job=\"otboo-api\"})",
+          "legendFormat": "system"
+        }
+      ]
+    }
+  ]
+}
