@@ -2,7 +2,9 @@ package com.otboo.auth.oauth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -53,6 +55,15 @@ class OAuthLoginIntegrationTest extends IntegrationTestSupport {
                 "sub", sub, "email", email, "email_verified", verified, "name", "구글사용자"));
     }
 
+    private static OAuthAttributes kakao(String id, String email, boolean verified) {
+        return OAuthAttributes.of(OAuthProvider.KAKAO, Map.of(
+                "id", id,
+                "kakao_account", Map.of(
+                        "email", email,
+                        "is_email_verified", verified,
+                        "profile", Map.of("nickname", "카카오사용자"))));
+    }
+
     @Nested
     @DisplayName("진입점")
     class Entry {
@@ -65,6 +76,15 @@ class OAuthLoginIntegrationTest extends IntegrationTestSupport {
             mockMvc.perform(get("/oauth2/authorization/google"))
                     .andExpect(status().is3xxRedirection())
                     .andExpect(redirectedUrlPattern("https://accounts.google.com/**"));
+        }
+
+        @Test
+        @DisplayName("인증 없이 /oauth2/authorization/kakao 가 카카오로 넘긴다")
+        void 카카오로_리다이렉트한다() throws Exception {
+            mockMvc.perform(get("/oauth2/authorization/kakao"))
+                    .andExpect(status().is3xxRedirection())
+                    .andExpect(header().string(
+                            "Location", startsWith("https://kauth.kakao.com/oauth/authorize?")));
         }
     }
 
@@ -93,6 +113,20 @@ class OAuthLoginIntegrationTest extends IntegrationTestSupport {
                     OAuthProvider.GOOGLE, google("g-2", "Mixed@Gmail.com", true));
 
             assertThat(user.getEmail()).isEqualTo("mixed@gmail.com");
+        }
+
+        @Test
+        @DisplayName("카카오 계정과 빈 프로필을 함께 만든다")
+        void 카카오로_가입시킨다() {
+            User user = oauthLoginService.login(
+                    OAuthProvider.KAKAO, kakao("k-3", "new@kakao.com", true));
+
+            assertThat(user.getEmail()).isEqualTo("new@kakao.com");
+            assertThat(user.getName()).isEqualTo("카카오사용자");
+            assertThat(profileRepository.findByUserId(user.getId())).isPresent();
+            assertThat(oauthAccountRepository.findAllByUserId(user.getId()))
+                    .extracting(account -> account.getProvider().code())
+                    .containsExactly("kakao");
         }
 
         @Test

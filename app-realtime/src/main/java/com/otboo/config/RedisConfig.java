@@ -2,7 +2,8 @@ package com.otboo.config;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -36,8 +37,15 @@ public class RedisConfig {
 
     private ObjectMapper redisObjectMapper(ObjectMapper objectMapper) {
         ObjectMapper redisObjectMapper = objectMapper.copy();
+
+        PolymorphicTypeValidator validator = BasicPolymorphicTypeValidator.builder()
+            .allowIfSubType("com.otboo.")
+            .allowIfSubType("java.util.")   // UUID
+            .allowIfSubType("java.time.")   // Instant
+            .build();
+
         redisObjectMapper.activateDefaultTyping(
-            LaissezFaireSubTypeValidator.instance,
+            validator,
             ObjectMapper.DefaultTyping.EVERYTHING,
             As.PROPERTY
         );
