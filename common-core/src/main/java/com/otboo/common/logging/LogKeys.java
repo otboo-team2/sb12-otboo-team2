@@ -23,6 +23,9 @@ public final class LogKeys {
     /** 외부 API 호출 １건. {@code ExternalApiClient} 만 찍는다. */
     public static final String EVENT_EXTERNAL_CALL = "external_call";
 
+    /** 메일 발송 １건. 수신 주소는 반드시 가려서 찍는다. */
+    public static final String EVENT_MAIL = "mail";
+
     private LogKeys() {
     }
 }
