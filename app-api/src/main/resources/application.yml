@@ -13,12 +13,12 @@ spring:
       max-request-size: 12MB
 
   # ─────────── 소셜 로그인 ───────────
-  # 프론트가 /oauth2/authorization/google 로 보내고, 구글은 /login/oauth2/code/google 로
-  # 돌려준다. 둘 다 스프링 시큐리티 기본 경로라 따로 만들 것이 없다.
+  # 프론트가 /oauth2/authorization/{provider} 로 보내면 제공자는
+  # /login/oauth2/code/{provider} 로 돌려준다. 둘 다 스프링 시큐리티 기본 경로다.
   #
   # ⚠️ client-id 가 빈 문자열이면 앱이 기동조차 안 된다. 그래서 자리표시자를 기본값으로 둔다.
-  #    실제 값은 .env 의 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET 으로 넣는다.
-  #    설정하지 않으면 버튼을 눌렀을 때 구글 쪽에서 거부하고 로그인 화면으로 돌아온다.
+  #    실제 값은 .env 의 제공자별 CLIENT_ID / CLIENT_SECRET 으로 넣는다.
+  #    설정하지 않으면 버튼을 눌렀을 때 제공자 쪽에서 거부하고 로그인 화면으로 돌아온다.
   security:
     oauth2:
       client:
@@ -29,6 +29,21 @@ spring:
             scope:
               - email
               - profile
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:not-configured}
+            client-secret: ${KAKAO_CLIENT_SECRET:not-configured}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - profile_nickname
+              - account_email
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
 
 otboo:
   oauth:
