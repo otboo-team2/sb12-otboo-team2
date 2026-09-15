@@ -11,7 +11,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -27,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
  * 관련도(score) 순이 아니라 스펙이 정한 {@code createdAt} / {@code likeCount} 순이다.
  * {@code OFFSET} 을 쓰면 뒤 페이지로 갈수록 건너뛴 행까지 읽어 느려지므로 keyset 으로 간다.
  */
-@Component
 @RequiredArgsConstructor
 public class MysqlFeedSearch implements FeedSearchPort {
 
