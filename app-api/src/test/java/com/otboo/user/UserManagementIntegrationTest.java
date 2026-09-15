@@ -11,13 +11,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.otboo.common.security.AuthPrincipal;
 import com.otboo.common.test.IntegrationTestSupport;
+import com.otboo.user.entity.OAuthProvider;
 import com.otboo.user.entity.Profile;
 import com.otboo.user.entity.Role;
 import com.otboo.user.entity.User;
+import com.otboo.user.entity.UserOAuthAccount;
+import com.otboo.user.repository.UserOAuthAccountRepository;
 import com.otboo.user.repository.ProfileRepository;
 import com.otboo.user.repository.RefreshTokenRepository;
 import com.otboo.user.repository.UserRepository;
 import com.otboo.weather.repository.WeatherRegionRepository;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +44,7 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
 
     @Autowired MockMvc mockMvc;
     @Autowired UserRepository userRepository;
+    @Autowired UserOAuthAccountRepository oauthAccountRepository;
     @Autowired ProfileRepository profileRepository;
     @Autowired RefreshTokenRepository refreshTokenRepository;
     @Autowired WeatherRegionRepository weatherRegionRepository;
@@ -51,6 +56,7 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         refreshTokenRepository.deleteAll();
+        oauthAccountRepository.deleteAllInBatch();
         profileRepository.deleteAll();
         weatherRegionRepository.deleteAll();
         userRepository.deleteAll();
@@ -87,6 +93,9 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         @Test
         @DisplayName("커서 응답 형식을 그대로 돌려준다")
         void success() throws Exception {
+            oauthAccountRepository.saveAndFlush(
+                    UserOAuthAccount.link(member, OAuthProvider.KAKAO, "kakao-member"));
+
             mockMvc.perform(as(get("/api/users")
                             .param("limit", "10")
                             .param("sortBy", "createdAt")
@@ -94,6 +103,8 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data").isArray())
                     .andExpect(jsonPath("$.data.length()").value(2))
+                    .andExpect(jsonPath("$.data[?(@.email == 'member@otboo.com')].linkedOAuthProviders[0]")
+                            .value("kakao"))
                     .andExpect(jsonPath("$.totalCount").value(2))
                     .andExpect(jsonPath("$.hasNext").value(false))
                     .andExpect(jsonPath("$.sortBy").value("createdAt"))
@@ -169,11 +180,15 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         @Test
         @DisplayName("권한을 바꾸면 리프레시 토큰이 사라진다 — 토큰에 role 이 들어 있다")
         void changeRole() throws Exception {
+            oauthAccountRepository.saveAndFlush(
+                    UserOAuthAccount.link(member, OAuthProvider.KAKAO, "kakao-member"));
+
             mockMvc.perform(as(patch("/api/users/{id}/role", member.getId()), admin)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"role\":\"ADMIN\"}"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.role").value("ADMIN"));
+                    .andExpect(jsonPath("$.role").value("ADMIN"))
+                    .andExpect(jsonPath("$.linkedOAuthProviders[0]").value("kakao"));
 
             assertThat(userRepository.findById(member.getId()).orElseThrow().getRole())
                     .isEqualTo(Role.ADMIN);
@@ -265,7 +280,7 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
 
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    request.getBytes())))
+                                    request.getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("운정"))
                     .andExpect(jsonPath("$.gender").value("FEMALE"))
@@ -289,7 +304,7 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
 
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    request.getBytes())))
+                                    request.getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.location").doesNotExist());
 
@@ -301,12 +316,14 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         void partialUpdateKeepsOtherFields() throws Exception {
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    "{\"gender\":\"MALE\",\"temperatureSensitivity\":2}".getBytes())))
+                                    "{\"gender\":\"MALE\",\"temperatureSensitivity\":2}"
+                                            .getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isOk());
 
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    "{\"temperatureSensitivity\":5}".getBytes())))
+                                    "{\"temperatureSensitivity\":5}"
+                                            .getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.gender").value("MALE"))
                     .andExpect(jsonPath("$.temperatureSensitivity").value(5));
@@ -317,7 +334,8 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         void cannotUpdateOthers() throws Exception {
             mockMvc.perform(as(patchProfile(admin), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    "{\"gender\":\"MALE\"}".getBytes())))
+                                    "{\"gender\":\"MALE\"}"
+                                            .getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.exceptionName").value("USER_101"));
         }
@@ -327,7 +345,8 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         void rejectsOutOfRangeSensitivity() throws Exception {
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    "{\"temperatureSensitivity\":9}".getBytes())))
+                                    "{\"temperatureSensitivity\":9}"
+                                            .getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isBadRequest());
         }
 
@@ -336,9 +355,10 @@ class UserManagementIntegrationTest extends IntegrationTestSupport {
         void rejectsNonImage() throws Exception {
             mockMvc.perform(as(patchProfile(member), member)
                             .file(new MockMultipartFile("request", "", "application/json",
-                                    "{}".getBytes()))
+                                    "{}".getBytes(StandardCharsets.UTF_8)))
                             .file(new MockMultipartFile("image", "bad.exe",
-                                    "application/octet-stream", "MZ".getBytes())))
+                                    "application/octet-stream",
+                                    "MZ".getBytes(StandardCharsets.UTF_8))))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.exceptionName").value("COMMON_007"));
         }

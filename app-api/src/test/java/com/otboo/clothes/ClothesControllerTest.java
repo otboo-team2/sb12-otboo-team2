@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.otboo.clothes.dto.ClothesCreateRequest;
 import com.otboo.clothes.entity.Clothes;
 import com.otboo.clothes.entity.ClothesType;
+import com.otboo.clothes.extraction.RemoteImageDownloader;
 import com.otboo.clothes.repository.ClothesRepository;
 import com.otboo.common.security.AuthPrincipal;
 import com.otboo.common.storage.ImageStorage;
@@ -57,6 +58,9 @@ class ClothesControllerTest extends IntegrationTestSupport {
 
     @MockitoBean
     ImageStorage imageStorage;
+
+    @MockitoBean
+    RemoteImageDownloader remoteImageDownloader;
 
     @BeforeEach
     void setUp() {
@@ -131,6 +135,28 @@ class ClothesControllerTest extends IntegrationTestSupport {
                         .with(csrf()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.imageUrl").value("/images/clothes/shirt.jpg"));
+    }
+
+    @Test
+    @DisplayName("의상 등록 API는 구매 링크 이미지를 내려받아 저장한다")
+    void createsClothesWithSourceImageUrl() throws Exception {
+        User owner = saveUser();
+        String sourceImageUrl = "https://cdn.example.com/shirt.jpg";
+        MockMultipartFile downloaded = new MockMultipartFile(
+                "image", "downloaded.jpg", MediaType.IMAGE_JPEG_VALUE,
+                "image".getBytes(StandardCharsets.UTF_8));
+        given(remoteImageDownloader.download(sourceImageUrl)).willReturn(downloaded);
+        given(imageStorage.store(any(MultipartFile.class), eq("clothes")))
+                .willReturn("/images/clothes/downloaded.jpg");
+        ClothesCreateRequest request = new ClothesCreateRequest(
+                owner.getId(), "구매 링크 셔츠", ClothesType.TOP, List.of(), sourceImageUrl);
+
+        mockMvc.perform(multipart("/api/clothes")
+                        .file(requestPart(request))
+                        .with(authentication(ownerAuthentication(owner.getId())))
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.imageUrl").value("/images/clothes/downloaded.jpg"));
     }
 
     private MockMultipartFile requestPart(ClothesCreateRequest request) throws Exception {

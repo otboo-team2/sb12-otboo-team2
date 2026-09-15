@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta property="og:title" content="잘못된 Open Graph 상품명">
+    <meta property="og:image" content="https://cdn.example.com/wrong-og.jpg">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {"@type": "BreadcrumbList", "name": "카테고리"},
+        {
+          "@type": "Product",
+          "name": "세미 와이드 데님",
+          "description": "편안한 데일리 데님 팬츠",
+          "image": [
+            "https://cdn.example.com/main.jpg",
+            "https://cdn.example.com/detail-1.jpg",
+            "https://cdn.example.com/detail-2.jpg"
+          ]
+        }
+      ]
+    }
+    </script>
+</head>
+<body></body>
+</html>

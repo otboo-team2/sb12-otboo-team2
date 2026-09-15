@@ -32,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class ClothesController {
 
     private final ClothesService clothesService;
+    private final ClothesCreationService clothesCreationService;
 
     @GetMapping
     public CursorResponse<ClothesDto> findAll(
@@ -67,7 +68,7 @@ public class ClothesController {
             @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(clothesService.create(me.userId(), request, image));
+                .body(clothesCreationService.create(me.userId(), request, image));
     }
 
     @DeleteMapping("/{clothesId}")

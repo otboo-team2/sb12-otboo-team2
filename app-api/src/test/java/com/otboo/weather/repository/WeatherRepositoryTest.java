@@ -58,7 +58,11 @@ class WeatherRepositoryTest extends IntegrationTestSupport {
 
         var found = weathers.findByGridXAndGridYAndForecastedAtAndForecastAt(
                 60, 127, ANNOUNCED, TARGET).orElseThrow();
-        assertThat(found).usingRecursiveComparison().isEqualTo(saved);
+        // 감사 시간은 DB DATETIME(6) 정밀도로 다시 읽히므로 나노초까지 같은지 비교하지 않는다.
+        // 아래에서 값이 채워졌는지는 별도로 검증한다.
+        assertThat(found).usingRecursiveComparison()
+                .ignoringFields("createdAt", "updatedAt")
+                .isEqualTo(saved);
         assertThat(found.getTemperatureCurrent()).isEqualByComparingTo("-2.50");
         assertThat(found.getHumidityComparedToDayBefore()).isNull();
         assertThat(found.getTemperatureComparedToDayBefore()).isNull();
