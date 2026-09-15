@@ -22,4 +22,6 @@ public interface ImageStorage {
 
     /** 이전 이미지를 지운다. 없는 URL 이 들어와도 예외를 던지지 않는다. */
     void delete(String url);
+
+    String storeFromUrl(String remoteUrl, String directory);
 }
