@@ -33,4 +33,6 @@ public interface VirtualTryOnCacheRepository extends JpaRepository<VirtualTryOnC
         @Param("modelHash") String modelHash,
         @Param("topId") UUID topId,
         @Param("bottomId") UUID bottomId);
+
+    Optional<VirtualTryOnCache> findByCacheKey(String cacheKey);
 }
