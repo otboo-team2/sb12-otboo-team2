@@ -3,6 +3,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 비밀번호 초기화 임시 비밀번호 발송. SPRING_MAIL_HOST 가 없으면 로그로 대체된다.
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
     // 소셜 로그인. /oauth2/authorization/{provider} 와 /login/oauth2/code/{provider} 를 제공한다.
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 

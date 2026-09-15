@@ -12,6 +12,24 @@ spring:
       max-file-size: 10MB                     # 의상·프로필 이미지 업로드
       max-request-size: 12MB
 
+  # ─────────── 메일 (비밀번호 초기화 임시 비밀번호 발송) ───────────
+  # ⚠️ host 를 여기에 빈 값으로라도 적으면 안 된다. 부트는 "설정됐다"고 보고
+  #    빈 주소로 발송을 시도한다. 아래 환경변수로만 넣는다.
+  #
+  #      SPRING_MAIL_HOST=smtp.gmail.com  SPRING_MAIL_PORT=587
+  #      SPRING_MAIL_USERNAME=<계정>       SPRING_MAIL_PASSWORD=<앱 비밀번호>
+  #
+  # 설정하지 않으면 임시 비밀번호가 메일 대신 로그로 나간다(local 전용).
+  # prod 에서는 없으면 기동하지 않는다 — PasswordResetMailerConfig 참고.
+  mail:
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      # 발송이 DB 트랜잭션 안에서 일어난다. 오래 매달리면 커넥션을 붙잡는다.
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   # ─────────── 소셜 로그인 ───────────
   # 프론트가 /oauth2/authorization/{provider} 로 보내면 제공자는
   # /login/oauth2/code/{provider} 로 돌려준다. 둘 다 스프링 시큐리티 기본 경로다.
@@ -46,6 +64,11 @@ spring:
             user-name-attribute: id
 
 otboo:
+  password-reset:
+    from: ${MAIL_FROM:no-reply@otboo.com}
+    # 같은 주소로 다시 요청할 수 있게 되기까지. 로그인 없이 부를 수 있는 API 라
+    # 이게 없으면 남의 메일함을 초기화 메일로 채울 수 있다.
+    cooldown: 3m
   oauth:
     # 요청 파라미터로 받지 않는다. 받으면 ?redirect=https://공격자 로 오픈 리다이렉트가 된다.
     success-redirect: ${OAUTH_SUCCESS_REDIRECT:/}
