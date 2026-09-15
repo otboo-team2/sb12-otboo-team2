@@ -145,7 +145,11 @@ class GeminiClothesExtractionClientTest {
                 .contains("<UNTRUSTED_PRODUCT_TEXT>", "</UNTRUSTED_PRODUCT_TEXT>")
                 .contains("가벼운 원단만으로 얇음 판단 금지")
                 .contains("시원함만으로 계절 판단 금지")
-                .contains("옵션별 값은 optionDependent=true");
+                .contains("옵션별 값은 optionDependent=true")
+                .contains("혼방 소재에 함량 비율이 있으면 가장 높은 비율의 소재 하나만 선택")
+                .contains("최고 함량이 같으면 소재를 확정하지 말고 ambiguity에 추가")
+                .contains("스웨이드라는 표현만으로 가죽으로 추론하지 말 것")
+                .contains("이미지 안에서 읽은 글자와 표의 source는 DETAIL_IMAGE");
         assertThat(request.at("/contents/0/parts/1/inline_data/mime_type").asText())
                 .isEqualTo("image/jpeg");
         assertThat(request.at("/contents/0/parts/1/inline_data/data").asText())
