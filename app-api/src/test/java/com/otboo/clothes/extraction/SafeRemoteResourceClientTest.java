@@ -155,6 +155,18 @@ class SafeRemoteResourceClientTest {
                                 .isEqualTo(ClothesErrorCode.INVALID_REMOTE_IMAGE));
     }
 
+    @Test
+    void detectsImageTypeFromMagicBytesWhenServerContentTypeIsWrong() {
+        byte[] jpeg = {(byte) 0xff, (byte) 0xd8, (byte) 0xff, 0x00};
+        server.createContext("/wrong-content-type", exchange -> respond(
+                exchange, 200, "application/x-www-form-urlencoded", jpeg));
+
+        RemoteResource result = client.getImage(uri("/wrong-content-type"));
+
+        assertThat(result.contentType()).isEqualTo("image/jpeg");
+        assertThat(result.body()).isEqualTo(jpeg);
+    }
+
     private URI uri(String path) {
         return URI.create("http://localhost:%d%s".formatted(server.getAddress().getPort(), path));
     }
