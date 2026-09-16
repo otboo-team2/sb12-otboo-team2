@@ -14,6 +14,8 @@ public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
 
     Optional<Clothes> findByIdAndOwnerId(UUID clothesId, UUID ownerId);
 
+    List<Clothes> findAllByOwnerIdOrderByIdDesc(UUID ownerId);
+
     @Query("""
             select clothes
             from Clothes clothes

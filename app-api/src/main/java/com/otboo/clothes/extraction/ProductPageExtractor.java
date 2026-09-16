@@ -32,15 +32,18 @@ public class ProductPageExtractor {
     private final SafeRemoteResourceClient remoteClient;
     private final ObjectMapper objectMapper;
     private final ClothesExtractionProperties properties;
+    private final List<ProductPageSupplementExtractor> supplementExtractors;
 
     public ProductPageExtractor(
             SafeRemoteResourceClient remoteClient,
             ObjectMapper objectMapper,
-            ClothesExtractionProperties properties
+            ClothesExtractionProperties properties,
+            List<ProductPageSupplementExtractor> supplementExtractors
     ) {
         this.remoteClient = remoteClient;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.supplementExtractors = List.copyOf(supplementExtractors);
     }
 
     public ProductPageData extract(URI productUrl) {
@@ -48,17 +51,31 @@ public class ProductPageExtractor {
         Document document = parse(resource);
 
         JsonLdProduct jsonLdProduct = findProductFromJsonLd(document);
+        List<String> supplementalDescriptions = new ArrayList<>();
+        List<URI> supplementalDetailImages = new ArrayList<>();
+        for (ProductPageSupplementExtractor supplementExtractor : supplementExtractors) {
+            if (!supplementExtractor.supports(resource.finalUri())) {
+                continue;
+            }
+            ProductPageSupplement supplement = supplementExtractor.extract(
+                    document,
+                    resource.finalUri());
+            supplementalDescriptions.addAll(supplement.descriptions());
+            supplementalDetailImages.addAll(supplement.detailImageUrls());
+        }
         String name = firstNonBlank(
                 jsonLdProduct.name(),
                 metaContent(document, "property", "og:title"),
                 firstElementText(document.select("h1")),
                 document.title());
-        String description = firstNonBlank(
-                jsonLdProduct.description(),
-                metaContent(document, "property", "og:description"),
-                metaContent(document, "name", "description"),
-                firstElementText(document.select("[itemprop=description]")),
-                bodyText(document));
+        String description = mergeDescriptions(
+                firstNonBlank(
+                        jsonLdProduct.description(),
+                        metaContent(document, "property", "og:description"),
+                        metaContent(document, "name", "description"),
+                        firstElementText(document.select("[itemprop=description]")),
+                        bodyText(document)),
+                supplementalDescriptions);
 
         List<URI> structuredImages = jsonLdProduct.imageUrls();
         URI openGraphImage = resolveImage(
@@ -89,10 +106,14 @@ public class ProductPageExtractor {
         }
 
         URI selectedPrimaryImage = primaryImage;
-        List<URI> detailImages = selectedPrimaryImage == null
-                ? imageCandidates
-                : imageCandidates.stream()
-                        .filter(image -> !image.equals(selectedPrimaryImage))
+        List<URI> detailImages = supplementalDetailImages.isEmpty()
+                ? selectedPrimaryImage == null
+                        ? imageCandidates
+                        : imageCandidates.stream()
+                                .filter(image -> !image.equals(selectedPrimaryImage))
+                                .toList()
+                : distinct(supplementalDetailImages).stream()
+                        .limit(MAX_IMAGE_CANDIDATES)
                         .toList();
         return new ProductPageData(
                 resource.finalUri(),
@@ -335,6 +356,19 @@ public class ProductPageExtractor {
             return null;
         }
         return cleanText(document.body().text());
+    }
+
+    private String mergeDescriptions(String baseDescription, List<String> supplements) {
+        Set<String> descriptions = new LinkedHashSet<>();
+        if (!isBlank(baseDescription)) {
+            descriptions.add(baseDescription);
+        }
+        if (supplements != null) {
+            supplements.stream()
+                    .filter(value -> !isBlank(value))
+                    .forEach(descriptions::add);
+        }
+        return descriptions.isEmpty() ? null : String.join(" ", descriptions);
     }
 
     private String metaContent(Document document, String attribute, String value) {

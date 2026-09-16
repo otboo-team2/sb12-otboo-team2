@@ -125,7 +125,7 @@ public class ClothesExtractionService {
         int totalBytes = images.stream().mapToInt(image -> image.body().length).sum();
         int detailCount = 0;
 
-        for (URI detailUrl : page.detailImageUrls()) {
+        for (URI detailUrl : selectDetailImages(page.detailImageUrls(), maxDetailImages)) {
             if (detailCount >= maxDetailImages || detailUrl == null || downloadedUris.contains(detailUrl)) {
                 continue;
             }
@@ -147,6 +147,26 @@ public class ClothesExtractionService {
                 failures.add(imageFailure(DETAIL_IMAGE_FIELD));
             }
         }
+    }
+
+    private List<URI> selectDetailImages(List<URI> detailImageUrls, int limit) {
+        if (detailImageUrls == null || detailImageUrls.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        if (detailImageUrls.size() <= limit) {
+            return detailImageUrls;
+        }
+        if (limit == 1) {
+            return List.of(detailImageUrls.get(detailImageUrls.size() - 1));
+        }
+
+        List<URI> selected = new ArrayList<>(limit);
+        int lastIndex = detailImageUrls.size() - 1;
+        for (int index = 0; index < limit; index++) {
+            int sourceIndex = (int) Math.round((double) index * lastIndex / (limit - 1));
+            selected.add(detailImageUrls.get(sourceIndex));
+        }
+        return selected;
     }
 
     private List<AttributeDefinitionSnapshot> loadAttributeCatalog() {

@@ -47,6 +47,12 @@ jobs:
         # 의존성과 빌드 캐시를 자동으로 저장·복원한다
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Elasticsearch(nori) 이미지 빌드
+        # 검색 통합 테스트(FeedElasticsearchSearchTest)가 otboo-elasticsearch 이미지로 컨테이너를 띄운다.
+        # 레지스트리에 올린 이미지가 아니라 러너에서 직접 굽지 않으면 pull 에 실패한다.
+        # 태그는 docker-compose.yml 의 elasticsearch 서비스가 정한다(테스트와 같은 이미지).
+        run: docker compose build elasticsearch
+
       - name: 빌드 · 테스트
         # 통합 테스트가 Testcontainers 로 MySQL 을 띄운다. ubuntu 러너에는 Docker 가 있다.
         # 로컬과 같은 기준으로 돌려야 시간 관련 테스트가 여기서만 깨지지 않는다.
