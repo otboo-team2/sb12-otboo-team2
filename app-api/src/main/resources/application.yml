@@ -211,6 +211,11 @@ spring:
     activate:
       on-profile: prod
 
+server:
+  # nginx 뒤에 선다. 이게 없으면 스프링이 자기 주소를 http://app-api:8080 으로 알고
+  # 구글에 그 주소로 redirect_uri 를 보내 소셜 로그인이 거절된다.
+  forward-headers-strategy: framework
+
 otboo:
   jwt:
     secret: ${JWT_SECRET}          # 기본값을 두지 않는다
