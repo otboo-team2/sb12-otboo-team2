@@ -139,6 +139,12 @@ public class ClothesService {
                 ClothesDto::id);
     }
 
+    /** 추천 후보 조회용. 개인 옷장 규모를 전제로 기존 속성,DTO 변환을 재사용한다. */
+    @Transactional(readOnly = true)
+    public List<ClothesDto> findAllForRecommendation(UUID ownerId) {
+        return toDtos(clothesRepository.findAllByOwnerIdOrderByIdDesc(ownerId));
+    }
+
     @Transactional
     public void addFavorite(UUID authenticatedUserId, UUID clothesId) {
         Clothes clothes = findOwnedClothes(authenticatedUserId, clothesId);

@@ -19,6 +19,12 @@ spring:
       # 기동만으로 전체 잡이 도는 것을 막는다. 실행할 잡을 지정해서 돌린다.
       enabled: false
 
+management:
+  metrics:
+    enable:
+      # Spring Batch 5.2의 동일 메트릭 중복 등록 경고 방지. 배치별 메트릭은 tasklet에서 직접 기록한다.
+      spring.batch: false
+
 otboo:
   jwt:
     secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}

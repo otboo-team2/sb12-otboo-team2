@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import com.otboo.weather.repository.WeatherRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.repeat.RepeatStatus;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class WeatherCleanupTaskletTest {
 
@@ -14,7 +15,7 @@ class WeatherCleanupTaskletTest {
         var repository = mock(WeatherRepository.class);
         when(repository.deleteByForecastAtBefore(any())).thenReturn(3L);
 
-        var result = new WeatherCleanupTasklet(repository).execute(null, null);
+        var result = new WeatherCleanupTasklet(repository, new SimpleMeterRegistry()).execute(null, null);
 
         assertThat(result).isEqualTo(RepeatStatus.FINISHED);
         verify(repository).deleteByForecastAtBefore(any());
