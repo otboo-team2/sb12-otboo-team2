@@ -1,28 +1,17 @@
 package com.otboo.dm.broadcast;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
-public class DirectMessageNotificationSubscriber implements MessageListener {
+public class DirectMessageNotificationSubscriber {
 
-    private final RedisTemplate<String, Object> redisTemplate;
     private final DirectMessageEventPublisher directMessageEventPublisher;
 
-    @Override
-    public void onMessage(Message message, byte[] pattern) {
-        Object value = redisTemplate.getValueSerializer().deserialize(message.getBody());
-        // log.info("[DM-NOTIFY] Redis 메시지 수신, value={}", value);
-
-        if (value instanceof DirectMessageBroadcastMessage broadcastMessage) {
-            directMessageEventPublisher.publish(broadcastMessage);
-            // log.info("[DM-NOTIFY] DirectMessageReceivedEvent 발행, id={}", broadcastMessage.id());
-        }
+    @KafkaListener(topics = "dm-broadcast", groupId = "app-api-dm-consumer")
+    public void onMessage(DirectMessageBroadcastMessage message) {
+        directMessageEventPublisher.publish(message);
     }
 }
