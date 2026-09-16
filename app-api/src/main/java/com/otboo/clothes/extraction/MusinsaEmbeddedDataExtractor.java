@@ -54,7 +54,11 @@ public class MusinsaEmbeddedDataExtractor implements ProductPageSupplementExtrac
                 addText(descriptions, cleanText(fragment.text()));
                 collectImages(fragment, productUri, detailImages);
             }
-            return new ProductPageSupplement(List.copyOf(descriptions), distinct(detailImages));
+            return new ProductPageSupplement(
+                    List.copyOf(descriptions),
+                    null,
+                    distinct(detailImages),
+                    List.of());
         } catch (JsonProcessingException ignored) {
             return ProductPageSupplement.empty();
         }

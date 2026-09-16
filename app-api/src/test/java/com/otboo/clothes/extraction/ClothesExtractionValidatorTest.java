@@ -18,6 +18,7 @@ class ClothesExtractionValidatorTest {
     private static final UUID FIT_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final UUID THICKNESS_ID = UUID.fromString("00000000-0000-0000-0000-000000000002");
     private static final UUID SEASON_ID = UUID.fromString("00000000-0000-0000-0000-000000000003");
+    private static final UUID COLOR_ID = UUID.fromString("00000000-0000-0000-0000-000000000004");
     private static final URI PRODUCT_URL = URI.create("https://shop.example.com/products/1");
 
     private ClothesExtractionValidator validator;
@@ -37,7 +38,8 @@ class ClothesExtractionValidatorTest {
         catalog = List.of(
                 new AttributeDefinitionSnapshot(FIT_ID, "핏", List.of("세미와이드", "와이드")),
                 new AttributeDefinitionSnapshot(THICKNESS_ID, "두께감", List.of("얇음", "보통", "두꺼움")),
-                new AttributeDefinitionSnapshot(SEASON_ID, "계절", List.of("여름", "겨울")));
+                new AttributeDefinitionSnapshot(SEASON_ID, "계절", List.of("여름", "겨울")),
+                new AttributeDefinitionSnapshot(COLOR_ID, "색상", List.of("블랙", "그레이")));
     }
 
     @Test
@@ -128,6 +130,21 @@ class ClothesExtractionValidatorTest {
     }
 
     @Test
+    void removesDuplicateAmbiguityFailures() {
+        GeminiExtractionCandidate candidate = new GeminiExtractionCandidate(
+                "상품",
+                "TOP",
+                List.of(),
+                List.of("색상 옵션이 여러 개입니다.", "소재를 확인할 수 없습니다.", "핏이 불분명합니다."));
+
+        ClothesExtractionDto result = validator.validate(page, candidate, catalog, null);
+
+        assertThat(result.failures())
+                .filteredOn(failure -> failure.field().equals("ambiguity"))
+                .singleElement();
+    }
+
+    @Test
     void removesConflictingValuesForSameDefinition() {
         ClothesExtractionDto result = validator.validate(
                 page,
@@ -164,6 +181,35 @@ class ClothesExtractionValidatorTest {
                 null);
 
         assertThat(result.attributes()).isEmpty();
+    }
+
+    @Test
+    void rejectsSimilarColorThatDoesNotMatchEvidence() {
+        ClothesExtractionDto result = validator.validate(
+                page,
+                candidate("상품", "BOTTOM", List.of(attribute(
+                        COLOR_ID, "블랙", "Color- charcoal", "PAGE_TEXT", false))),
+                catalog,
+                null);
+
+        assertThat(result.attributes()).isEmpty();
+        assertThat(result.failures()).anySatisfy(failure ->
+                assertThat(failure.field()).isEqualTo("attributes"));
+    }
+
+    @Test
+    void acceptsTranslatedColorThatMatchesEvidence() {
+        ClothesExtractionDto result = validator.validate(
+                page,
+                candidate("상품", "TOP", List.of(attribute(
+                        COLOR_ID, "블랙", "Color- black", "PAGE_TEXT", false))),
+                catalog,
+                null);
+
+        assertThat(result.attributes()).singleElement().satisfies(attribute -> {
+            assertThat(attribute.definitionName()).isEqualTo("색상");
+            assertThat(attribute.value()).isEqualTo("블랙");
+        });
     }
 
     @Test
