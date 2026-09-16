@@ -1,0 +1,82 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "tokenizer": {
+        "korean_tokenizer": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        },
+        "substring_tokenizer": {
+          "type": "ngram",
+          "min_gram": 2,
+          "max_gram": 3,
+          "token_chars": ["letter", "digit"]
+        }
+      },
+      "analyzer": {
+        "korean": {
+          "type": "custom",
+          "tokenizer": "korean_tokenizer",
+          "filter": ["nori_part_of_speech", "nori_readingform", "lowercase"]
+        },
+        "substring": {
+          "type": "custom",
+          "tokenizer": "substring_tokenizer",
+          "filter": ["lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "_meta": {
+      "owner": "feed",
+      "content": "korean=nori 형태소(검색 정확도), substring=ngram(2,3) + match_phrase(부분 문자열 재현율)",
+      "createdAt": "MySQL 이 DATETIME(6) 이라 date(밀리초)로 받으면 마이크로초가 잘린다. 잘리면 같은 밀리초 안의 피드 순서가 MySQL 과 달라져 커서 페이지가 어긋난다.",
+      "dynamic": "strict 인 이유 - 오타 난 필드가 조용히 새 필드로 색인되면 검색 결과에서만 티가 난다"
+    },
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "korean",
+        "fields": {
+          "substring": {
+            "type": "text",
+            "analyzer": "substring"
+          }
+        }
+      },
+      "authorId": {
+        "type": "keyword"
+      },
+      "authorName": {
+        "type": "text",
+        "analyzer": "korean",
+        "fields": {
+          "substring": {
+            "type": "text",
+            "analyzer": "substring"
+          }
+        }
+      },
+      "skyStatus": {
+        "type": "keyword"
+      },
+      "precipitationType": {
+        "type": "keyword"
+      },
+      "createdAt": {
+        "type": "date_nanos",
+        "format": "strict_date_optional_time_nanos"
+      },
+      "likeCount": {
+        "type": "long"
+      }
+    }
+  }
+}
