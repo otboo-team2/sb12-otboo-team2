@@ -76,7 +76,7 @@ public class ClothesAttributeDefinitionService {
         List<ClothesAttributeDefinition> definitions = findDefinitions(
                 normalizedRequest, normalizedKeyword);
         long totalCount = definitionRepository.countByKeywordLike(normalizedKeyword);
-        Map<UUID, List<String>> selectableValuesByDefinitionId = loadSelectableValues(definitions);
+        Map<UUID, List<ClothesAttributeSelectableValue>> selectableValuesByDefinitionId = loadSelectableValues(definitions);
 
         List<ClothesAttributeDefDto> data = definitions.stream()
                 .map(definition -> ClothesAttributeDefDto.from(
@@ -196,7 +196,7 @@ public class ClothesAttributeDefinitionService {
                         cursor, request.idAfter(), keywordLike, pageRequest);
     }
 
-    private Map<UUID, List<String>> loadSelectableValues(
+    private Map<UUID, List<ClothesAttributeSelectableValue>> loadSelectableValues(
             Collection<ClothesAttributeDefinition> definitions
     ) {
         List<UUID> definitionIds = definitions.stream()
@@ -210,8 +210,7 @@ public class ClothesAttributeDefinitionService {
                 .collect(Collectors.groupingBy(
                         value -> value.getDefinition().getId(),
                         LinkedHashMap::new,
-                        Collectors.mapping(ClothesAttributeSelectableValue::getValue,
-                                Collectors.toList())
+                        Collectors.toList()
                 ));
     }
 }
