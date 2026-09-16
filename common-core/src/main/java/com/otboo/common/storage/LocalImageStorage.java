@@ -4,6 +4,7 @@ import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -91,5 +92,69 @@ public class LocalImageStorage implements ImageStorage {
             return "etc";
         }
         return directory.replaceAll("[^A-Za-z0-9_-]", "");
+    }
+
+    @Override
+    public String storeFromUrl(String remoteUrl, String directory) {
+        try {
+            java.net.URL url = assertSafeUrl(remoteUrl);
+            java.net.URLConnection connection = url.openConnection();
+            connection.setConnectTimeout(5_000);
+            connection.setReadTimeout(30_000);
+
+            String extension = ALLOWED_TYPES.get(connection.getContentType());
+            if (extension == null) {
+                throw new BusinessException(CommonErrorCode.INVALID_IMAGE)
+                    .addDetail("reason", "지원하지 않는 형식")
+                    .addDetail("contentType", String.valueOf(connection.getContentType()));
+            }
+
+            String storedName = UUID.randomUUID() + "." + extension;
+            Path targetDirectory = Path.of(properties.baseDir(), sanitize(directory));
+            Files.createDirectories(targetDirectory);
+            Path target = targetDirectory.resolve(storedName);
+
+            try (InputStream in = connection.getInputStream()) {
+                copyWithLimit(in, target, properties.maxSize());
+            }
+
+            return properties.baseUrl() + "/" + sanitize(directory) + "/" + storedName;
+        } catch (IOException e) {
+            throw new BusinessException(CommonErrorCode.STORAGE_ERROR, e);
+        }
+    }
+
+    private java.net.URL assertSafeUrl(String remoteUrl) throws IOException {
+        java.net.URL url = java.net.URI.create(remoteUrl).toURL();
+        String protocol = url.getProtocol();
+        if (!"http".equals(protocol) && !"https".equals(protocol)) {
+            throw new BusinessException(CommonErrorCode.STORAGE_ERROR)
+                .addDetail("reason", "허용되지 않는 URL 스킴").addDetail("protocol", protocol);
+        }
+        java.net.InetAddress address = java.net.InetAddress.getByName(url.getHost());
+        if (address.isLoopbackAddress() || address.isLinkLocalAddress() || address.isSiteLocalAddress()) {
+            throw new BusinessException(CommonErrorCode.STORAGE_ERROR)
+                .addDetail("reason", "내부망 주소는 허용되지 않음").addDetail("host", url.getHost());
+        }
+        return url;
+    }
+
+    private void copyWithLimit(InputStream in, Path target, long maxBytes) throws IOException {
+        try (OutputStream out = Files.newOutputStream(target,
+            java.nio.file.StandardOpenOption.CREATE,
+            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+            java.nio.file.StandardOpenOption.WRITE)) {
+            byte[] buffer = new byte[8192];
+            long total = 0;
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                total += read;
+                if (total > maxBytes) {
+                    Files.deleteIfExists(target);
+                    throw new IOException("다운로드 크기가 최대 허용치를 초과했습니다: " + maxBytes);
+                }
+                out.write(buffer, 0, read);
+            }
+        }
     }
 }

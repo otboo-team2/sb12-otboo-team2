@@ -88,6 +88,12 @@ otboo:
       max-total-image-bytes: 26214400
       max-detail-images: 4
       max-page-text-chars: 15000
+  fashn:
+    api-key: ${FASHN_API_KEY:}
+  virtual-try-on:
+    dispatch-interval: 5000
+    poll-interval: 5000
+    default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
   # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
   # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
   storage:

@@ -109,18 +109,26 @@ public class VirtualTryOnJob extends BaseEntity {
         this.fashnPredictionId = null;
     }
 
-    public void succeed(VirtualTryOnCache resultCache) {
+    public boolean fail() {
+        if (status.isTerminal()) {
+            return false;
+        }
+        this.status = VirtualTryOnJobStatus.FAILED;
+        this.currentStep = VirtualTryOnStep.DONE;
+        return true;
+    }
+
+    public boolean succeed(VirtualTryOnCache resultCache) {
+        if (status.isTerminal()) {
+            return false;
+        }
         this.resultCache = resultCache;
         this.currentStep = VirtualTryOnStep.DONE;
         this.status = VirtualTryOnJobStatus.SUCCEEDED;
+        return true;
     }
 
-    public void fail() {
-        this.status = VirtualTryOnJobStatus.FAILED;
-        this.currentStep = VirtualTryOnStep.DONE;
-    }
-
-    public boolean isModelImageFromFashn() {
-        return currentStep == VirtualTryOnStep.BOTTOM && reuseBaseCache == null;
+    public void assignModelImage(String modelImageKey) {
+        this.modelImageKey = modelImageKey;
     }
 }
