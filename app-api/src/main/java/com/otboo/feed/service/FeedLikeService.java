@@ -9,11 +9,13 @@ import com.otboo.feed.exception.FeedErrorCode;
 import com.otboo.feed.query.FeedViewLoader;
 import com.otboo.feed.repository.FeedLikeRepository;
 import com.otboo.feed.repository.FeedRepository;
+import com.otboo.feed.search.FeedIndexEvent;
 import com.otboo.user.entity.User;
 import com.otboo.user.exception.UserErrorCode;
 import com.otboo.user.repository.UserRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +47,7 @@ public class FeedLikeService {
     private final FeedLikeRepository feedLikeRepository;
     private final UserRepository userRepository;
     private final FeedViewLoader viewLoader;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public FeedDto like(AuthPrincipal me, UUID feedId) {
@@ -68,6 +71,8 @@ public class FeedLikeService {
                     .addDetail("feedId", feedId.toString());
         }
 
+        // likeCount 는 정렬 키. 색인이 밀리면 "좋아요순" 목록의 순서가 옛 값으로 남는다.
+        events.publishEvent(FeedIndexEvent.upsert(feedId));
         return viewLoader.loadOne(feedId, me.userId());
     }
 
@@ -84,6 +89,7 @@ public class FeedLikeService {
             throw new BusinessException(FeedErrorCode.NOT_LIKED)
                     .addDetail("feedId", feedId.toString());
         }
+        events.publishEvent(FeedIndexEvent.upsert(feedId));
     }
 
     private Feed findFeed(UUID feedId) {

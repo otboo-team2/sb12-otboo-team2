@@ -12,6 +12,7 @@ import com.otboo.feed.exception.FeedErrorCode;
 import com.otboo.feed.query.FeedReferenceQuery;
 import com.otboo.feed.query.FeedViewLoader;
 import com.otboo.feed.repository.FeedRepository;
+import com.otboo.feed.search.FeedIndexEvent;
 import com.otboo.feed.search.FeedSearchPort;
 import com.otboo.user.entity.User;
 import com.otboo.user.exception.UserErrorCode;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,7 @@ public class FeedService {
     private final FeedSearchPort feedSearch;
     private final FeedViewLoader viewLoader;
     private final FeedReferenceQuery referenceQuery;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public FeedDto create(AuthPrincipal me, FeedCreateRequest request) {
@@ -61,6 +64,7 @@ public class FeedService {
         Feed feed = feedRepository.saveAndFlush(
                 Feed.create(author, request.weatherId(), request.content(), clothesIds));
 
+        events.publishEvent(FeedIndexEvent.upsert(feed.getId()));
         return viewLoader.loadOne(feed.getId(), me.userId());
     }
 
@@ -70,6 +74,7 @@ public class FeedService {
         feed.updateContent(request.content());
         feedRepository.flush();
 
+        events.publishEvent(FeedIndexEvent.upsert(feedId));
         return viewLoader.loadOne(feedId, me.userId());
     }
 
@@ -84,6 +89,7 @@ public class FeedService {
             throw new BusinessException(FeedErrorCode.NOT_FOUND)
                     .addDetail("feedId", feedId.toString());
         }
+        events.publishEvent(FeedIndexEvent.delete(feedId));
     }
 
     /**
@@ -116,14 +122,15 @@ public class FeedService {
         return feed;
     }
 
-    /** 삭제는 관리자도 할 수 있어야 신고 처리가 된다. */
-    private Feed findDeletableFeed(AuthPrincipal me, UUID feedId) {
+    /**
+     * 삭제는 관리자도 할 수 있어야 신고 처리가 된다.
+     */
+    private void findDeletableFeed(AuthPrincipal me, UUID feedId) {
         Feed feed = findFeedWithAuthor(feedId);
         if (!feed.isAuthor(me.userId()) && !me.isAdmin()) {
             throw new BusinessException(FeedErrorCode.NOT_AUTHOR)
                     .addDetail("feedId", feedId.toString());
         }
-        return feed;
     }
 
     private Feed findFeedWithAuthor(UUID feedId) {

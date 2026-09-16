@@ -1,8 +1,10 @@
 package com.otboo.auth;
 
 import com.otboo.auth.dto.JwtDto;
+import com.otboo.auth.dto.ResetPasswordRequest;
 import com.otboo.auth.dto.SignInRequest;
 import com.otboo.auth.exception.AuthErrorCode;
+import com.otboo.auth.password.PasswordResetService;
 import com.otboo.common.exception.BusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
     private final RefreshTokenCookie refreshTokenCookie;
 
     /** Swagger 상 multipart/form-data 다. consumes 를 지정하지 않으면 프론트 요청이 415 로 막힌다. */
@@ -53,6 +57,17 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.expired().toString())
                 .build();
+    }
+
+    /**
+     * 비밀번호 초기화. 임시 비밀번호를 만들어 메일로 보낸다.
+     *
+     * <p>계정이 없어도 204 다. 이유는 {@link ResetPasswordRequest} 에 적어두었다.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResetService.reset(request);
+        return ResponseEntity.noContent().build();
     }
 
     /** 파라미터로 CsrfToken 을 받으면 토큰이 생성되고 XSRF-TOKEN 쿠키가 내려간다. */

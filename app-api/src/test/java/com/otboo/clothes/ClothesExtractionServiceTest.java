@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.otboo.clothes.dto.ClothesExtractionDto;
@@ -135,6 +136,28 @@ class ClothesExtractionServiceTest {
                 assertThat(failure.field()).isEqualTo("detailImage"));
         verify(remoteResourceClient).getImage(detail3);
         verify(geminiClient).extract(any(), org.mockito.ArgumentMatchers.argThat(images -> images.size() == 3), anyList());
+    }
+
+    @Test
+    void samplesDetailImagesAcrossTheWholePage() {
+        ProductPageData page = pageWithDetails(8);
+        given(productUrlValidator.validate(RAW_URL)).willReturn(PRODUCT_URL);
+        given(productPageExtractor.extract(PRODUCT_URL)).willReturn(page);
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
+        given(definitionRepository.findAll(any(Sort.class))).willReturn(List.of());
+        given(geminiClient.extract(any(), anyList(), anyList()))
+                .willReturn(new GeminiExtractionCandidate("상품", "TOP", List.of(), List.of()));
+        ClothesExtractionDto expected = new ClothesExtractionDto(
+                "상품", null, List.of(), PRIMARY_URL.toString(), List.of());
+        given(extractionValidator.validate(any(), any(), anyList(), anyString())).willReturn(expected);
+
+        service.extract(RAW_URL);
+
+        verify(remoteResourceClient).getImage(URI.create("https://cdn.example.com/detail-1.jpg"));
+        verify(remoteResourceClient).getImage(URI.create("https://cdn.example.com/detail-8.jpg"));
+        verify(remoteResourceClient, never())
+                .getImage(URI.create("https://cdn.example.com/detail-2.jpg"));
     }
 
     @Test

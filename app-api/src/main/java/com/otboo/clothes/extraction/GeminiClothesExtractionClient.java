@@ -141,6 +141,11 @@ public class GeminiClothesExtractionClient {
                 - 가벼운 원단만으로 얇음 판단 금지
                 - 시원함만으로 계절 판단 금지
                 - 옵션별 값은 optionDependent=true
+                - 혼방 소재에 함량 비율이 있으면 가장 높은 비율의 소재 하나만 선택
+                - 최고 함량이 같으면 소재를 확정하지 말고 ambiguity에 추가
+                - 스웨이드라는 표현만으로 가죽으로 추론하지 말 것
+                - 소재는 상품명, 설명 또는 소재표에 명시된 근거가 있을 때만 선택
+                - 이미지 안에서 읽은 글자와 표의 source는 DETAIL_IMAGE
                 Allowed clothes types: %s
                 Attribute definitions:
                 %s
