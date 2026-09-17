@@ -18,9 +18,11 @@ import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.Sort;
@@ -32,6 +34,19 @@ public class ClothesExtractionService {
 
     private static final String PRIMARY_IMAGE_FIELD = "image";
     private static final String DETAIL_IMAGE_FIELD = "detailImage";
+    private static final List<InformationImageKeyword> INFORMATION_IMAGE_KEYWORDS = List.of(
+            new InformationImageKeyword("material", 5),
+            new InformationImageKeyword("fabric", 5),
+            new InformationImageKeyword("composition", 5),
+            new InformationImageKeyword("size", 4),
+            new InformationImageKeyword("measurement", 4),
+            new InformationImageKeyword("measure", 4),
+            new InformationImageKeyword("fit", 4),
+            new InformationImageKeyword("spec", 4),
+            new InformationImageKeyword("care", 3),
+            new InformationImageKeyword("washing", 3),
+            new InformationImageKeyword("info", 2),
+            new InformationImageKeyword("contents", 2));
 
     private final ProductUrlValidator productUrlValidator;
     private final ProductPageExtractor productPageExtractor;
@@ -156,6 +171,31 @@ public class ClothesExtractionService {
         if (detailImageUrls.size() <= limit) {
             return detailImageUrls;
         }
+
+        List<URI> selected = sampleEvenly(detailImageUrls, limit);
+        List<URI> informationCandidates = detailImageUrls.stream()
+                .filter(image -> informationImageScore(image) > 0)
+                .sorted(Comparator
+                        .comparingInt(this::informationImageScore)
+                        .reversed()
+                        .thenComparingInt(detailImageUrls::indexOf))
+                .toList();
+        for (URI informationCandidate : informationCandidates) {
+            if (selected.contains(informationCandidate)) {
+                continue;
+            }
+            int replacementIndex = findReplacementIndex(selected, detailImageUrls);
+            if (replacementIndex < 0) {
+                break;
+            }
+            selected.set(replacementIndex, informationCandidate);
+        }
+        return selected.stream()
+                .sorted(Comparator.comparingInt(detailImageUrls::indexOf))
+                .toList();
+    }
+
+    private List<URI> sampleEvenly(List<URI> detailImageUrls, int limit) {
         if (limit == 1) {
             return List.of(detailImageUrls.get(detailImageUrls.size() - 1));
         }
@@ -167,6 +207,31 @@ public class ClothesExtractionService {
             selected.add(detailImageUrls.get(sourceIndex));
         }
         return selected;
+    }
+
+    private int findReplacementIndex(List<URI> selected, List<URI> allImages) {
+        URI first = allImages.get(0);
+        URI last = allImages.get(allImages.size() - 1);
+        return java.util.stream.IntStream.range(0, selected.size())
+                .filter(index -> !selected.get(index).equals(first))
+                .filter(index -> !selected.get(index).equals(last))
+                .boxed()
+                .min(Comparator
+                        .comparingInt((Integer index) -> informationImageScore(selected.get(index)))
+                        .thenComparingInt(index -> -allImages.indexOf(selected.get(index))))
+                .orElse(-1);
+    }
+
+    private int informationImageScore(URI image) {
+        if (image == null) {
+            return 0;
+        }
+        String value = (image.getPath() + "?" + image.getQuery()).toLowerCase(Locale.ROOT);
+        return INFORMATION_IMAGE_KEYWORDS.stream()
+                .filter(keyword -> value.contains(keyword.value()))
+                .mapToInt(InformationImageKeyword::weight)
+                .max()
+                .orElse(0);
     }
 
     private List<AttributeDefinitionSnapshot> loadAttributeCatalog() {
@@ -200,5 +265,8 @@ public class ClothesExtractionService {
 
     private ClothesExtractionFailureDto imageFailure(String field) {
         return new ClothesExtractionFailureDto(field, "이미지를 자동으로 가져오지 못했습니다.");
+    }
+
+    private record InformationImageKeyword(String value, int weight) {
     }
 }

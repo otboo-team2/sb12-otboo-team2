@@ -161,6 +161,39 @@ class ClothesExtractionServiceTest {
     }
 
     @Test
+    void prioritizesInformationNamedDetailImages() {
+        URI detail1 = URI.create("https://cdn.example.com/detail-1.jpg");
+        URI detail2 = URI.create("https://cdn.example.com/detail-2.jpg");
+        URI detail3 = URI.create("https://cdn.example.com/detail-3.jpg");
+        URI materialTable = URI.create("https://cdn.example.com/material-table.jpg");
+        URI detail5 = URI.create("https://cdn.example.com/detail-5.jpg");
+        URI detail6 = URI.create("https://cdn.example.com/detail-6.jpg");
+        URI detail7 = URI.create("https://cdn.example.com/detail-7.jpg");
+        URI detail8 = URI.create("https://cdn.example.com/detail-8.jpg");
+        ProductPageData page = new ProductPageData(
+                PRODUCT_URL,
+                "상품",
+                "설명",
+                PRIMARY_URL,
+                List.of(detail1, detail2, detail3, materialTable, detail5, detail6, detail7, detail8),
+                List.of());
+        given(productUrlValidator.validate(RAW_URL)).willReturn(PRODUCT_URL);
+        given(productPageExtractor.extract(PRODUCT_URL)).willReturn(page);
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
+        given(definitionRepository.findAll(any(Sort.class))).willReturn(List.of());
+        given(geminiClient.extract(any(), anyList(), anyList()))
+                .willReturn(new GeminiExtractionCandidate("상품", "TOP", List.of(), List.of()));
+        ClothesExtractionDto expected = new ClothesExtractionDto(
+                "상품", null, List.of(), PRIMARY_URL.toString(), List.of());
+        given(extractionValidator.validate(any(), any(), anyList(), anyString())).willReturn(expected);
+
+        service.extract(RAW_URL);
+
+        verify(remoteResourceClient).getImage(materialTable);
+    }
+
+    @Test
     void primaryImageFailureIsReturnedAsPartialFailure() {
         ProductPageData page = new ProductPageData(
                 PRODUCT_URL, "상품", "설명", PRIMARY_URL, List.of(), List.of());

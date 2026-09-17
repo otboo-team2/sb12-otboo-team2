@@ -122,7 +122,9 @@ class ProductPageExtractorTest {
                         supportedExtractorCalls.incrementAndGet();
                         return new ProductPageSupplement(
                                 List.of("추가 상품 설명"),
-                                List.of(URI.create("https://cdn.example.com/detail-table.jpg")));
+                                null,
+                                List.of(URI.create("https://cdn.example.com/detail-table.jpg")),
+                                List.of());
                     }
                 };
         ProductPageSupplementExtractor unsupportedExtractor =
@@ -149,6 +151,61 @@ class ProductPageExtractorTest {
         assertThat(result.description()).contains("추가 상품 설명");
         assertThat(result.detailImageUrls())
                 .containsExactly(URI.create("https://cdn.example.com/detail-table.jpg"));
+    }
+
+    @Test
+    void mergesSupplementPrimaryImageAndOptions() throws IOException {
+        givenHtml("product-og.html");
+        ProductPageSupplementExtractor supplementExtractor =
+                new ProductPageSupplementExtractor() {
+                    @Override
+                    public boolean supports(URI productUrl) {
+                        return true;
+                    }
+
+                    @Override
+                    public ProductPageSupplement extract(Document document, URI productUrl) {
+                        return new ProductPageSupplement(
+                                List.of("면 95%, 스판 5%"),
+                                URI.create("https://cdn.example.com/static-cover.webp"),
+                                List.of(URI.create("https://cdn.example.com/detail.jpg")),
+                                List.of("색상: 그레이", "색상: 블랙"));
+                    }
+                };
+
+        ProductPageData result = createExtractor(200, List.of(supplementExtractor))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.description()).contains("면 95%, 스판 5%");
+        assertThat(result.imageUrl())
+                .isEqualTo(URI.create("https://cdn.example.com/static-cover.webp"));
+        assertThat(result.detailImageUrls())
+                .containsExactly(URI.create("https://cdn.example.com/detail.jpg"));
+        assertThat(result.optionTexts()).containsExactly("색상: 그레이", "색상: 블랙");
+    }
+
+    @Test
+    void fallsBackToGenericDataWhenSupplementRequestFails() throws IOException {
+        givenHtml("product-og.html");
+        ProductPageSupplementExtractor failingExtractor =
+                new ProductPageSupplementExtractor() {
+                    @Override
+                    public boolean supports(URI productUrl) {
+                        return true;
+                    }
+
+                    @Override
+                    public ProductPageSupplement extract(Document document, URI productUrl) {
+                        throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
+                    }
+                };
+
+        ProductPageData result = createExtractor(200, List.of(failingExtractor))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.name()).isEqualTo("후드 하프 코트");
+        assertThat(result.imageUrl())
+                .isEqualTo(URI.create("https://cdn.example.com/coat-main.jpg"));
     }
 
     @Test

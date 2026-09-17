@@ -41,7 +41,7 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
                 collectImages(flightData, productUri, images);
             }
         }
-        return new ProductPageSupplement(List.of(), List.copyOf(images));
+        return new ProductPageSupplement(List.of(), null, List.copyOf(images), List.of());
     }
 
     private JsonNode parseFlightData(String scriptData) {

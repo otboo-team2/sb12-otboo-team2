@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -23,6 +24,15 @@ import org.springframework.stereotype.Component;
 public class ClothesExtractionValidator {
 
     private static final int MAX_EVIDENCE_LENGTH = 200;
+    private static final Map<String, List<String>> COLOR_EVIDENCE_TERMS = Map.ofEntries(
+            Map.entry("블랙", List.of("블랙", "검정", "black")),
+            Map.entry("그레이", List.of("그레이", "회색", "gray", "grey")),
+            Map.entry("베이지", List.of("베이지", "beige")),
+            Map.entry("브라운", List.of("브라운", "갈색", "brown")),
+            Map.entry("블루", List.of("블루", "파랑", "청색", "blue")),
+            Map.entry("화이트", List.of("화이트", "흰색", "white")),
+            Map.entry("차콜", List.of("차콜", "charcoal"))
+    );
 
     public ClothesExtractionDto validate(
             ProductPageData page,
@@ -55,6 +65,7 @@ public class ClothesExtractionValidator {
         }
         removeConflicts(validated, failures);
         removeDuplicateValues(validated);
+        removeDuplicateFailures(failures);
 
         List<ExtractedClothesAttributeDto> attributes = validated.stream()
                 .map(ValidatedAttribute::dto)
@@ -167,10 +178,20 @@ public class ClothesExtractionValidator {
                 && !normalizedEvidence.contains("얇")) {
             return true;
         }
+        if ("색상".equals(normalizedDefinition)
+                && !matchesColorEvidence(value, normalizedEvidence)) {
+            return true;
+        }
         return "계절".equals(normalizedDefinition)
                 && "여름".equals(value)
                 && normalizedEvidence.contains("시원")
                 && !normalizedEvidence.contains("여름");
+    }
+
+    private boolean matchesColorEvidence(String value, String normalizedEvidence) {
+        String normalizedValue = value.toLowerCase(Locale.ROOT);
+        return COLOR_EVIDENCE_TERMS.getOrDefault(normalizedValue, List.of(normalizedValue)).stream()
+                .anyMatch(normalizedEvidence::contains);
     }
 
     private void removeDuplicateValues(List<ValidatedAttribute> attributes) {
@@ -180,6 +201,12 @@ public class ClothesExtractionValidator {
         }
         attributes.clear();
         attributes.addAll(unique.values());
+    }
+
+    private void removeDuplicateFailures(List<ClothesExtractionFailureDto> failures) {
+        Set<ClothesExtractionFailureDto> unique = new LinkedHashSet<>(failures);
+        failures.clear();
+        failures.addAll(unique);
     }
 
     private Map<UUID, AttributeDefinitionSnapshot> indexDefinitions(

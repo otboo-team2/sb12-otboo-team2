@@ -109,7 +109,7 @@ otboo:
       max-html-bytes: 2097152
       max-image-bytes: 10485760
       max-total-image-bytes: 26214400
-      max-detail-images: 4
+      max-detail-images: 6
       max-page-text-chars: 15000
   fashn:
     api-key: ${FASHN_API_KEY:}
