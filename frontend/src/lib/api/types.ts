@@ -2,23 +2,24 @@ export type Role = 'USER' | 'ADMIN';
 export type OAuthProvider = 'google' | 'kakao';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 export type SortDirection = 'ASCENDING' | 'DESCENDING';
-export type ClothesType = 
-  | 'TOP' 
-  | 'BOTTOM' 
-  | 'DRESS' 
-  | 'OUTER' 
-  | 'UNDERWEAR' 
-  | 'ACCESSORY' 
-  | 'SHOES' 
-  | 'SOCKS' 
-  | 'HAT' 
-  | 'BAG' 
-  | 'SCARF' 
+export type ClothesType =
+  | 'TOP'
+  | 'BOTTOM'
+  | 'DRESS'
+  | 'OUTER'
+  | 'UNDERWEAR'
+  | 'ACCESSORY'
+  | 'SHOES'
+  | 'SOCKS'
+  | 'HAT'
+  | 'BAG'
+  | 'SCARF'
   | 'ETC';
 export type SkyStatus = 'CLEAR' | 'MOSTLY_CLOUDY' | 'CLOUDY';
 export type PrecipitationType = 'NONE' | 'RAIN' | 'RAIN_SNOW' | 'SNOW' | 'SHOWER';
 export type WindStrength = 'WEAK' | 'MODERATE' | 'STRONG';
 export type NotificationLevel = 'INFO' | 'WARNING' | 'ERROR';
+export type VirtualTryOnJobStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 
 export interface ErrorResponse {
   exceptionName: string;
@@ -230,6 +231,14 @@ export interface DirectMessageDto {
   content: string;
 }
 
+export interface VirtualTryOnJobDto {
+    jobId: string;
+    status: VirtualTryOnJobStatus;
+    resultImageUrl: string | null;
+    failureReason: string | null;
+    retryable: boolean;
+}
+
 export interface JwtDto {
   userDto: UserDto;
   accessToken: string;
@@ -324,6 +333,12 @@ export interface ClothesAttributeDefUpdateRequest {
 export interface FollowCreateRequest {
   followeeId: string;
   followerId: string;
+}
+
+export interface VirtualTryOnRequest {
+    topClothesId: string;
+    bottomClothesId: string;
+    additionalClothesId?: string | null;
 }
 
 export interface CursorParams {

@@ -12,10 +12,13 @@ import com.otboo.virtualtryon.exception.VirtualTryOnErrorCode;
 import com.otboo.virtualtryon.repository.VirtualTryOnCacheRepository;
 import com.otboo.virtualtryon.repository.VirtualTryOnJobRepository;
 import com.otboo.virtualtryon.util.VirtualTryOnCacheKeyGenerator;
+
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Poller 안에서 this.method() 로 직접 호출하면 @Transactional(REQUIRES_NEW)가
  * 프록시를 안 거쳐서 무시되는 문제가 있어서, 별도 빈으로 분리해 DI로 호출한다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VirtualTryOnJobTransactionService {
@@ -60,9 +64,10 @@ public class VirtualTryOnJobTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public DispatchTarget loadDispatchTarget(UUID jobId) {
         VirtualTryOnJob job = jobRepository.getReferenceById(jobId);
-        String modelImage = job.getModelImageKey();
+        String modelImage = imageStorage.readAsDataUri(job.getModelImageKey());
         Clothes product = getProductClothes(job, job.getCurrentStep());
-        return new DispatchTarget(modelImage, product.getImageUrl());
+        String productImage = imageStorage.readAsDataUri(product.getImageUrl());
+        return new DispatchTarget(modelImage, productImage);
     }
 
     /** FASHN에 요청을 보낸 직후, 받은 prediction id를 저장하고 상태를 PROCESSING으로 바꾼다. */
@@ -149,6 +154,9 @@ public class VirtualTryOnJobTransactionService {
 
     /** job의 최종 상태(성공/실패)에 맞는 완료 이벤트를 발행한다. */
     private void publishCompleted(VirtualTryOnJob job) {
+//        long elapsedMs = Duration.between(job.getCreatedAt(), Instant.now()).toMillis();
+//        log.info("virtual_try_on_completed jobId={} status={} elapsedMs={}",
+//            job.getId(), job.getStatus(), elapsedMs);
         VirtualTryOnCompletedEvent event = job.getStatus() == VirtualTryOnJobStatus.SUCCEEDED
             ? VirtualTryOnCompletedEvent.succeeded(job.getRequester().getId(), job.getId())
             : VirtualTryOnCompletedEvent.failed(job.getRequester().getId(), job.getId());

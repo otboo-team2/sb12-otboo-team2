@@ -5,7 +5,10 @@ import com.otboo.common.security.LoginUser;
 import com.otboo.virtualtryon.dto.VirtualTryOnJobResponse;
 import com.otboo.virtualtryon.dto.VirtualTryOnRequest;
 import java.util.UUID;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,11 +23,11 @@ public class VirtualTryOnController {
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<VirtualTryOnJobResponse> submit(
         @LoginUser AuthPrincipal me,
-        @RequestPart("request") VirtualTryOnRequest request,
+        @Valid @RequestPart("request") VirtualTryOnRequest request,
         @RequestPart(value = "modelImage", required = false) MultipartFile modelImage
     ) {
-        var job = virtualTryOnService.submit(me.userId(), request, modelImage);
-        return ResponseEntity.ok(VirtualTryOnJobResponse.from(job));
+        var response = virtualTryOnService.submitAndRespond(me.userId(), request, modelImage);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
     @GetMapping("/{jobId}")
@@ -32,7 +35,6 @@ public class VirtualTryOnController {
         @LoginUser AuthPrincipal me,
         @PathVariable UUID jobId
     ) {
-        var job = virtualTryOnService.findJob(jobId, me.userId());
-        return ResponseEntity.ok(VirtualTryOnJobResponse.from(job));
+        return ResponseEntity.ok(virtualTryOnService.getJobResponse(jobId, me.userId()));
     }
 }
