@@ -86,7 +86,7 @@ class PinterestClientTest {
         assertThat(authorization.get()).isEqualTo("Bearer token-123");
 
         assertThat(page.hasNext()).isTrue();
-        PinterestPinResponse pin = page.items().get(0);
+        PinterestPinResponse pin = page.items().getFirst();
         assertThat(pin.id()).isEqualTo("813744226420795884");
         assertThat(pin.boardId()).isEqualTo("549755885175");
         assertThat(pin.link()).isEqualTo("https://shop.example.com/item/1");

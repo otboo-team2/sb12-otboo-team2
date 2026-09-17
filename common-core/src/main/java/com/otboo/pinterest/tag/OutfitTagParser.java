@@ -53,7 +53,7 @@ public final class OutfitTagParser {
             // 어느 줄이 맞는지 추측하지 않는다. 틀린 쪽을 골라 조용히 잘못 분류하는 것보다 드러내는 게 낫다.
             errors.add("@otboo 줄이 %d개다. 하나만 남겨야 한다".formatted(tagLines.size()));
         }
-        return parseLine(tagLines.get(0), errors);
+        return parseLine(tagLines.getFirst(), errors);
     }
 
     private static boolean isTagLine(String line) {
@@ -124,7 +124,7 @@ public final class OutfitTagParser {
             return null;
         }
         List<E> found = multiple(type, key, values, errors);
-        return found.isEmpty() ? null : found.get(0);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     private static <E extends Enum<E> & TagValue> List<E> multiple(
