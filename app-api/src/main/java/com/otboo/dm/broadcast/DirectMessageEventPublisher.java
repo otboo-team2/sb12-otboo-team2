@@ -15,6 +15,6 @@ public class DirectMessageEventPublisher {
     @Transactional
     public void publish(DirectMessageBroadcastMessage message) {
         eventPublisher.publishEvent(DirectMessageReceivedEvent.of(
-            message.sender().userId(), message.receiver().userId(), message.id()));
+            message.sender().userId(), message.receiver().userId(), message.id(), message.content()));
     }
 }

@@ -1,8 +1,12 @@
 package com.otboo.feed.repository;
 
 import com.otboo.feed.entity.Follow;
+
 import java.util.Optional;
 import java.util.UUID;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -39,4 +43,10 @@ public interface FollowRepository extends JpaRepository<Follow, UUID> {
     @Query("delete from Follow f where f.id = :followId and f.follower.id = :followerId")
     long deleteByIdAndFollowerId(@Param("followId") UUID followId,
             @Param("followerId") UUID followerId);
+
+    /**
+     * 팔로우한 사용자가 새 피드를 올렸을 때 팔로워 전원에게 알림을 보내기 위해 notification 도메인에서 추가했다.
+     */
+    @Query("select f.follower.id from Follow f where f.followee.id = :followeeId order by f.follower.id")
+    Slice<UUID> findFollowerIdsByFolloweeId(@Param("followeeId") UUID followeeId, Pageable pageable);
 }

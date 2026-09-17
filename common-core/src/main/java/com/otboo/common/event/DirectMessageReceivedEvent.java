@@ -17,13 +17,14 @@ public record DirectMessageReceivedEvent(
         Instant occurredAt,
         UUID senderId,
         UUID receiverId,
-        UUID directMessageId
+        UUID directMessageId,
+        String content
 ) implements DomainEvent {
 
     public static DirectMessageReceivedEvent of(UUID senderId, UUID receiverId,
-                                                UUID directMessageId) {
+                                                UUID directMessageId, String content) {
         return new DirectMessageReceivedEvent(
-                UUID.randomUUID(), Instant.now(), senderId, receiverId, directMessageId);
+                UUID.randomUUID(), Instant.now(), senderId, receiverId, directMessageId, content);
     }
 
     @Override
