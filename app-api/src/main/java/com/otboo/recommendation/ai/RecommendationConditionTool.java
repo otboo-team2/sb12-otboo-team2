@@ -1,4 +1,4 @@
-package com.otboo.recommendation;
+package com.otboo.recommendation.ai;
 
 import com.otboo.clothes.entity.ClothesType;
 import java.util.Arrays;
