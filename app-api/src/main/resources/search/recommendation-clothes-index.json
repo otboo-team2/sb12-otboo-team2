@@ -1,0 +1,54 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "tokenizer": {
+        "korean_tokenizer": {
+          "type": "nori_tokenizer",
+          "decompound_mode": "mixed"
+        }
+      },
+      "analyzer": {
+        "korean": {
+          "type": "custom",
+          "tokenizer": "korean_tokenizer",
+          "filter": [
+            "nori_part_of_speech",
+            "nori_readingform",
+            "lowercase"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "_meta": {
+      "owner": "recommendation",
+      "content": "의상명·타입·속성명·속성값을 정렬해 결합한 Embedding 입력",
+      "embedding": "OpenAI text-embedding-3-small 기본 차원 1536"
+    },
+    "properties": {
+      "clothesId": {
+        "type": "keyword"
+      },
+      "ownerId": {
+        "type": "keyword"
+      },
+      "type": {
+        "type": "keyword"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "korean"
+      },
+      "embedding": {
+        "type": "dense_vector",
+        "dims": 1536,
+        "index": true,
+        "similarity": "cosine"
+      }
+    }
+  }
+}
