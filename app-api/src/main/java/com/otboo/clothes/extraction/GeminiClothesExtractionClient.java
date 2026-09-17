@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
@@ -39,18 +40,30 @@ public class GeminiClothesExtractionClient {
     private final ClothesExtractionProperties properties;
     private final ClothesExtractionMetrics metrics;
 
+    @Autowired
     public GeminiClothesExtractionClient(
             ExternalApiClientFactory factory,
             ObjectMapper objectMapper,
             ClothesExtractionProperties properties,
             ClothesExtractionMetrics metrics
     ) {
+        this(factory, objectMapper, properties, metrics, BASE_URL);
+    }
+
+    /** 테스트에서만 외부 API 주소를 로컬 가짜 서버로 바꿀 수 있도록 한다. */
+    public GeminiClothesExtractionClient(
+            ExternalApiClientFactory factory,
+            ObjectMapper objectMapper,
+            ClothesExtractionProperties properties,
+            ClothesExtractionMetrics metrics,
+            String baseUrl
+    ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
         this.metrics = metrics;
         String apiKey = properties.geminiApiKey() == null ? "" : properties.geminiApiKey();
         this.api = factory.create(API_NAME, builder -> builder
-                .baseUrl(BASE_URL)
+                .baseUrl(baseUrl)
                 .defaultHeader("x-goog-api-key", apiKey));
     }
 
