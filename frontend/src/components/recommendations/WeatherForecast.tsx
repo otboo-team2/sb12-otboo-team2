@@ -52,20 +52,53 @@ function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
 export default function WeatherForecast() {
   const { data: weathers, loading, selectedWeather, selectWeather } = useWeatherStore();
   const dailyWeathers = useMemo(() => {
-    const byDate = new Map<string, WeatherDto>();
+    const byDate = new Map<string, WeatherDto[]>();
     for (const weather of weathers ?? []) {
       const date = new Date(weather.forecastAt);
       const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-      if (!byDate.has(key)) byDate.set(key, weather);
+      byDate.set(key, [...(byDate.get(key) ?? []), weather]);
     }
-    return [...byDate.values()].slice(0, 6);
+    return [...byDate.values()].slice(0, 6).map((forecasts) => {
+      const first = forecasts[0];
+      const current = forecasts.map(({ temperature }) => temperature.current);
+      const min = forecasts.map(({ temperature }) => temperature.min);
+      const max = forecasts.map(({ temperature }) => temperature.max);
+
+      return {
+        ...first,
+        temperature: {
+          ...first.temperature,
+          current: current.reduce((sum, value) => sum + value, 0) / current.length,
+          min: Math.min(...min),
+          max: Math.max(...max),
+        },
+      };
+    });
+  }, [weathers]);
+
+  const nearestWeather = useMemo(() => {
+    const forecasts = weathers ?? [];
+    if (forecasts.length === 0) return undefined;
+
+    const now = Date.now();
+    const futureForecasts = forecasts.filter(
+      (weather) => new Date(weather.forecastAt).getTime() >= now,
+    );
+    const candidates = futureForecasts.length > 0 ? futureForecasts : forecasts;
+
+    return candidates.reduce((nearest, weather) =>
+      Math.abs(new Date(weather.forecastAt).getTime() - now)
+        < Math.abs(new Date(nearest.forecastAt).getTime() - now)
+        ? weather
+        : nearest,
+    );
   }, [weathers]);
 
   useEffect(() => {
-    if (dailyWeathers.length > 0) {
-      selectWeather(dailyWeathers[0]);
+    if (nearestWeather) {
+      selectWeather(nearestWeather);
     }
-  }, [dailyWeathers, selectWeather])
+  }, [nearestWeather, selectWeather])
 
   if (loading || !weathers || weathers.length === 0) {
     return (
@@ -113,13 +146,15 @@ export default function WeatherForecast() {
             const { temperature } = weather;
             const date = getForecastDate(weather.forecastAt);
             const skyStatus = getSkyStatus(weather)
-            const isSelected = selectedWeather?.id === weather.id;
+            const isToday = date === '오늘';
+            const selectedForDate = isToday && nearestWeather ? nearestWeather : weather;
+            const isSelected = selectedWeather?.id === selectedForDate.id;
 
             return (
               <Tooltip key={weather.id}>
                 <div
                     className="content-stretch flex flex-col gap-1.5 items-center justify-center relative shrink-0 w-[120px] cursor-pointer hover:border-1 rounded-2xl"
-                    onClick={() => selectWeather(weather)}
+                    onClick={() => selectWeather(selectedForDate)}
                 >
                   <div className={`font-${isSelected ? 'extrabold' : 'bold'} leading-none min-w-full not-italic relative shrink-0 text-base text-center tracking-[-0.4px] ${isSelected ? 'text-blue-500' : 'text-gray-800'}`} style={{ width: "min-content" }}>
                     <p className="leading-normal">{date}</p>

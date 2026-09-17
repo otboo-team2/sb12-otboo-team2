@@ -125,6 +125,7 @@ export interface ClothesAttributeDefDto {
   createdAt: string;
   name: string;
   selectableValues: string[];
+  selectableValueIds?: string[];
 }
 
 export interface ClothesDto {
