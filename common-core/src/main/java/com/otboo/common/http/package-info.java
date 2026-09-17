@@ -14,19 +14,23 @@
  * <h2>쓰는 법</h2>
  * <pre>
  * &#64;Component
- * public class PinterestClient {
+ * public class OpenWeatherMapClient {
  *
  *     private final ExternalApiClient api;
  *
- *     public PinterestClient(ExternalApiClientFactory factory) {
- *         this.api = factory.create("pinterest", "https://api.pinterest.com");
+ *     public OpenWeatherMapClient(ExternalApiClientFactory factory) {
+ *         this.api = factory.create("weather", "https://api.openweathermap.org");
  *     }
  *
- *     public PinResponse search(String keyword) {
- *         return api.get("/v5/search/pins?query=" + keyword, PinResponse.class);
+ *     public OwmResponse fetch(double lat, double lon) {
+ *         return api.get("/data/2.5/forecast?lat=" + lat + "&amp;lon=" + lon, OwmResponse.class);
  *     }
  * }
  * </pre>
+ *
+ * <p><b>사용자 입력이 URI 에 들어가면 문자열로 이어 붙이지 않는다.</b> {@code &} · {@code +} 가 쿼리를 깨고,
+ * 미리 인코딩하면 RestClient 가 한 번 더 인코딩한다. {@code exchange} 로 템플릿 변수를 넘긴다.
+ * 로그에도 템플릿만 남아 입력값이 찍히지 않는다. 예시는 {@code com.otboo.pinterest.client.PinterestClient}.
  *
  * <h2>설정</h2>
  * 자바 코드는 하나지만 정책값은 API 마다 다르다. 그래서 값은 각 앱의
@@ -35,8 +39,8 @@
  * otboo:
  *   external-api:
  *     apis:
- *       pinterest:
- *         read-timeout: 10s
+ *       weather:
+ *         read-timeout: 5s
  *         max-retries: 2
  * </pre>
  *
