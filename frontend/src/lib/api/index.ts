@@ -9,6 +9,7 @@ export * as authApi from './auth';
 
 // User API
 export * as userApi from './users';
+export * as preferenceApi from './preferences';
 
 // Feed API
 export * as feedApi from './feeds';

@@ -1,10 +1,15 @@
 package com.otboo.user.repository;
 
 import com.otboo.user.entity.User;
+
 import java.util.Optional;
 import java.util.UUID;
+
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * {@code JpaSpecificationExecutor} 를 쓰는 이유 — 계정 목록은 필터(email/role/locked) 3개와
@@ -16,4 +21,10 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    /**
+     * 전체 사용자 대상 알림(예: 새 의상 속성 추가) 발송을 위해 notification 도메인에서 추가했다.
+     */
+    @Query("select u.id from User u order by u.id")
+    Slice<UUID> findAllIds(Pageable pageable);
 }

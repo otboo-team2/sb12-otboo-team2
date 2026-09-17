@@ -32,6 +32,15 @@ otboo:
     api-key: ${WEATHER_API_KEY:}
     kakao-api-key: ${KAKAO_REST_API_KEY:}
 
+  # ─────────── Pinterest 코디 핀 ───────────
+  # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
+  # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
+  pinterest:
+    access-token: ${PINTEREST_ACCESS_TOKEN:}
+    # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
+    board-ids: ${PINTEREST_BOARD_IDS:}
+    page-size: 100
+
   # ─────────── 외부 API 호출 정책 ───────────
   # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
   external-api:
@@ -52,3 +61,10 @@ otboo:
         read-timeout: 5s
         max-retries: 0
         backoff: 2s
+
+      # Pinterest 보드 핀 동기화 (app-api 의 같은 블록과 값을 맞춘다)
+      pinterest:
+        read-timeout: 10s
+        # 조회만 해서 재시도해도 중복이 생기지는 않는다. 다만 Trial 은 하루 호출 상한이 앱 단위라
+        # 재시도가 그 한도를 먹는다. 동기화 배치에서 실패율을 본 뒤 올린다.
+        max-retries: 0

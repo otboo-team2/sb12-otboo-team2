@@ -140,7 +140,14 @@ public class GeminiClothesExtractionClient {
                 Rules:
                 - 가벼운 원단만으로 얇음 판단 금지
                 - 시원함만으로 계절 판단 금지
-                - 옵션별 값은 optionDependent=true
+                - 같은 옵션 그룹의 고유 값이 하나뿐이면 optionDependent=false
+                - 같은 옵션 그룹의 고유 값이 둘 이상이면 optionDependent=true
+                - 각 속성 정의별로 모든 텍스트와 이미지를 확인
+                - 허용 선택값 또는 명확한 동의어가 직접 명시되면 후보에 포함
+                - 이미지의 글자를 먼저 읽은 뒤 속성 정의를 하나씩 검사
+                - slim 또는 slim fit은 슬림핏과 같은 의미
+                - 색상은 비슷한 다른 색으로 변환하지 말 것
+                - charcoal을 블랙이나 그레이로 변환하지 말 것
                 - 혼방 소재에 함량 비율이 있으면 가장 높은 비율의 소재 하나만 선택
                 - 최고 함량이 같으면 소재를 확정하지 말고 ambiguity에 추가
                 - 스웨이드라는 표현만으로 가죽으로 추론하지 말 것

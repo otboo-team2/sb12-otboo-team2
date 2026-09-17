@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
 import { useMyProfileStore } from '@/lib/stores/useMyProfileStore';
 import { updateProfile } from '@/lib/api/users';
+import { getUserPreferences, replaceUserPreferences } from '@/lib/api/preferences';
+import { useClothesAttributeDefStore } from '@/lib/stores/useClothesAttributeDefStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import ProfileImageUpload from '@/components/profile/ProfileImageUpload';
@@ -27,6 +29,9 @@ export default function MyProfileSettingsPage() {
   const { data: profile, loading } = useMyProfileStore();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedStyleIds, setSelectedStyleIds] = useState<string[]>([]);
+  const [initialStyleIds, setInitialStyleIds] = useState<string[]>([]);
+  const { data: attributeDefs, fetchAll: fetchAttributeDefs } = useClothesAttributeDefStore();
 
   const {
     register,
@@ -38,13 +43,23 @@ export default function MyProfileSettingsPage() {
   } = useForm<SettingsFormData>();
 
   const currentUserId = authData?.userDto?.id;
+  const styleDefinition = attributeDefs.find((definition) => definition.name === '스타일');
+  const hasPreferenceChanges = selectedStyleIds.join(',') !== initialStyleIds.join(',');
 
   // 프로필 데이터 로드
   useEffect(() => {
     if (currentUserId) {
       useMyProfileStore.getState().updateParams({ userId: currentUserId });
+      fetchAttributeDefs(100);
+      getUserPreferences(currentUserId).then((preferences) => {
+        const ids = preferences
+          .filter((preference) => preference.definitionName === '스타일')
+          .map((preference) => preference.selectableValueId);
+        setSelectedStyleIds(ids);
+        setInitialStyleIds(ids);
+      }).catch(() => toast.error('선호 스타일을 불러오지 못했습니다.'));
     }
-  }, [currentUserId]);
+  }, [currentUserId, fetchAttributeDefs]);
 
   // 폼 데이터 초기화
   useEffect(() => {
@@ -92,6 +107,7 @@ export default function MyProfileSettingsPage() {
         profileImageUrl: profile.profileImageUrl
       });
       setSelectedImage(null);
+      setSelectedStyleIds(initialStyleIds);
     }
   };
 
@@ -122,12 +138,14 @@ export default function MyProfileSettingsPage() {
         updateRequest, 
         selectedImage || undefined
       );
+      await replaceUserPreferences(currentUserId, selectedStyleIds);
 
       // 스토어 데이터 동기화
       useMyProfileStore.getState().update(updatedProfile);
 
       toast.success('프로필이 성공적으로 업데이트되었습니다.');
       setSelectedImage(null);
+      setInitialStyleIds(selectedStyleIds);
     } catch (error) {
       console.error('프로필 업데이트 실패:', error);
       toast.error('프로필 업데이트에 실패했습니다.');
@@ -201,9 +219,48 @@ export default function MyProfileSettingsPage() {
             onValueChange={handleTemperatureChange}
           />
 
+          {styleDefinition && (
+            <div className="space-y-2.5">
+              <div className="flex items-baseline gap-2">
+                <label className="text-[var(--font-size-body-3)] font-[var(--font-weight-bold)] text-[var(--color-gray-500)] tracking-[-0.35px]">
+                  선호 스타일
+                </label>
+                <p className="text-xs text-gray-400">
+                  좋아하는 스타일을 선택해주세요. 복수 선택 가능
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {styleDefinition.selectableValues.map((style) => {
+                  const valueId = styleDefinition.selectableValueIds?.[styleDefinition.selectableValues.indexOf(style)];
+                  return valueId ? (
+                    <button
+                      key={valueId}
+                      type="button"
+                      aria-pressed={selectedStyleIds.includes(valueId)}
+                      onClick={() => setSelectedStyleIds((current) => current.includes(valueId)
+                        ? current.filter((id) => id !== valueId)
+                        : [...current, valueId])}
+                      className={`w-full rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                        selectedStyleIds.includes(valueId)
+                          ? 'border-blue-500 bg-blue-500 text-white'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
+                    >
+                      {selectedStyleIds.includes(valueId) && <span className="mr-1">✓</span>}
+                      {style}
+                    </button>
+                  ) : null;
+                })}
+              </div>
+              <p className="text-xs text-gray-400">
+                선택한 스타일을 의상 추천에 반영해요.
+              </p>
+            </div>
+          )}
+
           {/* 액션 버튼 */}
             {
-              isDirty && (
+              (isDirty || hasPreferenceChanges) && (
                   <div className="flex gap-3.5 items-center justify-end pt-3">
                     <Button
                         type="button"

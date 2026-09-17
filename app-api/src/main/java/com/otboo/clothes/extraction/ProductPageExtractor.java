@@ -53,15 +53,25 @@ public class ProductPageExtractor {
         JsonLdProduct jsonLdProduct = findProductFromJsonLd(document);
         List<String> supplementalDescriptions = new ArrayList<>();
         List<URI> supplementalDetailImages = new ArrayList<>();
+        List<String> supplementalOptionTexts = new ArrayList<>();
+        URI supplementalPrimaryImage = null;
         for (ProductPageSupplementExtractor supplementExtractor : supplementExtractors) {
             if (!supplementExtractor.supports(resource.finalUri())) {
                 continue;
             }
-            ProductPageSupplement supplement = supplementExtractor.extract(
-                    document,
-                    resource.finalUri());
-            supplementalDescriptions.addAll(supplement.descriptions());
-            supplementalDetailImages.addAll(supplement.detailImageUrls());
+            try {
+                ProductPageSupplement supplement = supplementExtractor.extract(
+                        document,
+                        resource.finalUri());
+                supplementalDescriptions.addAll(supplement.descriptions());
+                supplementalDetailImages.addAll(supplement.detailImageUrls());
+                supplementalOptionTexts.addAll(supplement.optionTexts());
+                if (supplementalPrimaryImage == null) {
+                    supplementalPrimaryImage = supplement.primaryImageUrl();
+                }
+            } catch (BusinessException ignored) {
+                // 사이트별 보조 수집이 실패해도 범용 JSON-LD/OG 결과는 사용할 수 있다.
+            }
         }
         String name = firstNonBlank(
                 jsonLdProduct.name(),
@@ -97,7 +107,9 @@ public class ProductPageExtractor {
             }
         }
 
-        URI primaryImage = imageCandidates.isEmpty() ? null : imageCandidates.get(0);
+        URI primaryImage = supplementalPrimaryImage != null
+                ? supplementalPrimaryImage
+                : imageCandidates.isEmpty() ? null : imageCandidates.get(0);
         if (primaryImage == null && openGraphImage != null && structuredImages.isEmpty()) {
             primaryImage = openGraphImage;
         }
@@ -121,7 +133,7 @@ public class ProductPageExtractor {
                 cap(description),
                 primaryImage,
                 detailImages,
-                collectOptionTexts(document));
+                mergeOptionTexts(collectOptionTexts(document), supplementalOptionTexts));
     }
 
     private Document parse(RemoteResource resource) {
@@ -347,6 +359,19 @@ public class ProductPageExtractor {
             if (!isBlank(text)) {
                 options.add(text);
             }
+        }
+        return List.copyOf(options);
+    }
+
+    private List<String> mergeOptionTexts(List<String> baseOptions, List<String> supplements) {
+        Set<String> options = new LinkedHashSet<>();
+        if (baseOptions != null) {
+            options.addAll(baseOptions);
+        }
+        if (supplements != null) {
+            supplements.stream()
+                    .filter(value -> !isBlank(value))
+                    .forEach(options::add);
         }
         return List.copyOf(options);
     }
