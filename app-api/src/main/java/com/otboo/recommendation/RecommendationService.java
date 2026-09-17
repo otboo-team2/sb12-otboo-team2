@@ -2,6 +2,7 @@ package com.otboo.recommendation;
 
 import com.otboo.clothes.ClothesService;
 import com.otboo.clothes.dto.ClothesDto;
+import com.otboo.clothes.entity.ClothesType;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.feed.dto.OotdDto;
@@ -10,6 +11,7 @@ import com.otboo.user.repository.ProfileRepository;
 import com.otboo.user.preference.UserPreferenceRepository;
 import com.otboo.weather.entity.Weather;
 import com.otboo.weather.repository.WeatherRepository;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -49,12 +51,15 @@ public class RecommendationService {
                         weather.getTemperatureCurrent().doubleValue(),
                         weather.getPrecipitationType(),
                         sensitivity,
-                        item.type()))
+                        item.type(),
+                        warmthOf(item)))
                 .toList();
 
+        Set<ClothesType> selectedTypes = EnumSet.noneOf(ClothesType.class);
         List<OotdDto> clothes = suitable.stream()
                 .sorted((left, right) -> Boolean.compare(
                         matchesStyle(right, preferredStyles), matchesStyle(left, preferredStyles)))
+                .filter(item -> selectedTypes.add(item.type()))
                 .map(RecommendationService::toOotd)
                 .toList();
 
@@ -65,6 +70,14 @@ public class RecommendationService {
         return clothes.attributes().stream().anyMatch(attribute ->
                 "스타일".equals(attribute.definitionName())
                         && preferredStyles.contains(attribute.value()));
+    }
+
+    private static String warmthOf(ClothesDto clothes) {
+        return clothes.attributes().stream()
+                .filter(attribute -> "보온성".equals(attribute.definitionName()))
+                .map(attribute -> attribute.value())
+                .findFirst()
+                .orElse(null);
     }
 
     private static OotdDto toOotd(ClothesDto clothes) {
