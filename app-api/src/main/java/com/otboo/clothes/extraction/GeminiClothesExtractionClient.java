@@ -10,6 +10,7 @@ import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.http.ExternalApiClient;
 import com.otboo.common.http.ExternalApiClientFactory;
+import io.micrometer.core.instrument.Timer;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Arrays;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
@@ -36,17 +38,32 @@ public class GeminiClothesExtractionClient {
     private final ExternalApiClient api;
     private final ObjectMapper objectMapper;
     private final ClothesExtractionProperties properties;
+    private final ClothesExtractionMetrics metrics;
 
+    @Autowired
     public GeminiClothesExtractionClient(
             ExternalApiClientFactory factory,
             ObjectMapper objectMapper,
-            ClothesExtractionProperties properties
+            ClothesExtractionProperties properties,
+            ClothesExtractionMetrics metrics
+    ) {
+        this(factory, objectMapper, properties, metrics, BASE_URL);
+    }
+
+    /** 테스트에서만 외부 API 주소를 로컬 가짜 서버로 바꿀 수 있도록 한다. */
+    public GeminiClothesExtractionClient(
+            ExternalApiClientFactory factory,
+            ObjectMapper objectMapper,
+            ClothesExtractionProperties properties,
+            ClothesExtractionMetrics metrics,
+            String baseUrl
     ) {
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.metrics = metrics;
         String apiKey = properties.geminiApiKey() == null ? "" : properties.geminiApiKey();
         this.api = factory.create(API_NAME, builder -> builder
-                .baseUrl(BASE_URL)
+                .baseUrl(baseUrl)
                 .defaultHeader("x-goog-api-key", apiKey));
     }
 
@@ -57,6 +74,7 @@ public class GeminiClothesExtractionClient {
     ) {
         validateConfiguration();
         long startedAt = System.nanoTime();
+        Timer.Sample sample = metrics.startTimer();
         List<RemoteResource> safeImages = images == null
                 ? List.of()
                 : images.stream().filter(image -> image != null).toList();
@@ -71,28 +89,44 @@ public class GeminiClothesExtractionClient {
 
         String model = properties.geminiModel().trim();
         String endpoint = "/v1beta/models/%s:generateContent".formatted(model);
-        GeminiResponse response = api.exchange(
-                "POST " + endpoint,
-                restClient -> restClient.post()
-                        .uri(endpoint)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .body(GeminiResponse.class));
+        long imageBytes = totalImageBytes(safeImages);
+        ClothesExtractionMetrics.Outcome outcome = ClothesExtractionMetrics.Outcome.ERROR;
+        UsageMetadata usage = null;
+        try {
+            GeminiResponse response = api.exchange(
+                    "POST " + endpoint,
+                    restClient -> restClient.post()
+                            .uri(endpoint)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(request)
+                            .retrieve()
+                            .body(GeminiResponse.class));
 
-        GeminiExtractionCandidate candidate = parseCandidate(response);
-        UsageMetadata usage = response.usageMetadata();
-        log.info(
-                "clothes_extraction_analyzed model={} imageCount={} imageBytes={} "
-                        + "promptTokens={} candidateTokens={} totalTokens={} elapsed_ms={}",
-                model,
-                safeImages.size(),
-                totalImageBytes(safeImages),
-                usage == null ? null : usage.promptTokenCount(),
-                usage == null ? null : usage.candidatesTokenCount(),
-                usage == null ? null : usage.totalTokenCount(),
-                elapsedMs(startedAt));
-        return candidate;
+            usage = response == null ? null : response.usageMetadata();
+            GeminiExtractionCandidate candidate = parseCandidate(response);
+            outcome = ClothesExtractionMetrics.Outcome.SUCCESS;
+            log.info(
+                    "clothes_extraction_analyzed model={} imageCount={} imageBytes={} "
+                            + "promptTokens={} candidateTokens={} totalTokens={} elapsed_ms={}",
+                    model,
+                    safeImages.size(),
+                    imageBytes,
+                    usage == null ? null : usage.promptTokenCount(),
+                    usage == null ? null : usage.candidatesTokenCount(),
+                    usage == null ? null : usage.totalTokenCount(),
+                    elapsedMs(startedAt));
+            return candidate;
+        } finally {
+            metrics.recordGemini(
+                    sample,
+                    page == null ? null : page.productUrl(),
+                    outcome,
+                    safeImages.size(),
+                    imageBytes,
+                    usage == null ? null : usage.promptTokenCount(),
+                    usage == null ? null : usage.candidatesTokenCount(),
+                    usage == null ? null : usage.totalTokenCount());
+        }
     }
 
     private void validateConfiguration() {
