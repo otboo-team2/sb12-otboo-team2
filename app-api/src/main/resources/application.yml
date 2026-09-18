@@ -112,6 +112,15 @@ otboo:
       max-detail-images: 6
       max-page-text-chars: 15000
       max-discovered-image-candidates: 200
+  # 박교현 — 추천 LLM 연결 설정
+  recommendation:
+    search:
+      enabled: ${RECOMMENDATION_SEARCH_ENABLED:false}
+      index-name: ${RECOMMENDATION_CLOTHES_INDEX:recommendation-clothes}
+    ai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-5.6-luna}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   fashn:
     api-key: ${FASHN_API_KEY:}
   # ─────────── Pinterest 코디 핀 ───────────
@@ -126,6 +135,11 @@ otboo:
     dispatch-interval: 5000
     poll-interval: 5000
     default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
+    image:
+      min-width: 200
+      min-height: 200
+      min-aspect-ratio: 0.1   # 1:10
+      max-aspect-ratio: 10.0  # 10:1
   # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
   # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
   storage:

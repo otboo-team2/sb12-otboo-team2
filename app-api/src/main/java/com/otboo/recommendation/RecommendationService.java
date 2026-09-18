@@ -32,6 +32,11 @@ public class RecommendationService {
 
     @Transactional(readOnly = true)
     public RecommendationDto find(UUID userId, UUID weatherId) {
+        return recommend(findCandidates(userId, weatherId));
+    }
+
+    @Transactional(readOnly = true)
+    public RecommendationCandidates findCandidates(UUID userId, UUID weatherId) {
         Weather weather = weatherRepository.findById(weatherId)
                 .orElseThrow(() -> new BusinessException(CommonErrorCode.RESOURCE_NOT_FOUND)
                         .addDetail("weatherId", weatherId.toString()));
@@ -55,15 +60,23 @@ public class RecommendationService {
                         warmthOf(item)))
                 .toList();
 
+        return new RecommendationCandidates(weatherId, userId,
+                weather.getTemperatureCurrent().doubleValue(), weather.getPrecipitationType(),
+                sensitivity, preferredStyles, suitable);
+    }
+
+    /** DB 재조회 없이 동일 후보로 기존 규칙 기반 추천을 구성한다. */
+    public RecommendationDto recommend(RecommendationCandidates candidates) {
         Set<ClothesType> selectedTypes = EnumSet.noneOf(ClothesType.class);
-        List<OotdDto> clothes = suitable.stream()
+        List<OotdDto> clothes = candidates.clothes().stream()
                 .sorted((left, right) -> Boolean.compare(
-                        matchesStyle(right, preferredStyles), matchesStyle(left, preferredStyles)))
+                        matchesStyle(right, candidates.preferredStyles()),
+                        matchesStyle(left, candidates.preferredStyles())))
                 .filter(item -> selectedTypes.add(item.type()))
                 .map(RecommendationService::toOotd)
                 .toList();
 
-        return new RecommendationDto(weatherId, userId, clothes);
+        return new RecommendationDto(candidates.weatherId(), candidates.userId(), clothes);
     }
 
     private static boolean matchesStyle(ClothesDto clothes, Set<String> preferredStyles) {

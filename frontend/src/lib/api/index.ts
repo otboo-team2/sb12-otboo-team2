@@ -20,6 +20,9 @@ export * as clothesApi from './clothes';
 // Clothes Attributes API
 export * as clothesAttributesApi from './clothes-attributes';
 
+// Fitting API
+export * as fittingApi from './fittings';
+
 // Follow API
 export * as followApi from './follows';
 
@@ -84,6 +87,12 @@ export {
   updateClothesAttributeDef,
   deleteClothesAttributeDef,
 } from './clothes-attributes';
+
+export {
+    // Fittings
+    submitFitting,
+    getFittingJob,
+} from './fittings';
 
 export {
   // Follows
