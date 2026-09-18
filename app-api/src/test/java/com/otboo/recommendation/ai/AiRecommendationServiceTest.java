@@ -65,7 +65,7 @@ class AiRecommendationServiceTest {
         given(recommendationService.recommend(candidates)).willReturn(basic);
         given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(
                 new RecommendationCondition(RecommendationOccasion.DATE,
-                        List.of("캐주얼"), List.of(), List.of(), List.of(), List.of()));
+                        List.of("캐주얼"), List.of(), List.of()));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
 

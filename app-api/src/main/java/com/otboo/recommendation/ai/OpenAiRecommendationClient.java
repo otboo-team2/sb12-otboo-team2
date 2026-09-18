@@ -27,12 +27,12 @@ public class OpenAiRecommendationClient {
             요청에서 확인할 수 없는 조건은 추측하지 않는다. 상황은 null, 목록은 []로 반환한다.
             DATE는 데이트, WORK는 출근, DAILY는 일상, OUTDOOR는 야외활동,
             FORMAL은 면접·격식 있는 상황이다. 가장 명확한 상황 하나만 선택한다.
-            styles, fits, colors, keywords는 한국어로 표현하고 categories는 정의된 enum만 사용한다.
+            styles, keywords는 한국어로 표현하고 categories는 정의된 enum만 사용한다.
             비나 눈 등 요청에 언급된 조건은 keywords에 담는다. 실제 날씨를 추측하지 않는다.
             실제 의상이나 clothesId를 생성하거나 선택하지 않는다.
             """;
     private static final List<String> ARRAY_FIELDS = List.of(
-            "styles", "fits", "colors", "categories", "keywords");
+            "styles", "categories", "keywords");
 
     private final RecommendationAiProperties properties;
     private final ExternalApiClient api;
@@ -110,7 +110,7 @@ public class OpenAiRecommendationClient {
     }
 
     private void validateArguments(JsonNode arguments) {
-        if (arguments == null || !arguments.isObject() || arguments.size() != 6
+        if (arguments == null || !arguments.isObject() || arguments.size() != 4
                 || !arguments.has("occasion")
                 || !(arguments.get("occasion").isNull() || arguments.get("occasion").isTextual())) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);

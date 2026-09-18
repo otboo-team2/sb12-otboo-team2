@@ -37,7 +37,7 @@ class OpenAiRecommendationClientTest {
 
     private static final String TOOL_NAME = "extract_recommendation_condition";
     private static final String VALID_ARGUMENTS = """
-            {"occasion":"DATE","styles":["캐주얼"],"fits":[],"colors":["검은색"],
+            {"occasion":"DATE","styles":["캐주얼"],
              "categories":["TOP"],"keywords":[]}
             """;
 
@@ -78,7 +78,7 @@ class OpenAiRecommendationClientTest {
                                     .getBodyAsString());
                     assertThat(body.path("model").asText()).isEqualTo("gpt-5.6-luna");
                     assertThat(body.path("input").get(0).path("content").asText())
-                            .isEqualTo("데이트에 캐주얼하고 검은색 상의 추천해줘");
+                            .isEqualTo("데이트에 캐주얼한 상의 추천해줘");
                     assertThat(body.path("tools").get(0))
                             .isEqualTo(objectMapper.valueToTree(RecommendationConditionTool.definition()));
                     assertThat(body.path("tool_choice").path("name").asText()).isEqualTo(TOOL_NAME);
@@ -88,11 +88,10 @@ class OpenAiRecommendationClientTest {
                 })
                 .andRespond(withSuccess(response, MediaType.APPLICATION_JSON));
 
-        var condition = client.extractCondition("  데이트에 캐주얼하고 검은색 상의 추천해줘  ");
+        var condition = client.extractCondition("  데이트에 캐주얼한 상의 추천해줘  ");
 
         assertThat(condition.occasion()).isEqualTo(RecommendationOccasion.DATE);
         assertThat(condition.styles()).containsExactly("캐주얼");
-        assertThat(condition.colors()).containsExactly("검은색");
         assertThat(condition.categories()).containsExactly(ClothesType.TOP);
         server.verify();
     }
@@ -100,7 +99,7 @@ class OpenAiRecommendationClientTest {
     @Test
     void acceptsNullOccasionAndEmptyArrays() throws Exception {
         String arguments = """
-                {"occasion":null,"styles":[],"fits":[],"colors":[],"categories":[],"keywords":[]}
+                {"occasion":null,"styles":[],"categories":[],"keywords":[]}
                 """;
         expectResponse(response(List.of(function(TOOL_NAME, arguments))));
 
@@ -115,13 +114,15 @@ class OpenAiRecommendationClientTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "not-json", "null", "{}", "{} {}",
-            "{\"occasion\":null,\"occasion\":\"DATE\",\"styles\":[],\"fits\":[],\"colors\":[],\"categories\":[],\"keywords\":[]}",
-            "{\"occasion\":\"DATE\",\"styles\":[],\"fits\":[],\"colors\":[],\"categories\":[],\"clothesId\":\"invented\"}",
-            "{\"occasion\":\"UNKNOWN\",\"styles\":[],\"fits\":[],\"colors\":[],\"categories\":[],\"keywords\":[]}",
-            "{\"occasion\":null,\"styles\":[],\"fits\":[],\"colors\":[],\"categories\":[\"UNKNOWN\"],\"keywords\":[]}",
-            "{\"occasion\":null,\"styles\":null,\"fits\":[],\"colors\":[],\"categories\":[],\"keywords\":[]}",
-            "{\"occasion\":null,\"styles\":[null],\"fits\":[],\"colors\":[],\"categories\":[],\"keywords\":[]}",
-            "{\"occasion\":null,\"styles\":[12],\"fits\":[],\"colors\":[],\"categories\":[],\"keywords\":[]}"
+            "{\"occasion\":null,\"occasion\":\"DATE\",\"styles\":[],\"categories\":[],\"keywords\":[]}",
+            "{\"occasion\":\"DATE\",\"styles\":[],\"categories\":[],\"clothesId\":\"invented\"}",
+            "{\"occasion\":\"UNKNOWN\",\"styles\":[],\"categories\":[],\"keywords\":[]}",
+            "{\"occasion\":null,\"styles\":[],\"categories\":[\"UNKNOWN\"],\"keywords\":[]}",
+            "{\"occasion\":null,\"styles\":[],\"categories\":[],\"keywords\":[],\"colors\":[\"검은색\"]}",
+            "{\"occasion\":null,\"styles\":[],\"categories\":[],\"keywords\":[],\"fits\":[\"슬림\"]}",
+            "{\"occasion\":null,\"styles\":null,\"categories\":[],\"keywords\":[]}",
+            "{\"occasion\":null,\"styles\":[null],\"categories\":[],\"keywords\":[]}",
+            "{\"occasion\":null,\"styles\":[12],\"categories\":[],\"keywords\":[]}"
     })
     void rejectsInvalidArguments(String arguments) throws Exception {
         expectResponse(response(List.of(function(TOOL_NAME, arguments))));
@@ -208,7 +209,9 @@ class OpenAiRecommendationClientTest {
 
     private OpenAiRecommendationClient newClient(String key, String model) {
         return new OpenAiRecommendationClient(factory,
-                new RecommendationAiProperties(key, model, "https://api.openai.com/v1"), objectMapper);
+                new RecommendationAiProperties(
+                        key, model, "https://api.openai.com/v1",
+                        "text-embedding-3-small", 1536), objectMapper);
     }
 
     private Map<String, Object> function(String name, String arguments) {
