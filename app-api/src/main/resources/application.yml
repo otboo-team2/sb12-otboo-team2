@@ -117,6 +117,8 @@ otboo:
   # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
   # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
   pinterest:
+    # sandbox 로 붙일 때만 바꾼다: https://api-sandbox.pinterest.com (app-batch 와 값을 맞춘다)
+    base-url: ${PINTEREST_BASE_URL:}
     access-token: ${PINTEREST_ACCESS_TOKEN:}
     # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
     board-ids: ${PINTEREST_BOARD_IDS:}
