@@ -24,7 +24,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductPageExtractor {
 
-    private static final int MAX_IMAGE_CANDIDATES = 20;
     private static final int MIN_IMAGE_DIMENSION = 100;
     private static final List<String> DECOY_KEYWORDS = List.of(
             "logo", "icon", "banner", "review", "recommend");
@@ -99,13 +98,9 @@ public class ProductPageExtractor {
             imageCandidates.add(openGraphImage);
         }
         for (ImageCandidate candidate : htmlImages) {
-            if (imageCandidates.size() >= MAX_IMAGE_CANDIDATES) {
-                break;
-            }
-            if (!imageCandidates.contains(candidate.uri())) {
-                imageCandidates.add(candidate.uri());
-            }
+            imageCandidates.add(candidate.uri());
         }
+        imageCandidates = capDiscoveredImageCandidates(imageCandidates);
 
         URI primaryImage = supplementalPrimaryImage != null
                 ? supplementalPrimaryImage
@@ -124,9 +119,7 @@ public class ProductPageExtractor {
                         : imageCandidates.stream()
                                 .filter(image -> !image.equals(selectedPrimaryImage))
                                 .toList()
-                : distinct(supplementalDetailImages).stream()
-                        .limit(MAX_IMAGE_CANDIDATES)
-                        .toList();
+                : capDiscoveredImageCandidates(supplementalDetailImages);
         return new ProductPageData(
                 resource.finalUri(),
                 name,
@@ -223,9 +216,7 @@ public class ProductPageExtractor {
         }
         List<URI> images = new ArrayList<>();
         collectJsonLdImages(imageNode, images, URI.create(baseUri));
-        return distinct(images).stream()
-                .limit(MAX_IMAGE_CANDIDATES)
-                .toList();
+        return distinct(images);
     }
 
     private void collectJsonLdImages(JsonNode imageNode, List<URI> images, URI baseUri) {
@@ -271,9 +262,6 @@ public class ProductPageExtractor {
                         && !containsDecoyKeyword(image.toString())
                         && seen.add(image)) {
                     images.add(new ImageCandidate(image));
-                    if (images.size() >= MAX_IMAGE_CANDIDATES) {
-                        return images;
-                    }
                     break;
                 }
             }
@@ -453,6 +441,26 @@ public class ProductPageExtractor {
 
     private static List<URI> distinct(List<URI> values) {
         return List.copyOf(new LinkedHashSet<>(values));
+    }
+
+    private List<URI> capDiscoveredImageCandidates(List<URI> values) {
+        List<URI> candidates = distinct(values);
+        int limit = properties.maxDiscoveredImageCandidates();
+        if (limit <= 0 || candidates.size() <= limit) {
+            return limit <= 0 ? List.of() : candidates;
+        }
+        if (limit == 1) {
+            return List.of(candidates.getFirst());
+        }
+
+        List<URI> selected = new ArrayList<>(limit);
+        int lastIndex = candidates.size() - 1;
+        for (int index = 0; index < limit; index++) {
+            int sourceIndex = (int) Math.round(
+                    (double) index * lastIndex / (limit - 1));
+            selected.add(candidates.get(sourceIndex));
+        }
+        return List.copyOf(selected);
     }
 
     private record JsonLdProduct(String name, String description, List<URI> imageUrls) {

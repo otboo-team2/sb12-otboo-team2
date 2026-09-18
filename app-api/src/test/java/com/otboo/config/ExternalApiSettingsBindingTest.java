@@ -70,6 +70,7 @@ class ExternalApiSettingsBindingTest {
             assertThat(properties.maxTotalImageBytes()).isEqualTo(25 * 1024 * 1024);
             assertThat(properties.maxDetailImages()).isEqualTo(6);
             assertThat(properties.maxPageTextChars()).isEqualTo(15_000);
+            assertThat(properties.maxDiscoveredImageCandidates()).isEqualTo(200);
         });
     }
 

@@ -62,7 +62,7 @@ class ClothesExtractionServiceTest {
         MockitoAnnotations.openMocks(this);
         properties = new ClothesExtractionProperties(
                 "test-key", "gemini-test", 3, 2 * 1024 * 1024,
-                10 * 1024 * 1024, 25 * 1024 * 1024, 4, 15_000);
+                10 * 1024 * 1024, 25 * 1024 * 1024, 4, 15_000, 200);
         meterRegistry = new SimpleMeterRegistry();
         service = new ClothesExtractionService(
                 productUrlValidator,

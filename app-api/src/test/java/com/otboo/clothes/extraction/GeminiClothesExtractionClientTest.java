@@ -284,7 +284,8 @@ class GeminiClothesExtractionClientTest {
                 10 * 1024 * 1024,
                 25 * 1024 * 1024,
                 4,
-                15_000);
+                15_000,
+                200);
     }
 
     private void expectResponse(String response) {

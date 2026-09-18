@@ -11,6 +11,7 @@ public record ClothesExtractionProperties(
         int maxImageBytes,
         int maxTotalImageBytes,
         int maxDetailImages,
-        int maxPageTextChars
+        int maxPageTextChars,
+        int maxDiscoveredImageCandidates
 ) {
 }

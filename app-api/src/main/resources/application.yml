@@ -111,6 +111,7 @@ otboo:
       max-total-image-bytes: 26214400
       max-detail-images: 6
       max-page-text-chars: 15000
+      max-discovered-image-candidates: 200
   # 박교현 — 추천 LLM 연결 설정
   recommendation:
     search:

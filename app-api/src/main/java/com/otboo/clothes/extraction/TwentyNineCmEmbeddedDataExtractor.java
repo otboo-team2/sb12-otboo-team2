@@ -14,7 +14,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Component;
 
-/** 29CM의 Next.js Flight 데이터에 포함된 상품 상세 이미지 주소를 보충한다. */
+/** 29CM의 Next.js Flight 데이터에 포함된 상품 설명과 상세 이미지 주소를 보충한다. */
 @Component
 public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementExtractor {
 
@@ -35,13 +35,15 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
         }
 
         Set<URI> images = new LinkedHashSet<>();
+        Set<String> descriptions = new LinkedHashSet<>();
         for (Element script : document.select("script")) {
             JsonNode flightData = parseFlightData(script.data());
             if (flightData != null) {
-                collectImages(flightData, productUri, images);
+                collectImages(flightData, productUri, images, descriptions);
             }
         }
-        return new ProductPageSupplement(List.of(), null, List.copyOf(images), List.of());
+        return new ProductPageSupplement(
+                List.copyOf(descriptions), null, List.copyOf(images), List.of());
     }
 
     private JsonNode parseFlightData(String scriptData) {
@@ -65,24 +67,42 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
         }
     }
 
-    private void collectImages(JsonNode node, URI baseUri, Set<URI> images) {
+    private void collectImages(
+            JsonNode node,
+            URI baseUri,
+            Set<URI> images,
+            Set<String> descriptions
+    ) {
         if (node == null || node.isNull()) {
             return;
         }
         if (node.isTextual()) {
-            collectImagesFromFragment(node.textValue(), baseUri, images);
+            collectImagesFromFragment(node.textValue(), baseUri, images, descriptions);
             return;
         }
         if (node.isContainerNode()) {
-            node.forEach(child -> collectImages(child, baseUri, images));
+            node.forEach(child -> collectImages(child, baseUri, images, descriptions));
         }
     }
 
-    private void collectImagesFromFragment(String fragment, URI baseUri, Set<URI> images) {
-        if (fragment == null || !fragment.contains("<img")) {
+    private void collectImagesFromFragment(
+            String fragment,
+            URI baseUri,
+            Set<URI> images,
+            Set<String> descriptions
+    ) {
+        if (fragment == null || fragment.isBlank()) {
             return;
         }
         Document detailDocument = Jsoup.parseBodyFragment(fragment, baseUri.toString());
+        if (detailDocument.body() == null || detailDocument.body().children().isEmpty()) {
+            return;
+        }
+
+        String description = cleanText(detailDocument.body().text());
+        if (description != null) {
+            descriptions.add(description);
+        }
         for (Element image : detailDocument.select("img")) {
             String source = firstNonBlank(image.attr("src"), image.attr("data-src"));
             URI resolved = resolveHttpsImage(source, baseUri);
@@ -139,5 +159,13 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
             }
         }
         return null;
+    }
+
+    private String cleanText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String cleaned = value.replaceAll("\\s+", " ").trim();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 }
