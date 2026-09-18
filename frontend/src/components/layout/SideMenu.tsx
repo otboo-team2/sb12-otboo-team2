@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import weatherIcon from '@/assets/illust_logos/il_Weather.svg';
 import feedIcon from '@/assets/illust_logos/il_feed.svg';
+import messageIcon from '@/assets/icons/ic_send.svg';
 import settingIcon from '@/assets/illust_logos/il_setting.svg';
 import setting2Icon from '@/assets/illust_logos/il_setting-2.svg';
 import closetIcon from '@/assets/illust_logos/il_closet.svg';
@@ -75,6 +76,14 @@ function FittingIcon() {
     );
 }
 
+function MessageIcon() {
+    return (
+        <div className="overflow-clip relative shrink-0 size-6">
+            <img alt="메시지" className="block max-w-none size-full" src={messageIcon} />
+        </div>
+    );
+}
+
 function ProfileIcon() {
   return (
     <div className="overflow-clip relative shrink-0 size-6">
@@ -124,6 +133,12 @@ const menuItems = [
     label: '가상피팅',
     path: '/virtual-fitting',
     icon: <FittingIcon />
+  },
+  {
+    id: 'dm',
+    label: '메시지',
+    path: '/dm',
+    icon: <MessageIcon />
   },
   {
     id: 'profiles',

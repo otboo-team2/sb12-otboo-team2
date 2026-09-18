@@ -18,6 +18,15 @@ export type ClothesType =
 export type SkyStatus = 'CLEAR' | 'MOSTLY_CLOUDY' | 'CLOUDY';
 export type PrecipitationType = 'NONE' | 'RAIN' | 'RAIN_SNOW' | 'SNOW' | 'SHOWER';
 export type WindStrength = 'WEAK' | 'MODERATE' | 'STRONG';
+export type NotificationType =
+    | 'ROLE_CHANGED'
+    | 'CLOTHES_ATTRIBUTE_ADDED'
+    | 'FEED_LIKED'
+    | 'FEED_COMMENTED'
+    | 'FOLLOW_CREATED'
+    | 'FEED_CREATED'
+    | 'DM_RECEIVED'
+    | 'VIRTUAL_TRY_ON_COMPLETED';
 export type NotificationLevel = 'INFO' | 'WARNING' | 'ERROR';
 export type VirtualTryOnJobStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 
@@ -218,9 +227,12 @@ export interface NotificationDto {
   id: string;
   createdAt: string;
   receiverId: string;
+  actorId: string | null;
   title: string;
   content: string;
   level: NotificationLevel;
+  type: NotificationType;
+  relatedEntityId: string | null;
 }
 
 export interface DirectMessageDto {
@@ -229,6 +241,13 @@ export interface DirectMessageDto {
   sender: UserSummary;
   receiver: UserSummary;
   content: string;
+}
+
+export interface DmConversationDto {
+    messageId: string;
+    lastMessageAt: string;
+    lastMessageContent: string;
+    partner: UserSummary;
 }
 
 export interface VirtualTryOnJobDto {
