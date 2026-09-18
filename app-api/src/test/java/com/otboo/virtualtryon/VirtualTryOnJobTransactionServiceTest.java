@@ -64,6 +64,8 @@ class VirtualTryOnJobServiceTest extends IntegrationTestSupport {
         clothesRepository.flush();
         userRepository.deleteAll();
         userRepository.flush();
+
+        given(imageStorage.readAsDataUri(any())).willAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test

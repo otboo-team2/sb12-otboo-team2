@@ -28,6 +28,8 @@ import com.otboo.virtualtryon.util.VirtualTryOnCacheKeyGenerator;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.UUID;
+
+import com.otboo.virtualtryon.validation.VirtualTryOnImageValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,9 @@ import org.springframework.web.multipart.MultipartFile;
 class VirtualTryOnServiceTest extends IntegrationTestSupport {
 
     private static final byte[] MODEL_IMAGE_CONTENT = "model-photo-bytes".getBytes();
+
+    @MockitoBean
+    VirtualTryOnImageValidator imageValidator;
 
     @Autowired
     VirtualTryOnService virtualTryOnService;
