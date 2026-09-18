@@ -43,6 +43,9 @@ class ClothesServiceLoggingTest {
     @Mock
     ImageStorage imageStorage;
 
+    @Mock
+    org.springframework.context.ApplicationEventPublisher events;
+
     @InjectMocks
     ClothesService clothesService;
 

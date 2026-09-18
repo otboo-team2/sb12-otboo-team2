@@ -6,6 +6,8 @@ import com.otboo.common.security.AuthPrincipal;
 import com.otboo.common.security.LoginUser;
 import com.otboo.dm.dto.DirectMessageDto;
 import java.util.UUID;
+
+import com.otboo.dm.dto.DmConversationDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,5 +30,13 @@ public class DmController {
         @ModelAttribute CursorRequest request
     ) {
         return ResponseEntity.ok(dmService.getMessages(me.userId(), userId, request));
+    }
+
+    @GetMapping("/conversations")
+    public ResponseEntity<CursorResponse<DmConversationDto>> getConversations(
+        @LoginUser AuthPrincipal me,
+        @ModelAttribute CursorRequest request
+    ) {
+        return ResponseEntity.ok(dmService.getConversations(me.userId(), request));
     }
 }

@@ -15,7 +15,7 @@ export default function RecommendationSection() {
     '오늘 데이트룩 추천해줘',
     '비 오는 날 편한 옷 추천해줘',
     '면접인데 단정하게 입고 싶어',
-    '오늘은 검은색 위주로 추천해줘',
+    '오늘은 캐주얼한 스타일로 추천해줘',
   ];
 
   useEffect(() => {

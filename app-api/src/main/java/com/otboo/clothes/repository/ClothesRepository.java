@@ -12,6 +12,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ClothesRepository extends JpaRepository<Clothes, UUID> {
 
+    @Query("""
+            select clothes.id
+            from Clothes clothes
+            where (:afterId is null or clothes.id > :afterId)
+            order by clothes.id asc
+            """)
+    List<UUID> findIdsAfter(@Param("afterId") UUID afterId, Pageable pageable);
+
     Optional<Clothes> findByIdAndOwnerId(UUID clothesId, UUID ownerId);
 
     List<Clothes> findAllByOwnerIdOrderByIdDesc(UUID ownerId);

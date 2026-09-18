@@ -3,6 +3,7 @@ package com.otboo.common.http;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.logging.LogKeys;
+import com.otboo.common.logging.SafeExceptionLog;
 import java.time.Duration;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
@@ -133,7 +134,7 @@ public class ExternalApiClient {
         boolean timeout = cause instanceof ResourceAccessException;
         BusinessException translated = new BusinessException(
                 timeout ? CommonErrorCode.EXTERNAL_API_TIMEOUT : CommonErrorCode.EXTERNAL_API_ERROR,
-                cause);
+                SafeExceptionLog.sanitized(cause));
         return translated
                 .addDetail("api", apiName)
                 .addDetail("endpoint", endpoint)
@@ -155,7 +156,7 @@ public class ExternalApiClient {
             Thread.sleep(wait.toMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();     // 인터럽트 상태를 삼키지 않는다
-            throw new BusinessException(CommonErrorCode.EXTERNAL_API_TIMEOUT, e);
+            throw new BusinessException(CommonErrorCode.EXTERNAL_API_TIMEOUT, SafeExceptionLog.sanitized(e));
         }
     }
 }

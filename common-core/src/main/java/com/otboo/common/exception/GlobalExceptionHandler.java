@@ -1,5 +1,6 @@
 package com.otboo.common.exception;
 
+import com.otboo.common.logging.SafeExceptionLog;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,7 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = e.getErrorCode();
         // 5xx 만 스택트레이스를 남긴다. 4xx 는 정상적인 사용자 오류라 로그를 오염시킨다.
         if (errorCode.getStatus().is5xxServerError()) {
-            log.error("[{}] {}", errorCode.getCode(), e.getMessage(), e);
+            log.error("[{}] {}", errorCode.getCode(), errorCode.getMessage(), SafeExceptionLog.sanitized(e));
         } else {
             log.warn("[{}] {} {}", errorCode.getCode(), e.getMessage(), e.getDetails());
         }
@@ -86,7 +87,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception e) {
-        log.error("[{}] 처리되지 않은 예외", CommonErrorCode.INTERNAL_ERROR.getCode(), e);
+        log.error("[{}] 처리되지 않은 예외", CommonErrorCode.INTERNAL_ERROR.getCode(), SafeExceptionLog.sanitized(e));
         return build(CommonErrorCode.INTERNAL_ERROR, Map.of());
     }
 

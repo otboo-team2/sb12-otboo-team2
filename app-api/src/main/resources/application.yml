@@ -111,6 +111,7 @@ otboo:
       max-total-image-bytes: 26214400
       max-detail-images: 6
       max-page-text-chars: 15000
+      max-discovered-image-candidates: 200
   # 박교현 — 추천 LLM 연결 설정
   recommendation:
     search:
@@ -120,12 +121,16 @@ otboo:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:gpt-5.6-luna}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
   fashn:
     api-key: ${FASHN_API_KEY:}
   # ─────────── Pinterest 코디 핀 ───────────
   # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
   # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
   pinterest:
+    # sandbox 로 붙일 때만 바꾼다: https://api-sandbox.pinterest.com (app-batch 와 값을 맞춘다)
+    base-url: ${PINTEREST_BASE_URL:}
     access-token: ${PINTEREST_ACCESS_TOKEN:}
     # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
     board-ids: ${PINTEREST_BOARD_IDS:}

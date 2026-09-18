@@ -18,8 +18,6 @@ public final class RecommendationConditionTool {
                         Map.of("type", "string", "enum", occasionValues()),
                         Map.of("type", "null"))));
         properties.put("styles", stringArray());
-        properties.put("fits", stringArray());
-        properties.put("colors", stringArray());
         properties.put("categories", Map.of(
                 "type", "array",
                 "items", Map.of(
@@ -32,7 +30,7 @@ public final class RecommendationConditionTool {
         parameters.put("additionalProperties", false);
         parameters.put("properties", properties);
         parameters.put("required", List.of(
-                "occasion", "styles", "fits", "colors", "categories", "keywords"));
+                "occasion", "styles", "categories", "keywords"));
 
         return Map.of(
                 "type", "function",
