@@ -5,11 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.otboo.common.test.IntegrationTestSupport;
 import com.otboo.pinterest.entity.PinterestPin;
 import com.otboo.pinterest.repository.PinterestPinRepository;
+import com.otboo.pinterest.tag.GenderTag;
 import com.otboo.pinterest.tag.OutfitTagParser;
+import com.otboo.pinterest.tag.SkyTag;
+import com.otboo.pinterest.tag.StyleTag;
 import com.otboo.pinterest.tag.TagStatus;
 import com.otboo.pinterest.tag.TempBand;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,6 +86,71 @@ class PinterestPinRepositoryTest extends IntegrationTestSupport {
                 .singleElement()
                 .extracting(PinterestPin::getTagErrors)
                 .isEqualTo("'temp' 에 쓸 수 없는 값: 5~8");
+    }
+
+    @Test
+    @DisplayName("태그가 없거나 틀린 핀은 추천 조회에 나오지 않는다 — 기온 · 날씨를 모르는 핀이다")
+    void searchReturnsTaggedOnly() {
+        repository.save(pin("500", "@otboo temp:5-8 sky:cloudy style:minimal gender:unisex"));
+        repository.save(pin("501", "@otboo temp:5~8 sky:cloudy style:minimal gender:unisex"));
+        repository.save(pin("502", "태그 없는 핀"));
+
+        List<PinterestPin> found = repository.findTaggedFor(
+                List.of(TempBand.T5_8), List.of(SkyTag.CLOUDY), List.of(GenderTag.UNISEX), List.of(), 10);
+
+        assertThat(found).extracting(PinterestPin::getPinId).containsExactly("500");
+    }
+
+    @Test
+    @DisplayName("기온 · 날씨 · 성별로 걸러낸다. 넓히려면 넓힌 집합을 넘긴다")
+    void searchFiltersByWeatherAndGender() {
+        repository.save(pin("510", "@otboo temp:5-8 sky:cloudy style:minimal gender:unisex"));
+        repository.save(pin("511", "@otboo temp:9-11 sky:cloudy style:casual gender:men"));
+        repository.save(pin("512", "@otboo temp:5-8 sky:clear style:minimal gender:women"));
+
+        assertThat(repository.findTaggedFor(
+                List.of(TempBand.T5_8), List.of(SkyTag.CLOUDY), List.of(GenderTag.UNISEX), List.of(), 10))
+                .extracting(PinterestPin::getPinId).containsExactly("510");
+
+        assertThat(repository.findTaggedFor(
+                TempBand.T5_8.adjacent(), EnumSet.allOf(SkyTag.class), EnumSet.allOf(GenderTag.class),
+                List.of(), 10))
+                .extracting(PinterestPin::getPinId).containsExactlyInAnyOrder("510", "511", "512");
+    }
+
+    @Test
+    @DisplayName("스타일 중 하나라도 붙은 핀이 나온다. 스타일이 두 개 붙은 핀도 한 번만 나온다")
+    void searchFiltersByAnyStyle() {
+        repository.save(pin("520", "@otboo temp:5-8 sky:cloudy style:minimal,street gender:unisex"));
+        repository.save(pin("521", "@otboo temp:5-8 sky:cloudy style:casual gender:unisex"));
+
+        List<TempBand> temps = List.of(TempBand.T5_8);
+        Set<SkyTag> skies = Set.of(SkyTag.CLOUDY);
+        Set<GenderTag> genders = Set.of(GenderTag.UNISEX);
+
+        assertThat(repository.findTaggedFor(temps, skies, genders, List.of(StyleTag.STREET), 10))
+                .extracting(PinterestPin::getPinId).containsExactly("520");
+        assertThat(repository.findTaggedFor(temps, skies, genders, List.of(StyleTag.MINIMAL, StyleTag.STREET), 10))
+                .extracting(PinterestPin::getPinId).containsExactly("520");
+        assertThat(repository.findTaggedFor(temps, skies, genders, List.of(StyleTag.FORMAL), 10))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("limit 은 핀 수를 센다. 조건 집합이 비어 있으면 조회하지 않고 빈 목록이다")
+    void searchRespectsLimitAndEmptyConditions() {
+        repository.save(pin("530", "@otboo temp:5-8 sky:cloudy style:minimal,street gender:unisex"));
+        repository.save(pin("531", "@otboo temp:5-8 sky:cloudy style:minimal,street gender:unisex"));
+
+        assertThat(repository.findTaggedFor(List.of(TempBand.T5_8), List.of(SkyTag.CLOUDY),
+                List.of(GenderTag.UNISEX), List.of(StyleTag.MINIMAL, StyleTag.STREET), 1))
+                .hasSize(1);
+        assertThat(repository.findTaggedFor(List.of(), List.of(SkyTag.CLOUDY),
+                List.of(GenderTag.UNISEX), List.of(), 10))
+                .isEmpty();
+        assertThat(repository.findTaggedFor(List.of(TempBand.T5_8), List.of(SkyTag.CLOUDY),
+                List.of(GenderTag.UNISEX), List.of(), 0))
+                .isEmpty();
     }
 
     private static PinterestPin pin(String pinId, String description) {

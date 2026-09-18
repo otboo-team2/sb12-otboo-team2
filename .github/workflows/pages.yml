@@ -1,0 +1,59 @@
+name: Deploy (소개 사이트)
+
+# site/ 의 정적 페이지를 GitHub Pages 로 올린다.
+#
+# Pinterest API 신청에 "회사 소유 도메인에서 열리는 소개 페이지 + 개인정보처리방침" 이 필요하다.
+# GitHub Pages 의 브랜치 배포는 루트나 /docs 만 지원해서, 폴더를 자유롭게 쓰려고 Actions 로 올린다.
+# (/docs 에는 팀 내부 문서가 있어서 그대로 공개하고 싶지 않다.)
+#
+# 최초 1회 설정 — 두 군데를 건드려야 한다.
+#   1. Settings > Pages > Build and deployment > Source 를 "GitHub Actions" 로
+#   2. Settings > Environments > github-pages > Deployment branches 에 dev 를 추가
+#
+# 2번을 빼먹으면 배포 스텝이 "Branch is not allowed to deploy to github-pages due to
+# environment protection rules" 로 실패한다. github-pages 환경은 기본적으로 리포의
+# 기본 브랜치(지금은 main)에서만 배포를 허용하는데, 우리는 dev 를 기준 브랜치로 쓴다.
+#
+# 커스텀 도메인은 site/CNAME 에 있다. Settings > Pages 의 Custom domain 과 값이 같아야 한다.
+on:
+  push:
+    branches: [ dev ]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  # 배포는 취소하지 않는다. 중간에 끊기면 사이트가 반쯤 올라간 상태로 남는다.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: 빌드 · 배포
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pages 설정
+        uses: actions/configure-pages@v5
+
+      - name: site 폴더 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: 배포
+        id: deployment
+        uses: actions/deploy-pages@v4
