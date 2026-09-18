@@ -4,6 +4,7 @@ import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.pagination.SortDirection;
 import com.otboo.dm.dto.DirectMessageDto;
+import com.otboo.dm.dto.DmConversationDto;
 import com.otboo.dm.query.DirectMessageViewLoader;
 import com.otboo.dm.repository.DirectMessageRepository;
 import com.otboo.dm.util.DmKeyGenerator;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DmService {
 
     private static final String SORT_BY_CREATED_AT = "createdAt";
+    private static final String SORT_BY_LAST_MESSAGE_AT = "lastMessageAt";
 
     private final DirectMessageRepository directMessageRepository;
     private final DirectMessageViewLoader viewLoader;
@@ -35,5 +37,17 @@ public class DmService {
 
         return CursorResponse.of(
             messages, described, totalCount, DirectMessageDto::createdAt, DirectMessageDto::id);
+    }
+
+    public CursorResponse<DmConversationDto> getConversations(UUID meId, CursorRequest request) {
+        List<DmConversationDto> conversations = viewLoader.loadConversations(meId, request);
+        long totalCount = directMessageRepository.countConversationPartners(meId);
+
+        CursorRequest described = new CursorRequest(
+            request.cursor(), request.idAfter(), request.limit(),
+            SORT_BY_LAST_MESSAGE_AT, SortDirection.DESCENDING);
+
+        return CursorResponse.of(
+            conversations, described, totalCount, DmConversationDto::lastMessageAt, DmConversationDto::messageId);
     }
 }

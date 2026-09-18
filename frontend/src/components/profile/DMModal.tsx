@@ -19,7 +19,7 @@ interface DMModalProps {
 }
 
 export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps) {
-  const { send, isConnected, subscribe } = useWebSocketStore();
+  const { send, isConnected, subscribe, unsubscribe } = useWebSocketStore();
   const { data: auth } = useAuthStore();
   const { data: messages, add, updateParams, clearData: clearMessages, fetchMore, loading } = useDirectMessageStore();
 
@@ -38,7 +38,7 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
 
   // 스크롤을 맨 하단으로 이동하는 함수
   const scrollToBottom = useCallback((smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ 
+    messagesEndRef.current?.scrollIntoView({
       behavior: smooth ? 'smooth' : 'instant',
       block: 'end'
     });
@@ -50,13 +50,17 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
     }
   }, [targetUser?.id, updateParams, open]);
 
-  useEffect(() => {
-    if (!auth || !targetUser) return;
-    const destination = resolveDestination(auth.userDto.id, targetUser.id);
-    subscribe(destination, (message) => {
-      add(message);
-    });
-  }, [subscribe, add, auth, targetUser]);
+    useEffect(() => {
+        if (!auth || !targetUser || !isConnected) return;
+        const destination = resolveDestination(auth.userDto.id, targetUser.id);
+        subscribe(destination, (message) => {
+            add(message);
+        });
+
+        return () => {
+            unsubscribe(destination);
+        };
+    }, [subscribe, unsubscribe, add, auth, targetUser, isConnected]);
 
   const resolveDestination = useCallback((senderId: string, receiverId: string) => {
     let dest = '/sub/direct-messages_';
@@ -126,7 +130,7 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         className="bg-white w-[600px] h-[510px] max-w-[min(600px,90vw)] max-h-[min(510px,85vh)] p-0 gap-0 rounded-[30px] border-0 shadow-lg flex overflow-hidden"
         showCloseButton={false}
       >
@@ -135,15 +139,15 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
           <div className="flex gap-2 items-center px-5 py-3 border-b border-[#e7e7e9]">
             <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
               {targetUser.profileImageUrl ? (
-                <img 
-                  src={targetUser.profileImageUrl} 
-                  alt={targetUser.name} 
+                <img
+                  src={targetUser.profileImageUrl}
+                  alt={targetUser.name}
                   className="w-full h-full object-cover rounded-[100px]"
                 />
               ) : (
-                <img 
-                  src={profileIcon} 
-                  alt={targetUser.name} 
+                <img
+                  src={profileIcon}
+                  alt={targetUser.name}
                   className="w-full h-full object-cover rounded-[100px]"
                 />
               )}
@@ -168,7 +172,7 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
               <div ref={messagesContainerRef} className="h-full overflow-y-auto" id="messages-container">
 
                 <div ref={ref} className="w-full h-1"/>
-                
+
                 {/* 로딩 스켈레톤 (무한 스크롤 중) */}
                 {loading && messages.length > 0 && (
                   <div className="flex justify-center py-4">
@@ -180,15 +184,15 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                     </div>
                   </div>
                 )}
-                
+
                 <div className="flex flex-col gap-6 py-4">
                   {/* 날짜 표시 */}
                   <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] text-center tracking-[-0.35px] leading-[0] not-italic">
                     <p className="leading-[normal]">
-                      {new Date().toLocaleDateString('ko-KR', { 
-                        year: '2-digit', 
-                        month: 'long', 
-                        day: 'numeric' 
+                      {new Date().toLocaleDateString('ko-KR', {
+                        year: '2-digit',
+                        month: 'long',
+                        day: 'numeric'
                       })}
                     </p>
                   </div>
@@ -205,9 +209,9 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                                 <p className="leading-[normal] whitespace-pre">{formatTimeAgo(msg.createdAt)}</p>
                               </div>
                             </div>
-                            <div className="bg-[#1e89f4] px-[19px] py-3.5 rounded-[16px]">
+                            <div className="bg-[#1e89f4] px-[19px] py-3.5 rounded-[16px] max-w-[360px]">
                               <div className="font-['SUIT:SemiBold',_sans-serif] text-white text-[18px] tracking-[-0.45px] leading-[0] not-italic">
-                                <p className="leading-[normal] whitespace-pre">{msg.content}</p>
+                                <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
                               </div>
                             </div>
                           </div>
@@ -217,15 +221,15 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                             <div className="flex gap-2 items-center px-0 py-1">
                               <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
                                 {targetUser.profileImageUrl ? (
-                                  <img 
-                                    src={targetUser.profileImageUrl} 
-                                    alt={targetUser.name} 
+                                  <img
+                                    src={targetUser.profileImageUrl}
+                                    alt={targetUser.name}
                                     className="w-full h-full object-cover rounded-[100px]"
                                   />
                                 ) : (
-                                  <img 
-                                    src={profileIcon} 
-                                    alt={targetUser.name} 
+                                  <img
+                                    src={profileIcon}
+                                    alt={targetUser.name}
                                     className="w-full h-full object-cover rounded-[100px]"
                                   />
                                 )}
@@ -233,9 +237,9 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                               </div>
                             </div>
                             <div className="flex gap-3 items-end">
-                              <div className="bg-[#f2f2f3] px-[18px] py-3.5 rounded-[16px] inline-block w-fit">
+                              <div className="bg-[#f2f2f3] px-[18px] py-3.5 rounded-[16px] inline-block w-fit max-w-[360px]">
                                 <div className="font-['SUIT:SemiBold',_sans-serif] text-[#212126] text-[18px] tracking-[-0.35px] leading-[0] not-italic">
-                                  <p className="leading-[normal] whitespace-pre">{msg.content}</p>
+                                  <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
                                 </div>
                               </div>
                               <div className="flex gap-2 items-center px-0 py-1.5">
@@ -249,7 +253,7 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                       </div>
                     ))}
                   </div>
-                  
+
                   {/* 스크롤 하단 마커 */}
                   <div ref={messagesEndRef} className="h-1" />
                 </div>
@@ -275,10 +279,10 @@ export default function DMModal({ open, onOpenChange, targetUser }: DMModalProps
                   className="flex gap-2 items-center justify-center p-[10px] rounded-[100px] hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="overflow-clip relative size-6">
-                    <img 
-                      src={sendIcon} 
-                      alt="메시지 보내기" 
-                      className="block max-w-none size-full" 
+                    <img
+                      src={sendIcon}
+                      alt="메시지 보내기"
+                      className="block max-w-none size-full"
                     />
                   </div>
                 </button>

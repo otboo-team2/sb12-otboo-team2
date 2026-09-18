@@ -7,6 +7,8 @@ import com.otboo.notification.entity.NotificationLevel;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import com.otboo.notification.entity.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,7 +26,8 @@ class SseMessageRepositoryTest {
 
     private SseMessage message(UUID receiverId) {
         NotificationBroadcastMessage data = new NotificationBroadcastMessage(
-            UUID.randomUUID(), Instant.now(), receiverId, "제목", "내용", NotificationLevel.INFO);
+            UUID.randomUUID(), Instant.now(), receiverId, null, "제목", "내용",
+            NotificationLevel.INFO, NotificationType.DM_RECEIVED, null);
         return SseMessage.of(data);
     }
 
