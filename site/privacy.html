@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>개인정보처리방침 — otboo</title>
+<meta name="description" content="otboo가 수집하는 정보, 이용 목적, 제3자 서비스, 보관 기간과 Pinterest 데이터 처리 방침입니다.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f7f9;
+    --border: #e3e6ea;
+    --text: #16191d;
+    --muted: #5c6470;
+    --accent: #2f6f4e;
+    --accent-soft: #e8f3ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171a;
+      --surface: #1c2024;
+      --border: #2b3138;
+      --text: #e9ecef;
+      --muted: #a2abb6;
+      --accent: #7fc4a0;
+      --accent-soft: #1e2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1c2024;
+    --border: #2b3138;
+    --text: #e9ecef;
+    --muted: #a2abb6;
+    --accent: #7fc4a0;
+    --accent-soft: #1e2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+                 "Noto Sans KR", Segoe UI, Roboto, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+  header { border-bottom: 1px solid var(--border); }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; gap: 16px;
+  }
+  .logo { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+  .logo span { color: var(--accent); }
+  .logo a { color: inherit; text-decoration: none; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 15px; margin-left: 20px; }
+  nav a:hover { color: var(--text); }
+
+  .doc { padding: 48px 0 24px; }
+  .doc h1 { font-size: clamp(26px, 5vw, 34px); letter-spacing: -0.02em; margin: 0 0 10px; }
+  .doc .lead { color: var(--muted); margin: 0 0 4px; }
+  .doc .updated { color: var(--muted); font-size: 14.5px; margin: 0 0 28px; }
+
+  .callout {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 16px 20px; margin: 0 0 36px;
+  }
+  .callout p { margin: 0; font-size: 15px; }
+
+  .doc h2 {
+    font-size: 19px; letter-spacing: -0.01em; margin: 40px 0 12px;
+    padding-top: 22px; border-top: 1px solid var(--border);
+  }
+  .doc p { margin: 0 0 14px; }
+  .doc ul { margin: 0 0 14px; padding-left: 20px; }
+  .doc li { margin-bottom: 6px; }
+  .doc a { color: var(--accent); }
+
+  .table-scroll { overflow-x: auto; margin: 0 0 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td {
+    border: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top;
+  }
+  th { background: var(--surface); font-weight: 600; white-space: nowrap; }
+
+  .lang-divider {
+    margin: 64px 0 40px; border: none; border-top: 1px solid var(--border);
+  }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 28px 0 48px;
+    color: var(--muted); font-size: 14.5px;
+  }
+  footer a { color: var(--muted); }
+  footer .links { margin-bottom: 8px; }
+  footer .links a { margin-right: 18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="logo"><a href="index.html">ot<span>boo</span></a></div>
+    <nav>
+      <a href="index.html">홈</a>
+      <a href="#english">English</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap doc">
+
+  <h1>개인정보처리방침</h1>
+  <p class="lead">otboo — 날씨 기반 개인 맞춤 의상 추천 서비스</p>
+  <p class="updated">최종 수정일: 2026-09-18</p>
+
+  <div class="callout">
+    <p>otboo는 수집한 정보를 판매하거나 광고에 사용하지 않습니다.</p>
+  </div>
+
+  <h2 style="border-top: none; padding-top: 0;">1. 수집하는 정보</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>구분</th><th>항목</th><th>수집 시점</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>계정</td><td>이메일, 이름, 비밀번호(해시로만 저장)</td><td>회원가입</td></tr>
+        <tr><td>프로필</td><td>성별, 생년월일, 프로필 이미지</td><td>사용자가 직접 입력할 때</td></tr>
+        <tr><td>위치</td><td>위도·경도, 행정구역</td><td>날씨 예보를 받기 위해 위치를 설정할 때</td></tr>
+        <tr><td>취향</td><td>온도 민감도, 스타일 선호</td><td>사용자가 직접 설정할 때</td></tr>
+        <tr><td>콘텐츠</td><td>등록한 의상 정보·이미지, 작성한 피드·댓글, 주고받은 메시지</td><td>사용자가 작성할 때</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>비밀번호는 해시로만 저장하며 원문을 보관하지 않습니다.</p>
+
+  <h2>2. 이용 목적</h2>
+  <ul>
+    <li>날씨와 사용자 취향에 맞는 의상 추천</li>
+    <li>피드·댓글·팔로우·메시지 등 서비스 기능 제공</li>
+    <li>알림 발송</li>
+  </ul>
+  <p>위치 정보는 해당 지역의 날씨 예보를 받아오는 데만 사용합니다.</p>
+
+  <h2>3. 제3자 서비스</h2>
+  <p>서비스 기능을 위해 아래 외부 API를 호출합니다.</p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>서비스</th><th>보내는 정보</th><th>용도</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OpenWeatherMap</td><td>위도·경도</td><td>날씨 예보 조회</td></tr>
+        <tr><td>Kakao</td><td>위도·경도</td><td>좌표를 행정구역 이름으로 변환</td></tr>
+        <tr><td>Pinterest</td><td>없음 (읽기만 함 — 5장 참고)</td><td>코디 참고 이미지 수집</td></tr>
+        <tr><td>Google Gemini</td><td>사용자가 등록한 의상 이미지·상품 페이지 내용</td><td>의상 정보 자동 입력</td></tr>
+        <tr><td>FASHN</td><td>사용자가 등록한 인물 사진·의상 이미지</td><td>가상 피팅 이미지 생성</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>가상 피팅과 의상 자동 입력은 사용자가 그 기능을 직접 실행할 때만 동작하며, 실행하지 않으면
+     사진이 외부로 나가지 않습니다.</p>
+
+  <h2>4. 보관 기간</h2>
+  <p>회원 탈퇴 시 계정 정보와 사용자가 작성한 콘텐츠를 삭제합니다. 날씨 데이터는 수집 후 7일이
+     지나면 자동으로 삭제됩니다.</p>
+
+  <h2>5. Pinterest 데이터 처리</h2>
+  <p>otboo는 <strong>otboo 팀 계정이 소유하거나 멤버로 참여한 보드</strong>의 핀만 읽습니다.
+     Pinterest 전체를 검색하지 않으며, 다른 Pinterest 사용자의 계정·보드·개인정보에 접근하지
+     않습니다.</p>
+  <p>저장하는 값은 핀 ID, 보드 ID, 이미지 주소, 원본 핀 링크, 제목, 설명, 설명에서 읽어낸
+     태그(기온 구간·날씨·스타일 등), 동기화 시각입니다.
+     <strong>이미지 파일 자체는 복사하거나 우리 서버에 보관하지 않고 Pinterest 주소를 그대로
+     참조</strong>하며, 각 이미지는 원본 핀으로 연결됩니다.</p>
+  <p>otboo 사용자의 개인정보는 Pinterest로 전송되지 않습니다.</p>
+
+  <h2>6. 문의</h2>
+  <p>GitHub 이슈로 문의해 주세요 —
+     <a href="https://github.com/otboo-team2/sb12-otboo-team2/issues">github.com/otboo-team2/sb12-otboo-team2/issues</a></p>
+
+  <hr class="lang-divider" id="english">
+
+  <h1>Privacy Policy</h1>
+  <p class="lead">otboo — a weather-based outfit recommendation service</p>
+  <p class="updated">Last updated: 2026-09-18</p>
+
+  <div class="callout">
+    <p>otboo does not sell collected information or use it for advertising.</p>
+  </div>
+
+  <h2 style="border-top: none; padding-top: 0;">1. Information we collect</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Category</th><th>Items</th><th>When</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Account</td><td>Email, name, password (stored only as a hash)</td><td>Sign-up</td></tr>
+        <tr><td>Profile</td><td>Gender, date of birth, profile image</td><td>When the user enters them</td></tr>
+        <tr><td>Location</td><td>Latitude/longitude, administrative region</td><td>When the user sets a location to receive a forecast</td></tr>
+        <tr><td>Preferences</td><td>Temperature sensitivity, style preferences</td><td>When the user sets them</td></tr>
+        <tr><td>Content</td><td>Clothing items and images, feed posts, comments, direct messages</td><td>When the user creates them</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>2. How we use it</h2>
+  <p>To recommend outfits based on weather and user preferences, to provide feed, comment, follow
+     and messaging features, and to send notifications. Location is used only to fetch the weather
+     forecast for that area.</p>
+
+  <h2>3. Third-party services</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>Service</th><th>What we send</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>OpenWeatherMap</td><td>Latitude/longitude</td><td>Weather forecast</td></tr>
+        <tr><td>Kakao</td><td>Latitude/longitude</td><td>Convert coordinates to a region name</td></tr>
+        <tr><td>Pinterest</td><td>Nothing (read-only — see section 5)</td><td>Collect outfit reference images</td></tr>
+        <tr><td>Google Gemini</td><td>Clothing images and product page content the user submits</td><td>Auto-fill clothing details</td></tr>
+        <tr><td>FASHN</td><td>Person and clothing images the user submits</td><td>Generate virtual try-on images</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Virtual try-on and auto-fill run only when the user explicitly invokes them.</p>
+
+  <h2>4. Retention</h2>
+  <p>Account information and user-created content are deleted when the user deletes their account.
+     Weather data is purged automatically seven days after collection.</p>
+
+  <h2>5. Pinterest data</h2>
+  <p>otboo reads pins <strong>only from boards that the otboo team account owns or is a member
+     of</strong>. We do not search Pinterest globally, and we do not access any other Pinterest
+     user's account, boards or personal information.</p>
+  <p>We store the pin id, board id, image URL, original pin link, title, description, tags parsed
+     from that description (temperature range, sky condition, style and so on), and the time of
+     synchronization. <strong>We do not copy or re-host the image files themselves</strong> — we
+     reference the Pinterest image URL, and every image links back to its original pin.</p>
+  <p>No otboo user's personal information is sent to Pinterest.</p>
+
+  <h2>6. Contact</h2>
+  <p>Please open a GitHub issue —
+     <a href="https://github.com/otboo-team2/sb12-otboo-team2/issues">github.com/otboo-team2/sb12-otboo-team2/issues</a></p>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="index.html">홈</a>
+      <a href="https://github.com/otboo-team2/sb12-otboo-team2">GitHub</a>
+    </div>
+    <div>© 2026 otboo</div>
+  </div>
+</footer>
+
+</body>
+</html>
