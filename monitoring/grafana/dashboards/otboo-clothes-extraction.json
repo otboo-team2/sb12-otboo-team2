@@ -1,0 +1,281 @@
+{
+  "uid": "otboo-clothes-extraction",
+  "title": "otboo 의상 링크 자동입력",
+  "description": "구매 링크 자동입력의 API 응답 시간, 쇼핑몰별 추출 결과, Gemini 비용 지표를 함께 본다.",
+  "tags": [
+    "otboo",
+    "clothes",
+    "ai"
+  ],
+  "timezone": "utc",
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "사용자 요청과 전체 추출",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "GET /api/clothes/extractions p50 · p95",
+      "description": "사용자가 링크 자동입력 결과를 받기까지 걸린 전체 HTTP 시간이다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"otboo-api\", uri=\"/api/clothes/extractions\", method=\"GET\"}[$__rate_interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"otboo-api\", uri=\"/api/clothes/extractions\", method=\"GET\"}[$__rate_interval])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "HTTP 요청 수 — 상태 코드별",
+      "description": "초당 요청 수를 상태 코드별로 나눠 성공률과 오류 증가를 확인한다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 12, "y": 1, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"otboo-api\", uri=\"/api/clothes/extractions\", method=\"GET\"}[$__rate_interval]))",
+          "legendFormat": "HTTP {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "추출 전체 p95 — 쇼핑몰별",
+      "description": "HTML·이미지 수집, Gemini 분석, 검증을 모두 포함한 시간이다. 성공 결과만 비교한다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 0, "y": 9, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, shop) (rate(otboo_clothes_extraction_seconds_bucket{job=\"otboo-api\", outcome=~\"success|partial\"}[$__rate_interval])))",
+          "legendFormat": "{{shop}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "추출 결과 — 성공 · 부분 성공 · 실패",
+      "description": "부분 성공은 결과를 돌려줬지만 일부 이미지나 필드를 자동입력하지 못한 요청이다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 12, "y": 9, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (shop, outcome) (rate(otboo_clothes_extraction_seconds_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{shop}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Gemini 구간과 사용량",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 17, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Gemini p95 — 쇼핑몰별",
+      "description": "Gemini 요청부터 응답 JSON 검증까지의 시간이다. 전체 추출 p95와 비교하면 수집 구간의 비중을 알 수 있다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, shop) (rate(otboo_clothes_gemini_seconds_bucket{job=\"otboo-api\", outcome=\"success\"}[$__rate_interval])))",
+          "legendFormat": "{{shop}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Gemini 평균 토큰 수",
+      "description": "요청 1건당 prompt·candidate·total 토큰 수다. OCR 도입 전후 비용 비교의 기준선으로 사용한다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (shop, kind) (rate(otboo_clothes_gemini_tokens_sum{job=\"otboo-api\"}[$__rate_interval])) / sum by (shop, kind) (rate(otboo_clothes_gemini_tokens_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{shop}} {{kind}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "요청당 평균 이미지 수",
+      "description": "Gemini에 실제로 보낸 이미지 수다. OCR 선별 도입 후 감소 여부를 확인한다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 0, "y": 26, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (shop) (rate(otboo_clothes_extraction_images_sum{job=\"otboo-api\"}[$__rate_interval])) / sum by (shop) (rate(otboo_clothes_extraction_images_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{shop}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "요청당 평균 이미지 용량",
+      "description": "Gemini에 실제로 보낸 이미지 전체 용량이다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 8, "y": 26, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (shop) (rate(otboo_clothes_extraction_image_bytes_sum{job=\"otboo-api\"}[$__rate_interval])) / sum by (shop) (rate(otboo_clothes_extraction_image_bytes_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{shop}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "요청당 평균 확정 속성 수",
+      "description": "DB 선택값 검증까지 통과해 사용자에게 자동입력한 속성 수다. 속성 품질 비교의 보조 지표다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "x": 16, "y": 26, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": true },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max", "lastNotNull"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (shop) (rate(otboo_clothes_extraction_attributes_sum{job=\"otboo-api\"}[$__rate_interval])) / sum by (shop) (rate(otboo_clothes_extraction_attributes_count{job=\"otboo-api\"}[$__rate_interval]))",
+          "legendFormat": "{{shop}}"
+        }
+      ]
+    }
+  ]
+}

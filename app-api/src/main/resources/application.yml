@@ -111,6 +111,15 @@ otboo:
       max-total-image-bytes: 26214400
       max-detail-images: 6
       max-page-text-chars: 15000
+  # 박교현 — 추천 LLM 연결 설정
+  recommendation:
+    search:
+      enabled: ${RECOMMENDATION_SEARCH_ENABLED:false}
+      index-name: ${RECOMMENDATION_CLOTHES_INDEX:recommendation-clothes}
+    ai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-5.6-luna}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   fashn:
     api-key: ${FASHN_API_KEY:}
   # ─────────── Pinterest 코디 핀 ───────────
@@ -125,6 +134,11 @@ otboo:
     dispatch-interval: 5000
     poll-interval: 5000
     default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
+    image:
+      min-width: 200
+      min-height: 200
+      min-aspect-ratio: 0.1   # 1:10
+      max-aspect-ratio: 10.0  # 10:1
   # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
   # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
   storage:
@@ -218,10 +232,15 @@ management:
         http.server.requests: true
         # 피드 검색 엔진(MySQL · ES) 비교용. TimedFeedSearch 가 남긴다.
         otboo_feed_search: true
+        # 의상 링크 자동입력 전체와 Gemini 구간을 분리해 p95 를 비교한다.
+        otboo_clothes_extraction: true
+        otboo_clothes_gemini: true
       slo:
         # 이 경계로 버킷이 생긴다. "300ms 안에 몇 %가 끝났나"를 바로 볼 수 있다.
         http.server.requests: 100ms, 300ms, 1s, 3s
         otboo_feed_search: 50ms, 100ms, 300ms, 1s
+        otboo_clothes_extraction: 1s, 3s, 5s, 10s, 20s
+        otboo_clothes_gemini: 1s, 3s, 5s, 10s, 20s
 
 ---
 # prod 에서는 관측 엔드포인트만 남기고 나머지를 닫는다

@@ -20,6 +20,7 @@ import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.http.ExternalApiClient;
 import com.otboo.common.http.ExternalApiClientFactory;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -50,6 +51,7 @@ class GeminiClothesExtractionClientTest {
     private MockRestServiceServer server;
     private AtomicReference<RestClient> restClient;
     private AtomicReference<JsonNode> requestBody;
+    private SimpleMeterRegistry meterRegistry;
     private GeminiClothesExtractionClient client;
 
     @BeforeEach
@@ -60,6 +62,7 @@ class GeminiClothesExtractionClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         restClient = new AtomicReference<>();
         requestBody = new AtomicReference<>();
+        meterRegistry = new SimpleMeterRegistry();
         builder.requestInterceptor((request, body, execution) -> {
             requestBody.set(objectMapper.readTree(body));
             return execution.execute(request, body);
@@ -82,7 +85,8 @@ class GeminiClothesExtractionClientTest {
         client = new GeminiClothesExtractionClient(
                 factory,
                 objectMapper,
-                properties(API_KEY));
+                properties(API_KEY),
+                new ClothesExtractionMetrics(meterRegistry));
         restClient.set(builder.build());
     }
 
@@ -107,7 +111,11 @@ class GeminiClothesExtractionClientTest {
         String response = objectMapper.writeValueAsString(Map.of(
                 "candidates", List.of(Map.of(
                         "content", Map.of(
-                                "parts", List.of(Map.of("text", candidateText)))))));
+                                "parts", List.of(Map.of("text", candidateText))))),
+                "usageMetadata", Map.of(
+                        "promptTokenCount", 100,
+                        "candidatesTokenCount", 20,
+                        "totalTokenCount", 120)));
         server.expect(requestTo(
                         "https://generativelanguage.googleapis.com/v1beta/models/"
                                 + MODEL + ":generateContent"))
@@ -166,6 +174,16 @@ class GeminiClothesExtractionClientTest {
         assertThat(request.at("/generationConfig/responseMimeType").asText())
                 .isEqualTo("application/json");
         assertThat(request.at("/generationConfig/responseSchema").isObject()).isTrue();
+        assertThat(meterRegistry.get("otboo_clothes_gemini")
+                .tag("shop", "other")
+                .tag("outcome", "success")
+                .timer()
+                .count()).isEqualTo(1);
+        assertThat(meterRegistry.get("otboo_clothes_gemini_tokens")
+                .tag("shop", "other")
+                .tag("kind", "total")
+                .summary()
+                .totalAmount()).isEqualTo(120);
         server.verify();
     }
 
@@ -174,7 +192,8 @@ class GeminiClothesExtractionClientTest {
         GeminiClothesExtractionClient blankKeyClient = new GeminiClothesExtractionClient(
                 factory,
                 objectMapper,
-                properties(" "));
+                properties(" "),
+                new ClothesExtractionMetrics(new SimpleMeterRegistry()));
 
         assertExternalFailure(() -> blankKeyClient.extract(page(), List.of(), List.of()));
         verifyNoInteractions(api);
@@ -193,6 +212,33 @@ class GeminiClothesExtractionClientTest {
         expectResponse(responseWithText("{\"name\":"));
 
         assertExternalFailure(() -> client.extract(page(), List.of(), List.of()));
+        server.verify();
+    }
+
+    @Test
+    void recordsReportedTokenUsageEvenWhenCandidateJsonIsMalformed() throws Exception {
+        String response = objectMapper.writeValueAsString(Map.of(
+                "candidates", List.of(Map.of(
+                        "content", Map.of(
+                                "parts", List.of(Map.of("text", "{\"name\":"))))),
+                "usageMetadata", Map.of(
+                        "promptTokenCount", 100,
+                        "candidatesTokenCount", 20,
+                        "totalTokenCount", 120)));
+        expectResponse(response);
+
+        assertExternalFailure(() -> client.extract(page(), List.of(), List.of()));
+
+        assertThat(meterRegistry.get("otboo_clothes_gemini")
+                .tag("shop", "other")
+                .tag("outcome", "error")
+                .timer()
+                .count()).isEqualTo(1);
+        assertThat(meterRegistry.get("otboo_clothes_gemini_tokens")
+                .tag("shop", "other")
+                .tag("kind", "total")
+                .summary()
+                .totalAmount()).isEqualTo(120);
         server.verify();
     }
 

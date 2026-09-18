@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -91,7 +92,10 @@ public class LocalImageStorage implements ImageStorage {
         if (directory == null || directory.isBlank()) {
             return "etc";
         }
-        return directory.replaceAll("[^A-Za-z0-9_-]", "");
+        return java.util.Arrays.stream(directory.split("/"))
+            .map(segment -> segment.replaceAll("[^A-Za-z0-9_-]", ""))
+            .filter(segment -> !segment.isBlank())
+            .collect(java.util.stream.Collectors.joining("/"));
     }
 
     @Override
@@ -155,6 +159,34 @@ public class LocalImageStorage implements ImageStorage {
                 }
                 out.write(buffer, 0, read);
             }
+        }
+    }
+
+    @Override
+    public String resolveUrl(String key) {
+        return key;
+    }
+
+    @Override
+    public String readAsDataUri(String urlOrKey) {
+        if (urlOrKey == null || !urlOrKey.startsWith(properties.baseUrl() + "/")) {
+            return urlOrKey;    // 우리 키가 아니면 이미 외부에서 접근 가능한 URL이라고 보고 그대로 반환
+        }
+        String relative = urlOrKey.substring(properties.baseUrl().length() + 1);
+        Path target = Path.of(properties.baseDir()).resolve(relative).normalize();
+        if (!target.startsWith(Path.of(properties.baseDir()).normalize())) {
+            throw new BusinessException(CommonErrorCode.STORAGE_ERROR)
+                .addDetail("reason", "잘못된 경로");
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(target);
+            String mimeType = Files.probeContentType(target);
+            if (mimeType == null) {
+                mimeType = "application/octet-stream";
+            }
+            return "data:" + mimeType + ";base64," + Base64.getEncoder().encodeToString(bytes);
+        } catch (IOException e) {
+            throw new BusinessException(CommonErrorCode.STORAGE_ERROR, e);
         }
     }
 }

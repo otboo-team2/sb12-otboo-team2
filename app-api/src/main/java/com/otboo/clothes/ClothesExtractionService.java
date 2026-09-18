@@ -5,6 +5,7 @@ import com.otboo.clothes.dto.ClothesExtractionFailureDto;
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
 import com.otboo.clothes.entity.ClothesAttributeSelectableValue;
 import com.otboo.clothes.extraction.AttributeDefinitionSnapshot;
+import com.otboo.clothes.extraction.ClothesExtractionMetrics;
 import com.otboo.clothes.extraction.ClothesExtractionProperties;
 import com.otboo.clothes.extraction.ClothesExtractionValidator;
 import com.otboo.clothes.extraction.GeminiClothesExtractionClient;
@@ -16,6 +17,7 @@ import com.otboo.clothes.extraction.RemoteResource;
 import com.otboo.clothes.extraction.SafeRemoteResourceClient;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
+import io.micrometer.core.instrument.Timer;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -56,6 +58,7 @@ public class ClothesExtractionService {
     private final ClothesAttributeSelectableValueRepository selectableValueRepository;
     private final ClothesExtractionValidator extractionValidator;
     private final ClothesExtractionProperties properties;
+    private final ClothesExtractionMetrics metrics;
 
     public ClothesExtractionService(
             ProductUrlValidator productUrlValidator,
@@ -65,7 +68,8 @@ public class ClothesExtractionService {
             ClothesAttributeDefinitionRepository definitionRepository,
             ClothesAttributeSelectableValueRepository selectableValueRepository,
             ClothesExtractionValidator extractionValidator,
-            ClothesExtractionProperties properties
+            ClothesExtractionProperties properties,
+            ClothesExtractionMetrics metrics
     ) {
         this.productUrlValidator = productUrlValidator;
         this.productPageExtractor = productPageExtractor;
@@ -75,34 +79,48 @@ public class ClothesExtractionService {
         this.selectableValueRepository = selectableValueRepository;
         this.extractionValidator = extractionValidator;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     public ClothesExtractionDto extract(String rawUrl) {
-        URI productUrl = productUrlValidator.validate(rawUrl);
-        ProductPageData page = productPageExtractor.extract(productUrl);
+        Timer.Sample sample = metrics.startTimer();
+        URI productUrl = null;
+        ClothesExtractionMetrics.Outcome outcome = ClothesExtractionMetrics.Outcome.ERROR;
+        int acceptedAttributeCount = 0;
+        try {
+            productUrl = productUrlValidator.validate(rawUrl);
+            ProductPageData page = productPageExtractor.extract(productUrl);
 
-        List<ClothesExtractionFailureDto> failures = new ArrayList<>();
-        List<RemoteResource> images = new ArrayList<>();
-        Set<URI> downloadedUris = new LinkedHashSet<>();
-        String validatedImageUrl = downloadPrimaryImage(page, images, downloadedUris, failures);
-        downloadDetailImages(page, images, downloadedUris, failures);
+            List<ClothesExtractionFailureDto> failures = new ArrayList<>();
+            List<RemoteResource> images = new ArrayList<>();
+            Set<URI> downloadedUris = new LinkedHashSet<>();
+            String validatedImageUrl = downloadPrimaryImage(page, images, downloadedUris, failures);
+            downloadDetailImages(page, images, downloadedUris, failures);
 
-        List<AttributeDefinitionSnapshot> catalog = loadAttributeCatalog();
-        GeminiExtractionCandidate candidate = geminiClient.extract(page, images, catalog);
-        ClothesExtractionDto validated = extractionValidator.validate(
-                page, candidate, catalog, validatedImageUrl);
+            List<AttributeDefinitionSnapshot> catalog = loadAttributeCatalog();
+            GeminiExtractionCandidate candidate = geminiClient.extract(page, images, catalog);
+            ClothesExtractionDto validated = extractionValidator.validate(
+                    page, candidate, catalog, validatedImageUrl);
 
-        if (failures.isEmpty()) {
-            return validated;
+            ClothesExtractionDto result = validated;
+            if (!failures.isEmpty()) {
+                List<ClothesExtractionFailureDto> mergedFailures = new ArrayList<>(validated.failures());
+                mergedFailures.addAll(failures);
+                result = new ClothesExtractionDto(
+                        validated.name(),
+                        validated.type(),
+                        validated.attributes(),
+                        validated.imageUrl(),
+                        mergedFailures);
+            }
+            acceptedAttributeCount = result.attributes().size();
+            outcome = result.failures().isEmpty()
+                    ? ClothesExtractionMetrics.Outcome.SUCCESS
+                    : ClothesExtractionMetrics.Outcome.PARTIAL;
+            return result;
+        } finally {
+            metrics.recordExtraction(sample, productUrl, outcome, acceptedAttributeCount);
         }
-        List<ClothesExtractionFailureDto> mergedFailures = new ArrayList<>(validated.failures());
-        mergedFailures.addAll(failures);
-        return new ClothesExtractionDto(
-                validated.name(),
-                validated.type(),
-                validated.attributes(),
-                validated.imageUrl(),
-                mergedFailures);
     }
 
     private String downloadPrimaryImage(

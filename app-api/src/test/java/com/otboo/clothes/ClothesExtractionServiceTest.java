@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 
 import com.otboo.clothes.dto.ClothesExtractionDto;
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
+import com.otboo.clothes.extraction.ClothesExtractionMetrics;
 import com.otboo.clothes.extraction.ClothesExtractionProperties;
 import com.otboo.clothes.extraction.ClothesExtractionValidator;
 import com.otboo.clothes.extraction.GeminiClothesExtractionClient;
@@ -24,6 +25,7 @@ import com.otboo.clothes.extraction.SafeRemoteResourceClient;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
 import com.otboo.common.exception.BusinessException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.List;
@@ -52,6 +54,7 @@ class ClothesExtractionServiceTest {
     @Mock ClothesExtractionValidator extractionValidator;
 
     private ClothesExtractionProperties properties;
+    private SimpleMeterRegistry meterRegistry;
     private ClothesExtractionService service;
 
     @BeforeEach
@@ -60,6 +63,7 @@ class ClothesExtractionServiceTest {
         properties = new ClothesExtractionProperties(
                 "test-key", "gemini-test", 3, 2 * 1024 * 1024,
                 10 * 1024 * 1024, 25 * 1024 * 1024, 4, 15_000);
+        meterRegistry = new SimpleMeterRegistry();
         service = new ClothesExtractionService(
                 productUrlValidator,
                 productPageExtractor,
@@ -68,7 +72,8 @@ class ClothesExtractionServiceTest {
                 definitionRepository,
                 selectableValueRepository,
                 extractionValidator,
-                properties);
+                properties,
+                new ClothesExtractionMetrics(meterRegistry));
     }
 
     @Test
@@ -90,6 +95,11 @@ class ClothesExtractionServiceTest {
         ClothesExtractionDto result = service.extract(RAW_URL);
 
         assertThat(result).isSameAs(expected);
+        assertThat(meterRegistry.get("otboo_clothes_extraction")
+                .tag("shop", "other")
+                .tag("outcome", "success")
+                .timer()
+                .count()).isEqualTo(1);
         InOrder order = inOrder(
                 productUrlValidator,
                 productPageExtractor,
@@ -134,6 +144,11 @@ class ClothesExtractionServiceTest {
 
         assertThat(result.failures()).anySatisfy(failure ->
                 assertThat(failure.field()).isEqualTo("detailImage"));
+        assertThat(meterRegistry.get("otboo_clothes_extraction")
+                .tag("shop", "other")
+                .tag("outcome", "partial")
+                .timer()
+                .count()).isEqualTo(1);
         verify(remoteResourceClient).getImage(detail3);
         verify(geminiClient).extract(any(), org.mockito.ArgumentMatchers.argThat(images -> images.size() == 3), anyList());
     }

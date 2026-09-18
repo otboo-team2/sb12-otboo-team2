@@ -23,6 +23,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -88,5 +90,46 @@ class RecommendationServiceTest {
         return new ClothesDto(id, UUID.randomUUID(), name, null, type, false,
                 List.of(new ClothesAttributeWithDefDto(
                         UUID.randomUUID(), "스타일", List.of(style), style)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 3})
+    void retainsAllSuitableCandidatesBeforeCategorySelection(int sensitivity) {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        ClothesDto first = clothes(UUID.randomUUID(), "상의 A", ClothesType.TOP, "캐주얼");
+        ClothesDto second = clothes(UUID.randomUUID(), "상의 B", ClothesType.TOP, "포멀");
+        ClothesDto thick = new ClothesDto(UUID.randomUUID(), userId, "의상 C", null,
+                ClothesType.TOP, false, List.of(new ClothesAttributeWithDefDto(
+                        UUID.randomUUID(), "보온성", List.of("두꺼움"), "두꺼움")));
+        ClothesDto tooWarm = new ClothesDto(UUID.randomUUID(), userId, "의상 D", null,
+                ClothesType.OUTER, false, List.of(new ClothesAttributeWithDefDto(
+                        UUID.randomUUID(), "보온성", List.of("매우 두꺼움"), "매우 두꺼움")));
+
+        given(weatherRepository.findById(weatherId)).willReturn(Optional.of(weather));
+        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(23));
+        given(weather.getPrecipitationType()).willReturn(PrecipitationType.NONE);
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.of(profile));
+        given(profile.getTemperatureSensitivity()).willReturn(sensitivity);
+        given(preferenceRepository.findAllByUserIdOrderByCreatedAtAscIdAsc(userId))
+                .willReturn(List.of());
+        given(clothesService.findAllForRecommendation(userId))
+                .willReturn(List.of(first, second, thick, tooWarm));
+
+        RecommendationService service = new RecommendationService(
+                weatherRepository, profileRepository, preferenceRepository,
+                clothesService, new WeatherClothesFilter());
+        RecommendationCandidates candidates = service.findCandidates(userId, weatherId);
+
+        assertThat(candidates.clothes())
+                .containsExactlyElementsOf(sensitivity == 1
+                        ? List.of(first, second, thick) : List.of(first, second));
+        assertThat(candidates.temperature()).isEqualTo(23.0);
+        assertThat(candidates.temperatureSensitivity()).isEqualTo(sensitivity);
+        assertThat(candidates.userId()).isEqualTo(userId);
+        assertThat(candidates.weatherId()).isEqualTo(weatherId);
+        assertThat(service.recommend(candidates).clothes()).extracting("clothesId")
+                .containsExactly(first.id());
+        verify(clothesService).findAllForRecommendation(userId);
     }
 }

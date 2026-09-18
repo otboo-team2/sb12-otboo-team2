@@ -9,7 +9,7 @@ import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
 
 export default function RecommendationSection() {
   const { selectedWeather } = useWeatherStore();
-  const { data: recommendations, updateParams} = useRecommendationStore();
+  const { data: recommendations, updateParams, fetchAiRecommendation, loading, error } = useRecommendationStore();
   const [prompt, setPrompt] = useState('');
   const examples = [
     '오늘 데이트룩 추천해줘',
@@ -31,8 +31,11 @@ export default function RecommendationSection() {
 
   const hasClothes = recommendations && recommendations.clothes.length > 0;
 
-  const handlePromptSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handlePromptSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const value = prompt.trim();
+    if (!value || !selectedWeather?.id || loading) return;
+    await fetchAiRecommendation(value);
   };
 
   return (
@@ -59,11 +62,13 @@ export default function RecommendationSection() {
               type="submit"
               aria-label="추천 요청 보내기"
               className="absolute right-2 top-2 flex size-[42px] items-center justify-center rounded-[10px] bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
-              disabled={!prompt.trim()}
+              disabled={!prompt.trim() || loading}
             >
               <Send className="size-5" />
             </button>
           </form>
+
+          {error && <p className="text-sm font-semibold text-red-500" role="alert">{error}</p>}
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="shrink-0 text-xs font-semibold text-[#a9a9b1]">추천 예시</span>
