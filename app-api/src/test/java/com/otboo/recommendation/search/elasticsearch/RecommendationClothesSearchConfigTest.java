@@ -22,6 +22,10 @@ class RecommendationClothesSearchConfigTest {
     void enabledSearchUsesConfiguredAliasWithoutCallingElasticsearchAtStartup() {
         var client = mock(ElasticsearchClient.class);
         context.withBean(ElasticsearchClient.class, () -> client)
+                .withBean(com.otboo.clothes.ClothesService.class, () -> mock(com.otboo.clothes.ClothesService.class))
+                .withBean(com.otboo.clothes.repository.ClothesRepository.class, () -> mock(com.otboo.clothes.repository.ClothesRepository.class))
+                .withBean(com.otboo.recommendation.ai.RecommendationClothesEmbeddingService.class,
+                        () -> mock(com.otboo.recommendation.ai.RecommendationClothesEmbeddingService.class))
                 .withPropertyValues("otboo.recommendation.search.enabled=true",
                         "otboo.recommendation.search.index-name=custom-clothes")
                 .run(c -> {
