@@ -173,7 +173,8 @@ class SafeRemoteResourceClientTest {
 
     private static ClothesExtractionProperties properties(int htmlLimit, int imageLimit) {
         return new ClothesExtractionProperties(
-                "", "gemini-test", 3, htmlLimit, imageLimit, imageLimit * 2, 4, 15_000);
+                "", "gemini-test", 3, htmlLimit, imageLimit, imageLimit * 2,
+                4, 15_000, 200);
     }
 
     private static void redirect(HttpExchange exchange, String location) throws IOException {

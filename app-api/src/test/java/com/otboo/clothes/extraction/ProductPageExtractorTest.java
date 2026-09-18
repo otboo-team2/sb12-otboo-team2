@@ -12,6 +12,7 @@ import com.otboo.common.exception.BusinessException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,6 +104,38 @@ class ProductPageExtractorTest {
         assertThat(result.detailImageUrls()).containsExactly(
                 URI.create("https://cdn.example.com/detail/material.jpg"),
                 URI.create("https://cdn.example.com/detail/model.jpg"));
+    }
+
+    @Test
+    void retainsAllDiscoveredDetailImageCandidatesUntilSafetyLimit() throws IOException {
+        givenHtml("product-og.html");
+        List<URI> thirtyCandidates = candidateUris(30);
+
+        ProductPageData result = createExtractor(
+                200,
+                List.of(supplementWithDetailImages(thirtyCandidates)))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.detailImageUrls())
+                .hasSize(30)
+                .containsExactlyElementsOf(thirtyCandidates);
+    }
+
+    @Test
+    void samplesAcrossAllPositionsWhenDiscoveredCandidatesExceedSafetyLimit() throws IOException {
+        givenHtml("product-og.html");
+        List<URI> largeCandidates = candidateUris(240);
+
+        ProductPageData result = createExtractor(
+                200,
+                List.of(supplementWithDetailImages(largeCandidates)))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.detailImageUrls()).hasSize(200);
+        assertThat(result.detailImageUrls().getFirst()).isEqualTo(largeCandidates.getFirst());
+        assertThat(result.detailImageUrls().getLast()).isEqualTo(largeCandidates.getLast());
+        assertThat(result.detailImageUrls()).contains(largeCandidates.get(120));
+        assertThat(result.detailImageUrls()).doesNotHaveDuplicates();
     }
 
     @Test
@@ -259,12 +292,34 @@ class ProductPageExtractorTest {
     ) {
         ClothesExtractionProperties properties = new ClothesExtractionProperties(
                 "", "gemini-test", 3, 2 * 1024 * 1024, 10 * 1024 * 1024,
-                25 * 1024 * 1024, 4, maxPageTextChars);
+                25 * 1024 * 1024, 4, maxPageTextChars, 200);
         ObjectMapper objectMapper = new ObjectMapper();
         return new ProductPageExtractor(
                 remoteClient,
                 objectMapper,
                 properties,
                 supplementExtractors);
+    }
+
+    private ProductPageSupplementExtractor supplementWithDetailImages(List<URI> detailImages) {
+        return new ProductPageSupplementExtractor() {
+            @Override
+            public boolean supports(URI productUrl) {
+                return true;
+            }
+
+            @Override
+            public ProductPageSupplement extract(Document document, URI productUrl) {
+                return new ProductPageSupplement(List.of(), null, detailImages, List.of());
+            }
+        };
+    }
+
+    private List<URI> candidateUris(int count) {
+        List<URI> candidates = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            candidates.add(URI.create("https://cdn.example.com/detail-" + index + ".jpg"));
+        }
+        return candidates;
     }
 }
