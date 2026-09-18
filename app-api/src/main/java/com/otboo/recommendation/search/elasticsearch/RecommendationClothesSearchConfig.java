@@ -1,6 +1,8 @@
 package com.otboo.recommendation.search.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import com.otboo.clothes.ClothesService;
+import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -19,5 +21,33 @@ public class RecommendationClothesSearchConfig {
             RecommendationClothesSearchProperties properties
     ) {
         return new RecommendationClothesIndexManager(client, properties);
+    }
+
+    @Bean
+    RecommendationClothesIndexer recommendationClothesIndexer(
+            ElasticsearchClient client,
+            ClothesService clothesService,
+            RecommendationClothesEmbeddingService embeddingService,
+            RecommendationClothesIndexManager indexManager
+    ) {
+        return new RecommendationClothesIndexer(
+                client, clothesService, embeddingService, indexManager);
+    }
+
+    @Bean
+    RecommendationClothesIndexEventListener recommendationClothesIndexEventListener(
+            RecommendationClothesIndexer indexer
+    ) {
+        return new RecommendationClothesIndexEventListener(indexer);
+    }
+
+    @Bean
+    RecommendationClothesReindexService recommendationClothesReindexService(
+            com.otboo.clothes.repository.ClothesRepository clothesRepository,
+            RecommendationClothesIndexer indexer,
+            RecommendationClothesIndexManager indexManager
+    ) {
+        return new RecommendationClothesReindexService(
+                clothesRepository, indexer, indexManager);
     }
 }

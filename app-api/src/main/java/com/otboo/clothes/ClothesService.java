@@ -15,6 +15,7 @@ import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
 import com.otboo.clothes.repository.ClothesAttributeValueRepository;
 import com.otboo.clothes.repository.ClothesRepository;
+import com.otboo.clothes.search.ClothesIndexEvent;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.pagination.CursorCodec;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +55,7 @@ public class ClothesService {
     private final ClothesAttributeSelectableValueRepository selectableValueRepository;
     private final ClothesAttributeValueRepository attributeValueRepository;
     private final ImageStorage imageStorage;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public ClothesDto create(UUID authenticatedUserId, ClothesCreateRequest request) {
@@ -96,6 +99,7 @@ public class ClothesService {
             storedImageUrl = storeImage(image);
             clothes.changeImageUrl(storedImageUrl);
             Clothes saved = clothesRepository.saveAndFlush(clothes);
+            events.publishEvent(ClothesIndexEvent.upsert(saved.getId()));
             return toDto(saved, saved.getAttributes(), definitions, selectableValuesByDefinitionId);
         } catch (RuntimeException exception) {
             deleteImageQuietly(storedImageUrl);
@@ -143,6 +147,14 @@ public class ClothesService {
     @Transactional(readOnly = true)
     public List<ClothesDto> findAllForRecommendation(UUID ownerId) {
         return toDtos(clothesRepository.findAllByOwnerIdOrderByIdDesc(ownerId));
+    }
+
+    /** 커밋 이후 추천 색인이 현재 원본을 다시 읽을 때 사용한다. */
+    @Transactional(readOnly = true)
+    public List<ClothesDto> findForRecommendation(UUID clothesId) {
+        return clothesRepository.findById(clothesId)
+                .map(clothes -> toDtos(List.of(clothes)))
+                .orElseGet(List::of);
     }
 
     @Transactional
@@ -209,6 +221,7 @@ public class ClothesService {
             ClothesDto result = toDto(
                     clothes, attributes, metadata.definitions(), metadata.selectableValues());
             clothesRepository.flush();
+            events.publishEvent(ClothesIndexEvent.upsert(clothes.getId()));
             if (image != null) {
                 deleteImageQuietly(previousImageUrl);
             }
@@ -230,6 +243,7 @@ public class ClothesService {
         try {
             clothesRepository.delete(clothes);
             clothesRepository.flush();
+            events.publishEvent(ClothesIndexEvent.delete(clothesId));
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(ClothesErrorCode.CLOTHES_IN_USE, exception);
         }

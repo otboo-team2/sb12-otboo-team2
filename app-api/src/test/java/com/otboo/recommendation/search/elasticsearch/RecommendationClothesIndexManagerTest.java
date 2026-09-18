@@ -112,6 +112,45 @@ class RecommendationClothesIndexManagerTest {
         assertThatThrownBy(manager::createIndexIfMissing).isSameAs(error);
     }
 
+    @Test
+    void recoveryScanUsesAliasCursorAndDoesNotFetchVectors() throws IOException {
+        var after = java.util.List.of(co.elastic.clients.elasticsearch._types.FieldValue.of("previous"));
+        var response = co.elastic.clients.elasticsearch.core.SearchResponse.of(r -> r
+                .took(1).timedOut(false).shards(s -> s.total(1).successful(1).failed(0))
+                .hits(h -> h.hits(java.util.List.of())));
+        when(client.search(any(co.elastic.clients.elasticsearch.core.SearchRequest.class), eq(Void.class)))
+                .thenReturn((co.elastic.clients.elasticsearch.core.SearchResponse) response);
+        assertThat(manager.documentIdsAfter(after, 100)).isEmpty();
+        var captor = ArgumentCaptor.forClass(co.elastic.clients.elasticsearch.core.SearchRequest.class);
+        verify(client).search(captor.capture(), eq(Void.class));
+        var request = captor.getValue();
+        assertThat(request.index()).containsExactly("recommendation-clothes");
+        assertThat(request.source().fetch()).isFalse();
+        assertThat(request.allowPartialSearchResults()).isFalse();
+        assertThat(request.searchAfter().getFirst().stringValue()).isEqualTo("previous");
+        assertThat(request.sort().getFirst().field().field()).isEqualTo("clothesId");
+        assertThat(request.size()).isEqualTo(100);
+    }
+
+    @Test
+    void timedOutRecoveryScanIsNotReportedAsSuccessful() throws IOException {
+        co.elastic.clients.elasticsearch.core.SearchResponse<Void> response =
+                co.elastic.clients.elasticsearch.core.SearchResponse.of(r -> r
+                        .took(1).timedOut(true).shards(s -> s.total(1).successful(1).failed(0))
+                        .hits(h -> h.hits(java.util.List.of())));
+        when(client.search(any(co.elastic.clients.elasticsearch.core.SearchRequest.class), eq(Void.class)))
+                .thenReturn(response);
+        assertThatThrownBy(() -> manager.documentIdsAfter(java.util.List.of(), 100))
+                .isInstanceOf(IOException.class);
+    }
+
+    @Test
+    void refreshShardFailureIsPropagated() throws IOException {
+        when(indices.refresh(any(RefreshRequest.class))).thenReturn(RefreshResponse.of(r -> r
+                .shards(s -> s.total(1).successful(0).failed(1))));
+        assertThatThrownBy(manager::refresh).isInstanceOf(IOException.class);
+    }
+
     private void assertAliasAttachment() throws IOException {
         var captor = ArgumentCaptor.forClass(UpdateAliasesRequest.class);
         verify(indices).updateAliases(captor.capture());

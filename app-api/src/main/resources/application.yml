@@ -120,6 +120,8 @@ otboo:
       api-key: ${OPENAI_API_KEY:}
       model: ${OPENAI_MODEL:gpt-5.6-luna}
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
   fashn:
     api-key: ${FASHN_API_KEY:}
   # ─────────── Pinterest 코디 핀 ───────────

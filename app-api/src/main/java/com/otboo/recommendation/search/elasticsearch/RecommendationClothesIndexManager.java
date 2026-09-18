@@ -6,6 +6,12 @@ import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
 import co.elastic.clients.elasticsearch.indices.ExistsAliasRequest;
 import co.elastic.clients.elasticsearch.indices.UpdateAliasesRequest;
+import co.elastic.clients.elasticsearch.indices.RefreshRequest;
+import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import java.util.List;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 
-/** 추천 의상 인덱스의 매핑 생성만 담당한다. 색인·검색은 후속 단계에서 추가한다. */
+/** 추천 의상 인덱스의 생성과 명시적 복구용 문서 순회를 담당한다. */
 @Slf4j
 @RequiredArgsConstructor
 public class RecommendationClothesIndexManager {
@@ -65,6 +71,25 @@ public class RecommendationClothesIndexManager {
         client.indices().updateAliases(UpdateAliasesRequest.of(r -> r.actions(a -> a
                 .add(add -> add.index(physicalIndexName()).alias(alias())))));
         return false;
+    }
+
+    public void refresh() throws IOException {
+        var response = client.indices().refresh(RefreshRequest.of(r -> r.index(alias())));
+        if (response.shards().failed().intValue() > 0) {
+            throw new IOException("추천 의상 인덱스 refresh 일부 실패");
+        }
+    }
+
+    /** 복구용 ID만 순회한다. content/embedding은 가져오지 않는다. */
+    public List<Hit<Void>> documentIdsAfter(List<FieldValue> after, int size) throws IOException {
+        var response = client.search(SearchRequest.of(r -> r.index(alias())
+                .size(size).source(s -> s.fetch(false)).allowPartialSearchResults(false)
+                .sort(s -> s.field(f -> f.field("clothesId").order(SortOrder.Asc)))
+                .searchAfter(after)), Void.class);
+        if (response.timedOut() || response.shards().failed().intValue() > 0) {
+            throw new IOException("추천 의상 복구 문서 조회가 완료되지 않음");
+        }
+        return response.hits().hits();
     }
 
     private Reader mappingReader() {
