@@ -15,6 +15,7 @@ class RecommendationClothesSearchConfigTest {
     void disabledSearchDoesNotRequireElasticsearchClient() {
         context.withPropertyValues("otboo.recommendation.search.enabled=false").run(c -> {
             assertThat(c).hasNotFailed().doesNotHaveBean(RecommendationClothesIndexManager.class);
+            assertThat(c).doesNotHaveBean(RecommendationClothesVectorSearch.class);
         });
     }
 
@@ -33,6 +34,7 @@ class RecommendationClothesSearchConfigTest {
                     var manager = c.getBean(RecommendationClothesIndexManager.class);
                     assertThat(manager.alias()).isEqualTo("custom-clothes");
                     assertThat(manager.physicalIndexName()).isEqualTo("custom-clothes-v1");
+                    assertThat(c).hasSingleBean(RecommendationClothesVectorSearch.class);
                     verifyNoInteractions(client);
                 });
     }

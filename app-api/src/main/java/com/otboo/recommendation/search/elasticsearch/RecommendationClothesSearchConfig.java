@@ -24,6 +24,14 @@ public class RecommendationClothesSearchConfig {
     }
 
     @Bean
+    RecommendationClothesVectorSearch recommendationClothesVectorSearch(
+            ElasticsearchClient client,
+            RecommendationClothesIndexManager indexManager
+    ) {
+        return new RecommendationClothesVectorSearch(client, indexManager);
+    }
+
+    @Bean
     RecommendationClothesIndexer recommendationClothesIndexer(
             ElasticsearchClient client,
             ClothesService clothesService,

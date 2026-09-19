@@ -16,6 +16,8 @@ import com.otboo.recommendation.RecommendationCandidates;
 import com.otboo.weather.PrecipitationType;
 import com.otboo.recommendation.RecommendationDto;
 import com.otboo.recommendation.RecommendationService;
+import com.otboo.recommendation.search.elasticsearch.RecommendationClothesVectorSearch;
+import com.otboo.recommendation.search.RecommendationClothesVerifier;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -29,12 +31,19 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.beans.factory.ObjectProvider;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class AiRecommendationServiceTest {
 
     @Mock RecommendationService recommendationService;
     @Mock OpenAiRecommendationClient openAiRecommendationClient;
+    @Mock RecommendationQueryEmbeddingService queryEmbeddingService;
+    @Mock ObjectProvider<RecommendationClothesVectorSearch> vectorSearch;
+    @Mock RecommendationClothesVerifier clothesVerifier;
     @InjectMocks AiRecommendationService service;
 
     private final UUID userId = UUID.randomUUID();
@@ -56,24 +65,50 @@ class AiRecommendationServiceTest {
         given(recommendationService.recommend(empty)).willReturn(result);
 
         assertThat(service.find(userId, request)).isSameAs(result);
-        verifyNoInteractions(openAiRecommendationClient);
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, vectorSearch, clothesVerifier);
     }
 
     @Test
-    void readsBasicRecommendationBeforeExtractingCondition() {
+    void returnsBasicRecommendationWithoutAiOrSearchWhenSearchIsDisabled() {
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
         given(recommendationService.recommend(candidates)).willReturn(basic);
-        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(
-                new RecommendationCondition(RecommendationOccasion.DATE,
-                        List.of("캐주얼"), List.of(), List.of()));
+        given(vectorSearch.getIfAvailable()).willReturn(null);
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        verify(recommendationService).findCandidates(userId, weatherId);
+        verify(recommendationService).recommend(candidates);
+        verify(vectorSearch).getIfAvailable();
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, clothesVerifier);
+        verifyNoMoreInteractions(recommendationService, vectorSearch);
+    }
+
+    @Test
+    void embedsQueryAfterExtractingConditionAndReturnsBasicRecommendation() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(RecommendationOccasion.DATE,
+                List.of("캐주얼"), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        var vector = List.of(0.1f);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willReturn(vector);
+        var search = mock(RecommendationClothesVectorSearch.class);
+        when(vectorSearch.getIfAvailable()).thenReturn(search);
+        var ids = List.of(candidates.clothes().getFirst().id());
+        given(search.search(userId, ids, vector)).willReturn(ids);
 
         assertThat(service.find(userId, request)).isSameAs(basic);
 
-        var order = inOrder(recommendationService, openAiRecommendationClient);
+        var order = inOrder(recommendationService, openAiRecommendationClient, queryEmbeddingService);
         order.verify(recommendationService).findCandidates(userId, weatherId);
         order.verify(recommendationService).recommend(candidates);
         order.verify(openAiRecommendationClient).extractCondition(request.prompt());
-        verifyNoMoreInteractions(recommendationService, openAiRecommendationClient);
+        order.verify(queryEmbeddingService).embed(request.prompt(), condition, candidates.preferredStyles());
+        verify(vectorSearch).getIfAvailable();
+        verify(search).search(userId, ids, vector);
+        verify(clothesVerifier).verify(userId, ids, ids);
+        verifyNoMoreInteractions(recommendationService, openAiRecommendationClient, queryEmbeddingService,
+                vectorSearch, search, clothesVerifier);
     }
 
     @ParameterizedTest
@@ -81,6 +116,7 @@ class AiRecommendationServiceTest {
             "EXTERNAL_API_ERROR", "EXTERNAL_API_TIMEOUT", "EXTERNAL_API_LIMIT_EXCEEDED"
     })
     void returnsBasicRecommendationWhenExternalAiFails(CommonErrorCode code) {
+        enableSearch();
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
         given(recommendationService.recommend(candidates)).willReturn(basic);
         given(openAiRecommendationClient.extractCondition(request.prompt()))
@@ -92,7 +128,95 @@ class AiRecommendationServiceTest {
         order.verify(recommendationService).findCandidates(userId, weatherId);
         order.verify(recommendationService).recommend(candidates);
         order.verify(openAiRecommendationClient).extractCondition(request.prompt());
+        verifyNoInteractions(queryEmbeddingService, clothesVerifier);
         verifyNoMoreInteractions(recommendationService, openAiRecommendationClient);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = CommonErrorCode.class, names = {
+            "EXTERNAL_API_ERROR", "EXTERNAL_API_TIMEOUT", "EXTERNAL_API_LIMIT_EXCEEDED"
+    })
+    void returnsBasicRecommendationWhenQueryEmbeddingFails(CommonErrorCode code) {
+        enableSearch();
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willThrow(new BusinessException(code));
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        verify(vectorSearch).getIfAvailable();
+        verifyNoInteractions(clothesVerifier);
+    }
+
+    @Test
+    void fallsBackWhenVectorSearchFails() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        var vector = List.of(0.1f);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willReturn(vector);
+        var search = mock(RecommendationClothesVectorSearch.class);
+        when(vectorSearch.getIfAvailable()).thenReturn(search);
+        given(search.search(userId, List.of(candidates.clothes().getFirst().id()), vector))
+                .willThrow(new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR));
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        verifyNoInteractions(clothesVerifier);
+    }
+
+    @Test
+    void mysqlVerificationFailureIsNotTreatedAsExternalFallback() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        var vector = List.of(0.1f);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willReturn(vector);
+        var search = mock(RecommendationClothesVectorSearch.class);
+        when(vectorSearch.getIfAvailable()).thenReturn(search);
+        var ids = List.of(candidates.clothes().getFirst().id());
+        given(search.search(userId, ids, vector)).willReturn(ids);
+        var failure = new DataAccessResourceFailureException("MySQL unavailable");
+        given(clothesVerifier.verify(userId, ids, ids)).willThrow(failure);
+
+        assertThatThrownBy(() -> service.find(userId, request)).isSameAs(failure);
+    }
+
+    @Test
+    void emptyVectorSearchResultSkipsMysqlVerification() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        var vector = List.of(0.1f);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willReturn(vector);
+        var search = mock(RecommendationClothesVectorSearch.class);
+        when(vectorSearch.getIfAvailable()).thenReturn(search);
+        given(search.search(userId, List.of(candidates.clothes().getFirst().id()), vector))
+                .willReturn(List.of());
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        verifyNoInteractions(clothesVerifier);
+    }
+
+    @Test
+    void doesNotHideNonExternalQueryEmbeddingFailure() {
+        enableSearch();
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
+        var failure = new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
+        given(queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles()))
+                .willThrow(failure);
+
+        assertThatThrownBy(() -> service.find(userId, request)).isSameAs(failure);
     }
 
     @Test
@@ -101,7 +225,7 @@ class AiRecommendationServiceTest {
         given(recommendationService.findCandidates(userId, weatherId)).willThrow(failure);
 
         assertThatThrownBy(() -> service.find(userId, request)).isSameAs(failure);
-        verifyNoInteractions(openAiRecommendationClient);
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService);
     }
 
     @Test
@@ -110,11 +234,12 @@ class AiRecommendationServiceTest {
         given(recommendationService.findCandidates(userId, weatherId)).willThrow(failure);
 
         assertThatThrownBy(() -> service.find(userId, request)).isSameAs(failure);
-        verifyNoInteractions(openAiRecommendationClient);
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService);
     }
 
     @Test
     void doesNotHideNonExternalBusinessError() {
+        enableSearch();
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
         given(recommendationService.recommend(candidates)).willReturn(basic);
         var failure = new BusinessException(CommonErrorCode.INVALID_INPUT_VALUE);
@@ -125,6 +250,7 @@ class AiRecommendationServiceTest {
 
     @Test
     void doesNotHideUnexpectedProgrammingError() {
+        enableSearch();
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
         given(recommendationService.recommend(candidates)).willReturn(basic);
         var failure = new IllegalStateException("unexpected error");
@@ -159,6 +285,10 @@ class AiRecommendationServiceTest {
         assertThatThrownBy(() -> service.find(userId, invalidRequest))
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT_VALUE));
-        verifyNoInteractions(recommendationService, openAiRecommendationClient);
+        verifyNoInteractions(recommendationService, openAiRecommendationClient, queryEmbeddingService);
+    }
+
+    private void enableSearch() {
+        given(vectorSearch.getIfAvailable()).willReturn(mock(RecommendationClothesVectorSearch.class));
     }
 }
