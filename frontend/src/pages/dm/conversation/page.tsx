@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import profileIcon from '@/assets/icons/profile.svg';
 import sendIcon from '@/assets/icons/ic_send.svg';
@@ -262,58 +262,72 @@ export default function DmConversationPage() {
                         )}
 
                         <div className="flex flex-col gap-6 py-4">
-                            <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] text-center tracking-[-0.35px] leading-[0] not-italic">
-                                <p className="leading-[normal]">
-                                    {new Date().toLocaleDateString('ko-KR', { year: '2-digit', month: 'long', day: 'numeric' })}
-                                </p>
-                            </div>
-
                             <div className="flex flex-col gap-[18px]">
                                 {messages
                                     .slice()
                                     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                                    .map((msg) => (
-                                        <div key={msg.id}>
-                                            {msg.sender.userId === auth?.userDto.id ? (
-                                                <div className="flex gap-3 items-end justify-end">
-                                                    <div className="flex gap-2 items-center px-0 py-1.5">
-                                                        <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] tracking-[-0.35px] leading-[0] not-italic">
-                                                            <p className="leading-[normal] whitespace-pre">{formatTimeAgo(msg.createdAt)}</p>
-                                                        </div>
+                                    .map((msg, index, sorted) => {
+                                        const previous = sorted[index - 1];
+                                        const isNewDay =
+                                            !previous ||
+                                            new Date(previous.createdAt).toDateString() !== new Date(msg.createdAt).toDateString();
+
+                                        return (
+                                            <Fragment key={msg.id}>
+                                                {isNewDay && (
+                                                    <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] text-center tracking-[-0.35px] leading-[0] not-italic">
+                                                        <p className="leading-[normal]">
+                                                            {new Date(msg.createdAt).toLocaleDateString('ko-KR', {
+                                                                year: '2-digit',
+                                                                month: 'long',
+                                                                day: 'numeric',
+                                                            })}
+                                                        </p>
                                                     </div>
-                                                    <div className="bg-[#1e89f4] px-[19px] py-3.5 rounded-[16px] max-w-[360px]">
-                                                        <div className="font-['SUIT:SemiBold',_sans-serif] text-white text-[18px] tracking-[-0.45px] leading-[0] not-italic">
-                                                            <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex gap-3 items-start">
-                                                    <div className="flex gap-2 items-center px-0 py-1">
-                                                        <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
-                                                            <img
-                                                                src={targetUser.profileImageUrl || profileIcon}
-                                                                alt={targetUser.name}
-                                                                className="w-full h-full object-cover rounded-[100px]"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-3 items-end">
-                                                        <div className="bg-[#f2f2f3] px-[18px] py-3.5 rounded-[16px] inline-block w-fit max-w-[360px]">
-                                                            <div className="font-['SUIT:SemiBold',_sans-serif] text-[#212126] text-[18px] tracking-[-0.35px] leading-[0] not-italic">
-                                                                <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
+                                                )}
+                                                <div>
+                                                    {msg.sender.userId === auth?.userDto.id ? (
+                                                        <div className="flex gap-3 items-end justify-end">
+                                                            <div className="flex gap-2 items-center px-0 py-1.5">
+                                                                <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] tracking-[-0.35px] leading-[0] not-italic">
+                                                                    <p className="leading-[normal] whitespace-pre">{formatTimeAgo(msg.createdAt)}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-[#1e89f4] px-[19px] py-3.5 rounded-[16px] max-w-[360px]">
+                                                                <div className="font-['SUIT:SemiBold',_sans-serif] text-white text-[18px] tracking-[-0.45px] leading-[0] not-italic">
+                                                                    <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-2 items-center px-0 py-1.5">
-                                                            <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] tracking-[-0.35px] leading-[0] not-italic">
-                                                                <p className="leading-[normal] whitespace-pre">{formatTimeAgo(msg.createdAt)}</p>
+                                                    ) : (
+                                                        <div className="flex gap-3 items-start">
+                                                            <div className="flex gap-2 items-center px-0 py-1">
+                                                                <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
+                                                                    <img
+                                                                        src={targetUser.profileImageUrl || profileIcon}
+                                                                        alt={targetUser.name}
+                                                                        className="w-full h-full object-cover rounded-[100px]"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-3 items-end">
+                                                                <div className="bg-[#f2f2f3] px-[18px] py-3.5 rounded-[16px] inline-block w-fit max-w-[360px]">
+                                                                    <div className="font-['SUIT:SemiBold',_sans-serif] text-[#212126] text-[18px] tracking-[-0.35px] leading-[0] not-italic">
+                                                                        <p className="leading-[normal] whitespace-pre-wrap break-words">{msg.content}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex gap-2 items-center px-0 py-1.5">
+                                                                    <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] tracking-[-0.35px] leading-[0] not-italic">
+                                                                        <p className="leading-[normal] whitespace-pre">{formatTimeAgo(msg.createdAt)}</p>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
+                                            </Fragment>
+                                        );
+                                    })}
                             </div>
 
                             <div ref={messagesEndRef} className="h-1" />
