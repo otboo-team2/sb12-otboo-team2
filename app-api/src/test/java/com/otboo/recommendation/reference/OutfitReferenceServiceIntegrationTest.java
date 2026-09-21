@@ -12,10 +12,13 @@ import com.otboo.weather.SkyStatus;
 import com.otboo.weather.WindStrength;
 import com.otboo.weather.entity.Weather;
 import com.otboo.weather.repository.WeatherRepository;
+import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +36,7 @@ class OutfitReferenceServiceIntegrationTest extends IntegrationTestSupport {
     @Autowired OutfitReferenceService service;
     @Autowired PinterestPinRepository pins;
     @Autowired WeatherRepository weathers;
+    @Autowired EntityManagerFactory entityManagerFactory;
 
     private final UUID userId = UUID.randomUUID();
     private Weather rainyEighteen;
@@ -85,6 +89,31 @@ class OutfitReferenceServiceIntegrationTest extends IntegrationTestSupport {
                     assertThat(reference.pinId()).isEqualTo("2");
                     assertThat(reference.styles()).containsExactly(StyleTag.MINIMAL, StyleTag.STREET);
                 });
+    }
+
+    @Test
+    @DisplayName("핀이 늘어나도 쿼리 수는 그대로다 — 핀마다 태그를 따로 읽지 않는다 (N+1)")
+    void doesNotQueryTagsPerPin() {
+        pins.save(pin("1", "@otboo temp:17-19 sky:rain style:casual gender:unisex"));
+        long withOnePin = countQueries(() -> service.find(userId, rainyEighteen.getId(), null, null));
+
+        for (int i = 2; i <= 6; i++) {
+            pins.save(pin(String.valueOf(i), "@otboo temp:17-19 sky:rain style:street,minimal gender:unisex"));
+        }
+        long withSixPins = countQueries(() -> {
+            OutfitReferencesDto result = service.find(userId, rainyEighteen.getId(), null, null);
+            assertThat(result.references()).hasSize(6);
+        });
+
+        assertThat(withSixPins).isEqualTo(withOnePin);
+    }
+
+    private long countQueries(Runnable action) {
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+        action.run();
+        return statistics.getPrepareStatementCount();
     }
 
     private static PinterestPin pin(String pinId, String description) {
