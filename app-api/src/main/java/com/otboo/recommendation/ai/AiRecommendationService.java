@@ -7,14 +7,21 @@ import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.recommendation.search.elasticsearch.RecommendationClothesVectorSearch;
 import com.otboo.recommendation.search.RecommendationClothesVerifier;
+import com.otboo.clothes.dto.ClothesDto;
+import com.otboo.feed.dto.OotdDto;
+import com.otboo.feed.dto.ClothesAttributeWithDefDto;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.ObjectProvider;
 
-/** 조건 추출을 수행하며 외부 AI 장애 시 기본 추천 결과를 반환한다. */
+/** 검증된 검색 후보에서 AI 의상을 선택하며 외부 장애 시 기본 추천 결과를 반환한다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -61,9 +68,48 @@ public class AiRecommendationService {
             }
             log.warn("recommendation_ai_fallback error_code={}", e.getErrorCode().getCode());
         }
-        if (!retrievedIds.isEmpty()) {
-            clothesVerifier.verify(userId, candidateIds, retrievedIds);
+        if (retrievedIds.isEmpty()) {
+            return basic;
         }
-        return basic;
+        // DB 오류는 외부 API fallback에 포함시키지 않는다.
+        List<UUID> verifiedIds = clothesVerifier.verify(userId, candidateIds, retrievedIds);
+        if (verifiedIds.isEmpty()) {
+            return basic;
+        }
+        Map<UUID, ClothesDto> candidatesById = candidates.clothes().stream()
+                .collect(Collectors.toMap(ClothesDto::id, Function.identity()));
+        List<ClothesDto> verifiedClothes = verifiedIds.stream().map(candidatesById::get).toList();
+        if (verifiedClothes.stream().anyMatch(item -> item == null)) {
+            return basic;
+        }
+        try {
+            RecommendationGenerationResult generated = openAiRecommendationClient.generate(
+                    request.prompt(), candidates, verifiedClothes);
+            if (generated == null || generated.clothesIds().isEmpty()
+                    || generated.reason() == null || generated.reason().isBlank()
+                    || generated.clothesIds().size() != Set.copyOf(generated.clothesIds()).size()
+                    || !Set.copyOf(verifiedIds).containsAll(generated.clothesIds())) {
+                log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
+                return basic;
+            }
+            List<OotdDto> clothes = generated.clothesIds().stream()
+                    .map(id -> toOotd(candidatesById.get(id))).toList();
+            return new RecommendationDto(candidates.weatherId(), userId, clothes, generated.reason());
+        } catch (BusinessException e) {
+            if (e.getErrorCode() != CommonErrorCode.EXTERNAL_API_ERROR
+                    && e.getErrorCode() != CommonErrorCode.EXTERNAL_API_TIMEOUT
+                    && e.getErrorCode() != CommonErrorCode.EXTERNAL_API_LIMIT_EXCEEDED) {
+                throw e;
+            }
+            log.warn("recommendation_ai_fallback error_code={}", e.getErrorCode().getCode());
+            return basic;
+        }
+    }
+
+    private static OotdDto toOotd(ClothesDto clothes) {
+        return new OotdDto(clothes.id(), clothes.name(), clothes.imageUrl(), clothes.type().name(),
+                clothes.attributes().stream().map(attribute -> new ClothesAttributeWithDefDto(
+                        attribute.definitionId(), attribute.definitionName(),
+                        attribute.selectableValues(), attribute.value())).toList());
     }
 }
