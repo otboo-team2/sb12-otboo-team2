@@ -73,7 +73,8 @@ class RecommendationControllerTest {
                 .andExpect(jsonPath("$.weatherId").value(weatherId.toString()))
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.clothes[0].clothesId").value(clothesId.toString()))
-                .andExpect(jsonPath("$.clothes[0].type").value("TOP"));
+                .andExpect(jsonPath("$.clothes[0].type").value("TOP"))
+                .andExpect(jsonPath("$.reason").doesNotExist());
         verifyNoInteractions(aiRecommendationService);
     }
 
@@ -83,7 +84,7 @@ class RecommendationControllerTest {
         UUID weatherId = UUID.randomUUID();
         var request = new RecommendationAiRequest(weatherId, "데이트룩 추천해줘");
         given(aiRecommendationService.find(userId, request))
-                .willReturn(new RecommendationDto(weatherId, userId, List.of()));
+                .willReturn(new RecommendationDto(weatherId, userId, List.of(), "날씨에 맞는 추천"));
 
         mockMvc.perform(post("/api/recommendations/ai")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,7 +95,8 @@ class RecommendationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.weatherId").value(weatherId.toString()))
                 .andExpect(jsonPath("$.userId").value(userId.toString()))
-                .andExpect(jsonPath("$.clothes").isArray());
+                .andExpect(jsonPath("$.clothes").isArray())
+                .andExpect(jsonPath("$.reason").value("날씨에 맞는 추천"));
         verify(aiRecommendationService).find(userId, request);
         verifyNoInteractions(recommendationService);
     }
