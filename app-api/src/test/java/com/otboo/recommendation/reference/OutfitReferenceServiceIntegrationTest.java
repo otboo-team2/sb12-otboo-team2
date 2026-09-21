@@ -40,7 +40,7 @@ class OutfitReferenceServiceIntegrationTest extends IntegrationTestSupport {
     @BeforeEach
     void setUp() {
         pins.deleteAll();
-        rainyEighteen = weathers.save(weather("18.40", SkyStatus.CLOUDY, PrecipitationType.RAIN));
+        rainyEighteen = weathers.save(weather());
     }
 
     @AfterEach
@@ -92,14 +92,14 @@ class OutfitReferenceServiceIntegrationTest extends IntegrationTestSupport {
                 "코디 " + pinId, description, OutfitTagParser.parse(description), NOW);
     }
 
-    private static Weather weather(String celsius, SkyStatus sky, PrecipitationType precipitation) {
+    private static Weather weather() {
         return Weather.builder()
                 .gridX(60).gridY(127).forecastedAt(NOW).forecastAt(NOW.plusSeconds(3600))
-                .skyStatus(sky).precipitationType(precipitation)
+                .skyStatus(SkyStatus.CLOUDY).precipitationType(PrecipitationType.RAIN)
                 .precipitationAmount(new BigDecimal("1.00"))
                 .precipitationProbability(new BigDecimal("80.00"))
                 .humidityCurrent(new BigDecimal("70.00"))
-                .temperatureCurrent(new BigDecimal(celsius))
+                .temperatureCurrent(new BigDecimal("18.40"))
                 .temperatureMin(new BigDecimal("15.00"))
                 .temperatureMax(new BigDecimal("20.00"))
                 .windSpeed(new BigDecimal("3.00")).windSpeedAsWord(WindStrength.WEAK)

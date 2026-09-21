@@ -58,7 +58,7 @@ class OutfitReferenceServiceTest {
     @Test
     @DisplayName("기온은 앞뒤 구간까지 넓히고 날씨는 넓히지 않는다")
     void widensTemperatureButNotSky() {
-        givenCloudyWeatherAt("18.4");
+        givenCloudyWeatherAt();
         givenPins(List.of());
 
         OutfitReferencesDto result = service.find(USER_ID, WEATHER_ID, null, null);
@@ -76,7 +76,7 @@ class OutfitReferenceServiceTest {
     @Test
     @DisplayName("동기화 전이라 핀이 없으면 빈 목록을 돌려준다 — 오류가 아니다")
     void returnsEmptyBeforeSync() {
-        givenCloudyWeatherAt("18.4");
+        givenCloudyWeatherAt();
         givenPins(List.of());
 
         OutfitReferencesDto result = service.find(USER_ID, WEATHER_ID, null, null);
@@ -88,7 +88,7 @@ class OutfitReferenceServiceTest {
     @Test
     @DisplayName("사진마다 원본 핀 주소와 스타일을 담는다")
     void mapsPinWithSourceLinkAndStyles() {
-        givenCloudyWeatherAt("18.4");
+        givenCloudyWeatherAt();
         String description = "@otboo temp:17-19 sky:cloudy style:street,minimal item:knit gender:unisex";
         givenPins(List.of(PinterestPin.create("813744226420795884", "1",
                 "https://i.pinimg.com/600x/a.jpg", "https://shop.example.com/item", "니트 레이어드",
@@ -108,7 +108,7 @@ class OutfitReferenceServiceTest {
     @Test
     @DisplayName("요청한 스타일과 한도를 그대로 넘긴다")
     void passesStylesAndLimit() {
-        givenCloudyWeatherAt("18.4");
+        givenCloudyWeatherAt();
         givenPins(List.of());
 
         service.find(USER_ID, WEATHER_ID, List.of(StyleTag.MINIMAL), 5);
@@ -119,7 +119,7 @@ class OutfitReferenceServiceTest {
     @Test
     @DisplayName("프로필 성별에 맞는 핀과 공용 핀을 함께 찾는다")
     void usesProfileGenderWithUnisex() {
-        givenCloudyWeatherAt("18.4");
+        givenCloudyWeatherAt();
         given(profileRepository.findByUserId(USER_ID)).willReturn(Optional.of(profile));
         given(profile.getGender()).willReturn(Gender.FEMALE);
         givenPins(List.of());
@@ -175,9 +175,9 @@ class OutfitReferenceServiceTest {
         assertThat(OutfitReferenceService.clampLimit(100)).isEqualTo(30);
     }
 
-    private void givenCloudyWeatherAt(String celsius) {
+    private void givenCloudyWeatherAt() {
         given(weatherRepository.findById(WEATHER_ID)).willReturn(Optional.of(weather));
-        given(weather.getTemperatureCurrent()).willReturn(new BigDecimal(celsius));
+        given(weather.getTemperatureCurrent()).willReturn(new BigDecimal("18.4"));
         given(weather.getSkyStatus()).willReturn(SkyStatus.CLOUDY);
         given(weather.getPrecipitationType()).willReturn(PrecipitationType.NONE);
     }
