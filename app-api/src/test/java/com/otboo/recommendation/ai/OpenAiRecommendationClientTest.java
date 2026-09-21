@@ -12,6 +12,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.otboo.clothes.entity.ClothesType;
+import com.otboo.clothes.dto.ClothesDto;
+import com.otboo.recommendation.RecommendationCandidates;
+import com.otboo.weather.PrecipitationType;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.http.ExternalApiClient;
@@ -21,6 +24,8 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -205,6 +210,77 @@ class OpenAiRecommendationClientTest {
                 .andRespond(withException(new IOException("connection failure")));
         assertExternalFailure(CommonErrorCode.EXTERNAL_API_TIMEOUT);
         server.verify();
+    }
+
+    @Test
+    void generationSendsOnlyVerifiedClothesAndParsesSelection() throws Exception {
+        var clothes = verifiedClothes();
+        String id = clothes.getFirst().id().toString();
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(request -> {
+                    var body = objectMapper.readTree(
+                            ((org.springframework.mock.http.client.MockClientHttpRequest) request)
+                                    .getBodyAsString());
+                    var input = objectMapper.readTree(body.path("input").get(0).path("content").asText());
+                    assertThat(input.path("request").asText()).isEqualTo("데이트룩 추천해줘");
+                    assertThat(input.path("temperature").asDouble()).isEqualTo(25.0);
+                    assertThat(input.path("temperatureSensitivity").asInt()).isEqualTo(3);
+                    assertThat(input.path("preferredStyles").get(0).asText()).isEqualTo("캐주얼");
+                    assertThat(input.path("clothes").get(0).path("clothesId").asText()).isEqualTo(id);
+                    assertThat(body.path("tools").get(0).path("parameters").path("properties")
+                            .path("clothesIds").path("items").path("enum").get(0).asText()).isEqualTo(id);
+                    assertThat(body.path("store").asBoolean()).isFalse();
+                })
+                .andRespond(withSuccess(response(List.of(function("select_recommendation_clothes",
+                        "{\"clothesIds\":[\"" + id + "\"],\"reason\":\"데이트에 어울립니다\"}"))),
+                        MediaType.APPLICATION_JSON));
+
+        var result = client.generate("데이트룩 추천해줘", generationCandidates(clothes), clothes);
+
+        assertThat(result.clothesIds()).containsExactly(clothes.getFirst().id());
+        assertThat(result.reason()).isEqualTo("데이트에 어울립니다");
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"not-json", "{}", "{\"clothesIds\":[],\"reason\":\"이유\"}",
+            "{\"clothesIds\":null,\"reason\":\"이유\"}",
+            "{\"clothesIds\":[null],\"reason\":\"이유\"}",
+            "{\"clothesIds\":[\"not-a-uuid\"],\"reason\":\"이유\"}",
+            "{\"clothesIds\":[\"00000000-0000-0000-0000-000000000001\"],\"reason\":\" \"}"})
+    void generationRejectsMalformedArguments(String arguments) throws Exception {
+        expectResponse(response(List.of(function("select_recommendation_clothes", arguments))));
+        var clothes = verifiedClothes();
+
+        assertThatThrownBy(() -> client.generate("추천해줘", generationCandidates(clothes), clothes))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void generationRejectsMultipleToolCalls() throws Exception {
+        var clothes = verifiedClothes();
+        String arguments = "{\"clothesIds\":[\"" + clothes.getFirst().id() + "\"],\"reason\":\"이유\"}";
+        expectResponse(response(List.of(
+                function("select_recommendation_clothes", arguments),
+                function("select_recommendation_clothes", arguments))));
+
+        assertThatThrownBy(() -> client.generate("추천해줘", generationCandidates(clothes), clothes))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR));
+        server.verify();
+    }
+
+    private List<ClothesDto> verifiedClothes() {
+        return List.of(new ClothesDto(UUID.randomUUID(), UUID.randomUUID(), "셔츠", null,
+                ClothesType.TOP, false, List.of()));
+    }
+
+    private RecommendationCandidates generationCandidates(List<ClothesDto> clothes) {
+        return new RecommendationCandidates(UUID.randomUUID(), clothes.getFirst().ownerId(),
+                25.0, PrecipitationType.NONE, 3, Set.of("캐주얼"), clothes);
     }
 
     private OpenAiRecommendationClient newClient(String key, String model) {
