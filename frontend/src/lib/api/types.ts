@@ -223,6 +223,30 @@ export interface RecommendationDto {
   clothes: OotdDto[];
 }
 
+// Pinterest 코디 참고 사진. 서버의 pinterest.tag enum 이름과 같아야 한다.
+export type StyleTag = 'MINIMAL' | 'STREET' | 'CASUAL' | 'CLASSIC' | 'FORMAL' | 'SPORTY';
+export type TempBand = 'T28UP' | 'T23_27' | 'T20_22' | 'T17_19' | 'T12_16' | 'T9_11' | 'T5_8' | 'T4DOWN';
+export type SkyTag = 'CLEAR' | 'CLOUDY' | 'RAIN' | 'SNOW';
+
+export interface OutfitReferenceDto {
+  pinId: string;
+  imageUrl: string;
+  /** 원본 핀 주소. 사진마다 반드시 이 주소로 연결한다 */
+  pinUrl: string;
+  link: string | null;
+  title: string | null;
+  styles: StyleTag[];
+}
+
+export interface OutfitReferencesDto {
+  weatherId: string;
+  /** 이번 검색에 쓴 조건. 실제 검색은 앞뒤 기온 구간까지 넓혀서 한다 */
+  tempBand: TempBand;
+  sky: SkyTag;
+  /** Pinterest 동기화 전이거나 조건에 맞는 핀이 없으면 비어 있다 */
+  references: OutfitReferenceDto[];
+}
+
 export interface NotificationDto {
   id: string;
   createdAt: string;
@@ -414,6 +438,12 @@ export interface WeatherParams {
 
 export interface RecommendationParams {
   weatherId: string;
+}
+
+export interface OutfitReferenceParams {
+  weatherId: string;
+  styles?: StyleTag[];
+  limit?: number;
 }
 
 export interface DirectMessageParams extends CursorParams {
