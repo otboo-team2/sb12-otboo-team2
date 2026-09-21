@@ -30,22 +30,50 @@ export default function DmConversationPage() {
 
     const { send, isConnected, subscribe, unsubscribe } = useWebSocketStore();
     const { data: auth } = useAuthStore();
-    const { data: messages, add, updateParams, clearData: clearMessages, fetchMore, loading } = useDirectMessageStore();
+    const {
+        data: messages,
+        add,
+        updateParams,
+        clearData: clearMessages,
+        fetchMore,
+        loading,
+        hasNext,
+    } = useDirectMessageStore();
 
     const [content, setContent] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    const { ref } = useInfiniteScroll({
-        onLoadMore: () => fetchMore(),
-        rootMargin: '10px',
-        threshold: 1,
-    });
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const hasInitiallyScrolledRef = useRef(false);
+    const lastMessageIdRef = useRef<string | null>(null);
+    const isLoadingMoreRef = useRef(false);
+    const scrollRestoreRef = useRef<{ height: number; top: number } | null>(null);
 
     const isFirstMessage = messages.length === 0;
 
     const scrollToBottom = useCallback((smooth = true) => {
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block: 'end' });
     }, []);
+
+    const handleLoadMore = useCallback(() => {
+        if (loading || !hasNext()) return;
+
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        isLoadingMoreRef.current = true;
+        scrollRestoreRef.current = {
+            height: container.scrollHeight,
+            top: container.scrollTop,
+        };
+
+        fetchMore();
+    }, [loading, hasNext, fetchMore]);
+
+    const { ref } = useInfiniteScroll({
+        onLoadMore: handleLoadMore,
+        rootMargin: '10px',
+        threshold: 1,
+    });
 
     const setActivePartnerId = useActiveDmStore((s) => s.setActivePartnerId);
 
@@ -66,8 +94,22 @@ export default function DmConversationPage() {
     useEffect(() => {
         if (userId) {
             updateParams({ userId });
+            hasInitiallyScrolledRef.current = false;
+            lastMessageIdRef.current = null;
+            isLoadingMoreRef.current = false;
+            scrollRestoreRef.current = null;
         }
     }, [userId, updateParams]);
+
+    const resolveDestination = useCallback((senderId: string, receiverId: string) => {
+        let dest = '/sub/direct-messages_';
+        if (senderId.localeCompare(receiverId) < 0) {
+            dest = dest.concat(senderId).concat('_').concat(receiverId);
+        } else {
+            dest = dest.concat(receiverId).concat('_').concat(senderId);
+        }
+        return dest;
+    }, []);
 
     useEffect(() => {
         if (!auth || !userId || !isConnected) return;
@@ -79,7 +121,7 @@ export default function DmConversationPage() {
         return () => {
             unsubscribe(destination);
         };
-    }, [subscribe, unsubscribe, add, auth, userId, isConnected]);
+    }, [subscribe, unsubscribe, add, auth, userId, isConnected, resolveDestination]);
 
     useEffect(() => {
         if (userId) {
@@ -87,16 +129,6 @@ export default function DmConversationPage() {
         }
         return () => setActivePartnerId(null);
     }, [userId, setActivePartnerId]);
-
-    const resolveDestination = useCallback((senderId: string, receiverId: string) => {
-        let dest = '/sub/direct-messages_';
-        if (senderId.localeCompare(receiverId) < 0) {
-            dest = dest.concat(senderId).concat('_').concat(receiverId);
-        } else {
-            dest = dest.concat(receiverId).concat('_').concat(senderId);
-        }
-        return dest;
-    }, []);
 
     const sendMessage = useCallback(async () => {
         if (!isConnected || !auth || !userId || !content.trim()) return;
@@ -116,11 +148,48 @@ export default function DmConversationPage() {
         }
     };
 
+    // 메시지 목록이 바뀔 때 스크롤을 어떻게 처리할지: 초기 로드 / 과거 메시지 불러오기 / 새 메시지 도착
+    // 세 가지 경우를 여기 한 곳에서만 판단한다.
     useEffect(() => {
-        if (messages.length > 0) {
-            scrollToBottom(false);
+        if (messages.length === 0) return;
+
+        const container = messagesContainerRef.current;
+
+        // 과거 메시지를 위로 불러온 경우 → 스크롤 위치만 보정하고 끝
+        if (isLoadingMoreRef.current) {
+            isLoadingMoreRef.current = false;
+            const restore = scrollRestoreRef.current;
+            scrollRestoreRef.current = null;
+            if (container && restore) {
+                container.scrollTop = restore.top + (container.scrollHeight - restore.height);
+            }
+            const latest = messages.reduce((a, b) =>
+                new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
+            );
+            lastMessageIdRef.current = latest.id;
+            return;
         }
-    }, [scrollToBottom, messages.length]);
+
+        const latest = messages.reduce((a, b) =>
+            new Date(a.createdAt).getTime() > new Date(b.createdAt).getTime() ? a : b
+        );
+
+        // 대화방 처음 열었을 때 → 맨 아래로 (딱 한 번)
+        if (!hasInitiallyScrolledRef.current) {
+            scrollToBottom(false);
+            hasInitiallyScrolledRef.current = true;
+            lastMessageIdRef.current = latest.id;
+            return;
+        }
+
+        // 맨 뒤에 진짜 새 메시지가 추가된 경우 → 내가 보낸 것일 때만 맨 아래로
+        if (latest.id !== lastMessageIdRef.current) {
+            lastMessageIdRef.current = latest.id;
+            if (latest.sender.userId === auth?.userDto.id) {
+                scrollToBottom(true);
+            }
+        }
+    }, [messages, scrollToBottom, auth]);
 
     useEffect(() => {
         return () => {
@@ -178,7 +247,7 @@ export default function DmConversationPage() {
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto" id="messages-container">
+                    <div className="h-full overflow-y-auto" id="messages-container" ref={messagesContainerRef}>
                         <div ref={ref} className="w-full h-1" />
 
                         {loading && messages.length > 0 && (
