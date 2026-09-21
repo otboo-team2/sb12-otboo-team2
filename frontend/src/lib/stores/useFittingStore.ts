@@ -85,9 +85,22 @@ export const useFittingStore = create<FittingState>((set, get) => {
                     stopPolling();
                     clearStoredJob();
                 }
+                // 수정
             } catch (error) {
                 console.error('가상피팅 상태 조회 실패:', error);
                 stopPolling();
+                clearStoredJob();
+                const current = get().job;
+                if (current) {
+                    set({
+                        job: {
+                            ...current,
+                            status: 'FAILED',
+                            failureReason: '상태 확인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+                            retryable: true,
+                        },
+                    });
+                }
             }
         }, POLL_INTERVAL_MS);
     };
