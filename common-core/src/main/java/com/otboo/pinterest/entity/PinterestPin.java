@@ -23,6 +23,7 @@ import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 
 /**
  * 동기화한 Pinterest 핀 한 개. 코디 추천 검색은 Pinterest 가 아니라 이 테이블에서 한다.
@@ -84,6 +85,13 @@ public class PinterestPin extends BaseEntity {
     @Column(name = "synced_at", nullable = false)
     private Instant syncedAt;
 
+    /**
+     * 핀 여러 개의 태그를 한 번의 IN 쿼리로 읽는다. 없으면 핀마다 쿼리가 한 번씩 더 나간다(N+1).
+     *
+     * <p>fetch join 대신 쓰는 이유 — 추천 조회는 limit 이 걸린 페이지 조회라, 컬렉션을 fetch join 하면
+     * Hibernate 가 전체를 메모리로 올린 뒤 자른다. 100 은 동기화 배치의 한 페이지 크기와 맞춘 값이다.
+     */
+    @BatchSize(size = 100)
     @OneToMany(mappedBy = "pin", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<PinterestPinTag> tags = new ArrayList<>();
 
