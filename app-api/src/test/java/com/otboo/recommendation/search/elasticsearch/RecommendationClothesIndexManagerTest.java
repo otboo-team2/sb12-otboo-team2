@@ -7,10 +7,13 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch._types.ErrorResponse;
 import co.elastic.clients.elasticsearch.indices.*;
+import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.endpoints.BooleanResponse;
 import java.io.IOException;
+import java.io.StringWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -128,8 +131,26 @@ class RecommendationClothesIndexManagerTest {
         assertThat(request.source().fetch()).isFalse();
         assertThat(request.allowPartialSearchResults()).isFalse();
         assertThat(request.searchAfter().getFirst().stringValue()).isEqualTo("previous");
+        assertThat(toJson(request)).contains("\"search_after\":[\"previous\"]");
         assertThat(request.sort().getFirst().field().field()).isEqualTo("clothesId");
         assertThat(request.size()).isEqualTo(100);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void firstRecoveryPageOmitsSearchAfter(java.util.List<co.elastic.clients.elasticsearch._types.FieldValue> after)
+            throws IOException {
+        var response = co.elastic.clients.elasticsearch.core.SearchResponse.of(r -> r
+                .took(1).timedOut(false).shards(s -> s.total(1).successful(1).failed(0))
+                .hits(h -> h.hits(java.util.List.of())));
+        when(client.search(any(co.elastic.clients.elasticsearch.core.SearchRequest.class), eq(Void.class)))
+                .thenReturn((co.elastic.clients.elasticsearch.core.SearchResponse) response);
+
+        manager.documentIdsAfter(after, 100);
+
+        var captor = ArgumentCaptor.forClass(co.elastic.clients.elasticsearch.core.SearchRequest.class);
+        verify(client).search(captor.capture(), eq(Void.class));
+        assertThat(toJson(captor.getValue())).doesNotContain("search_after");
     }
 
     @Test
@@ -162,5 +183,14 @@ class RecommendationClothesIndexManagerTest {
     private ElasticsearchException failure(String type) {
         return new ElasticsearchException("es.indices.create", ErrorResponse.of(r -> r.status(400)
                 .error(e -> e.type(type).reason("test failure"))));
+    }
+
+    private String toJson(co.elastic.clients.elasticsearch.core.SearchRequest request) {
+        var mapper = new JacksonJsonpMapper();
+        var output = new StringWriter();
+        var generator = mapper.jsonProvider().createGenerator(output);
+        request.serialize(generator, mapper);
+        generator.close();
+        return output.toString();
     }
 }

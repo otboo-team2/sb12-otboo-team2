@@ -82,10 +82,14 @@ public class RecommendationClothesIndexManager {
 
     /** 복구용 ID만 순회한다. content/embedding은 가져오지 않는다. */
     public List<Hit<Void>> documentIdsAfter(List<FieldValue> after, int size) throws IOException {
-        var response = client.search(SearchRequest.of(r -> r.index(alias())
-                .size(size).source(s -> s.fetch(false)).allowPartialSearchResults(false)
-                .sort(s -> s.field(f -> f.field("clothesId").order(SortOrder.Asc)))
-                .searchAfter(after)), Void.class);
+        var response = client.search(SearchRequest.of(r -> {
+            r.index(alias()).size(size).source(s -> s.fetch(false)).allowPartialSearchResults(false)
+                    .sort(s -> s.field(f -> f.field("clothesId").order(SortOrder.Asc)));
+            if (after != null && !after.isEmpty()) {
+                r.searchAfter(after);
+            }
+            return r;
+        }), Void.class);
         if (response.timedOut() || response.shards().failed().intValue() > 0) {
             throw new IOException("추천 의상 복구 문서 조회가 완료되지 않음");
         }
