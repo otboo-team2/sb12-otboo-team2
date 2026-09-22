@@ -221,6 +221,7 @@ export interface RecommendationDto {
   weatherId: string;
   userId: string;
   clothes: OotdDto[];
+  reason?: string;
 }
 
 // Pinterest 코디 참고 사진. 서버의 pinterest.tag enum 이름과 같아야 한다.

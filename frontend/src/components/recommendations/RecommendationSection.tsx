@@ -4,6 +4,7 @@ import {MessageCirclePlus, Send} from 'lucide-react';
 import RecommendationHeader from './RecommendationHeader';
 import RecommendationGrid from './RecommendationGrid';
 import EmptyRecommendation from './EmptyRecommendation';
+import RecommendationReason from './RecommendationReason';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
 import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
 
@@ -85,6 +86,7 @@ export default function RecommendationSection() {
           </div>
         </div>
 
+        {hasClothes && !loading && <RecommendationReason reason={recommendations.reason}/>}
         {hasClothes ? <RecommendationGrid/> : <EmptyRecommendation/>}
       </div>
     </div>
