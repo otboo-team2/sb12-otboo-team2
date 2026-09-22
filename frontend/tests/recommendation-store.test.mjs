@@ -142,3 +142,16 @@ test('latest GET still propagates errors with throwError', async () => {
   assert.equal(store.getState().error, 'unavailable');
   assert.equal(store.getState().loading, false);
 });
+
+test('AI fallback response without reason remains a successful recommendation', async () => {
+  const {store, calls} = fixture();
+  const request = store.getState().fetchAiRecommendation('캐주얼');
+  const fallback = {weatherId: 'A', clothes: [{clothesId: 'TOP'}]};
+
+  calls[0].resolve(fallback);
+  await request;
+
+  assert.equal(store.getState().data, fallback);
+  assert.equal(store.getState().error, undefined);
+  assert.equal(store.getState().loading, false);
+});
