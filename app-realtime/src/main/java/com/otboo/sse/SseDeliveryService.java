@@ -1,9 +1,17 @@
 package com.otboo.sse;
 
 import com.otboo.notification.broadcast.NotificationBroadcastMessage;
+
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,6 +31,9 @@ public class SseDeliveryService {
     private final SseEmitterRepository sseEmitterRepository;
     private final SseMessageRepository sseMessageRepository;
 
+    @Qualifier("heartbeatExecutor")
+    private final Executor heartbeatExecutor;
+
     public SseEmitter connect(UUID receiverId, UUID lastEventId) {
         SseEmitter emitter = new SseEmitter(timeout);
 
@@ -31,7 +42,6 @@ public class SseDeliveryService {
         emitter.onError(e -> sseEmitterRepository.remove(receiverId, emitter));
 
         sseEmitterRepository.save(receiverId, emitter);
-        // log.info("[SSE-CONNECT] emitter 저장 완료, receiverId={}", receiverId);
 
         if (lastEventId != null) {
             sendMissedMessage(receiverId, emitter, lastEventId);
@@ -43,15 +53,11 @@ public class SseDeliveryService {
     }
 
     public void deliver(NotificationBroadcastMessage data) {
-        // log.info("[SSE-DELIVER] deliver 호출됨, receiverId={}", data.receiverId());
         SseMessage message = sseMessageRepository.save(SseMessage.of(data));
         SseEmitter emitter = sseEmitterRepository.findByUserId(data.receiverId());
 
         if (emitter != null) {
-            // log.info("[SSE-DELIVER] emitter 찾음, 전송 시도");
             sendTo(emitter, message);
-        } else {
-            // log.warn("[SSE-DELIVER] emitter 없음! receiverId={}", data.receiverId());
         }
     }
 
@@ -67,16 +73,34 @@ public class SseDeliveryService {
                 .name(EVENT_NAME)
                 .data(message.data()));
         } catch (Exception e) {
-            // log.debug("SSE 전송 실패, emitter 제거", e);
             sseEmitterRepository.remove(message.receiverId(), emitter);
         }
     }
 
     @Scheduled(fixedRateString = "${sse.heartbeat-interval}")
     public void sendHeartbeat() {
-        for (SseEmitter emitter : sseEmitterRepository.findAll()) {
-            if (!ping(emitter)) {
+        List<CompletableFuture<Void>> futures = sseEmitterRepository.findAll().stream()
+            .map(this::submitPing)
+            .filter(Objects::nonNull)
+            .toList();
+        futures.forEach(CompletableFuture::join);
+    }
+
+    private CompletableFuture<Void> submitPing(SseEmitter emitter) {
+        try {
+            return CompletableFuture.runAsync(() -> pingOrComplete(emitter), heartbeatExecutor);
+        } catch (RejectedExecutionException e) {
+            // 다음 하트비트(20초 뒤)에 다시 시도되니 무시
+            return null;
+        }
+    }
+
+    private void pingOrComplete(SseEmitter emitter) {
+        if (!ping(emitter)) {
+            try {
                 emitter.complete();
+            } catch (Exception e) {
+                // 이미 끊긴 연결 정리 중 발생하는 예외는 무시
             }
         }
     }
@@ -86,7 +110,6 @@ public class SseDeliveryService {
             emitter.send(SseEmitter.event().name(PING_EVENT_NAME).build());
             return true;
         } catch (Exception e) {
-            // log.debug("ping 실패, emitter 정리: {}", e.getMessage());
             return false;
         }
     }
