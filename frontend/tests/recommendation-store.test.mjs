@@ -155,3 +155,139 @@ test('AI fallback response without reason remains a successful recommendation', 
   assert.equal(store.getState().error, undefined);
   assert.equal(store.getState().loading, false);
 });
+
+test('first AI recommendation sends no exclusions', async () => {
+  const {store, calls} = fixture();
+  const request = store.getState().fetchAiRecommendation('면접 코디');
+
+  assert.equal(calls[0].kind, 'AI');
+  assert.equal(calls[0].args[0], 'A');
+  assert.equal(calls[0].args[1], '면접 코디');
+  assert.equal(calls[0].args[2].length, 0);
+  calls[0].resolve({weatherId: 'A', clothes: [{clothesId: 'TOP-1'}]});
+  await request;
+});
+
+test('alternative AI recommendation keeps prompt and excludes current clothes', async () => {
+  const {store, calls} = fixture();
+  const first = store.getState().fetchAiRecommendation('면접 코디');
+  calls[0].resolve({weatherId: 'A', clothes: [
+    {clothesId: 'TOP-1'}, {clothesId: 'BOTTOM-1'},
+  ]});
+  await first;
+
+  const alternative = store.getState().fetchAlternative();
+  assert.equal(calls[1].kind, 'AI');
+  assert.deepEqual([calls[1].args[0], calls[1].args[1], [...calls[1].args[2]]],
+    ['A', '면접 코디', ['TOP-1', 'BOTTOM-1']]);
+  const next = {weatherId: 'A', clothes: [{clothesId: 'TOP-2'}]};
+  calls[1].resolve(next);
+  await alternative;
+
+  assert.equal(store.getState().data, next);
+  assert.equal(store.getState().loading, false);
+  assert.equal(store.getState().error, undefined);
+  assert.deepEqual([...store.getState().seenClothesIds], ['TOP-1', 'BOTTOM-1', 'TOP-2']);
+});
+
+test('alternative button keeps the basic recommendation GET behavior before AI use', async () => {
+  const {store, calls} = fixture();
+  store.setState({data: {weatherId: 'A', clothes: [
+    {clothesId: 'TOP-1'}, {clothesId: 'BOTTOM-1'},
+  ]}});
+  const refresh = store.getState().fetchAlternative();
+
+  assert.equal(calls[0].kind, 'GET');
+  assert.equal(calls[0].args[0].weatherId, 'A');
+  assert.deepEqual([...calls[0].args[1]], ['TOP-1', 'BOTTOM-1']);
+  calls[0].resolve({weatherId: 'A', clothes: [{clothesId: 'TOP'}]});
+  await refresh;
+});
+
+test('base alternatives cumulatively exclude every successfully displayed item without duplicates', async () => {
+  const {store, calls} = fixture();
+  store.setState({data: {weatherId: 'A', clothes: [{clothesId: 'A'}]}});
+
+  const second = store.getState().fetchAlternative();
+  assert.deepEqual([...calls[0].args[1]], ['A']);
+  calls[0].resolve({weatherId: 'A', clothes: [{clothesId: 'B'}, {clothesId: 'B'}]});
+  await second;
+  assert.deepEqual([...store.getState().seenClothesIds], ['A', 'B']);
+
+  const third = store.getState().fetchAlternative();
+  assert.deepEqual([...calls[1].args[1]], ['A', 'B']);
+  calls[1].resolve({weatherId: 'A', clothes: [{clothesId: 'C'}]});
+  await third;
+  assert.deepEqual([...store.getState().seenClothesIds], ['A', 'B', 'C']);
+});
+
+test('weather change starts a fresh base cycle', async () => {
+  const {store, calls} = fixture();
+  store.setState({data: {weatherId: 'A', clothes: [{clothesId: 'A'}]}, seenClothesIds: ['A']});
+
+  store.getState().updateParams({weatherId: 'B'});
+  assert.deepEqual([...store.getState().seenClothesIds], []);
+  calls[0].resolve({weatherId: 'B', clothes: [{clothesId: 'B'}]});
+  await flush();
+
+  assert.deepEqual([...store.getState().seenClothesIds], ['B']);
+  assert.equal(store.getState().lastAiPrompt, undefined);
+});
+
+test('new AI prompt resets base history and same-prompt alternatives use only the AI cycle', async () => {
+  const {store, calls} = fixture();
+  store.setState({data: {weatherId: 'A', clothes: [{clothesId: 'BASE'}]}, seenClothesIds: ['BASE']});
+
+  const firstAi = store.getState().fetchAiRecommendation('새 프롬프트');
+  assert.deepEqual([...store.getState().seenClothesIds], []);
+  assert.deepEqual([...calls[0].args[2]], []);
+  calls[0].resolve({weatherId: 'A', clothes: [{clothesId: 'AI-1'}]});
+  await firstAi;
+
+  const alternative = store.getState().fetchAlternative();
+  assert.deepEqual([calls[1].args[0], calls[1].args[1], [...calls[1].args[2]]],
+    ['A', '새 프롬프트', ['AI-1']]);
+  calls[1].resolve({weatherId: 'A', clothes: [{clothesId: 'AI-2'}]});
+  await alternative;
+  assert.deepEqual([...store.getState().seenClothesIds], ['AI-1', 'AI-2']);
+
+  const nextAlternative = store.getState().fetchAlternative();
+  assert.deepEqual([calls[2].args[0], calls[2].args[1], [...calls[2].args[2]]],
+    ['A', '새 프롬프트', ['AI-1', 'AI-2']]);
+  calls[2].resolve({weatherId: 'A', clothes: [{clothesId: 'AI-3'}]});
+  await nextAlternative;
+  assert.deepEqual([...store.getState().seenClothesIds], ['AI-1', 'AI-2', 'AI-3']);
+});
+
+test('failed alternative does not add unseen clothes to cycle history', async () => {
+  const {store, calls} = fixture();
+  store.setState({data: {weatherId: 'A', clothes: [{clothesId: 'A'}]}, seenClothesIds: ['A']});
+
+  const alternative = store.getState().fetchAlternative();
+  calls[0].reject(new Error('failed'));
+  await alternative;
+
+  assert.deepEqual([...store.getState().seenClothesIds], ['A']);
+  assert.equal(store.getState().error, 'failed');
+});
+
+test('exhausted cycle resets once and starts again without recursive retries', async () => {
+  const {store, calls} = fixture();
+  store.setState({
+    data: {weatherId: 'A', clothes: [{clothesId: 'B'}]},
+    seenClothesIds: ['A', 'B'],
+  });
+
+  const alternative = store.getState().fetchAlternative();
+  assert.deepEqual([...calls[0].args[1]], ['A', 'B']);
+  calls[0].resolve({weatherId: 'A', clothes: []});
+  await flush();
+  assert.equal(calls.length, 2);
+  assert.deepEqual([...calls[1].args[1]], []);
+  calls[1].resolve({weatherId: 'A', clothes: [{clothesId: 'A'}]});
+  await alternative;
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual([...store.getState().seenClothesIds], ['A']);
+  assert.equal(store.getState().error, undefined);
+});

@@ -6,6 +6,7 @@ import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
 import {useEffect, useMemo} from "react";
+import {dailyRepresentativeWeathers} from './weatherForecastUtils';
 
 // 날씨 상태를 한국어로 변환하는 함수
 function getSkyStatusText(skyStatus: SkyStatus): string {
@@ -49,32 +50,13 @@ function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
       );
   }
 }
+
 export default function WeatherForecast() {
   const { data: weathers, loading, selectedWeather, selectWeather } = useWeatherStore();
-  const dailyWeathers = useMemo(() => {
-    const byDate = new Map<string, WeatherDto[]>();
-    for (const weather of weathers ?? []) {
-      const date = new Date(weather.forecastAt);
-      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-      byDate.set(key, [...(byDate.get(key) ?? []), weather]);
-    }
-    return [...byDate.values()].slice(0, 6).map((forecasts) => {
-      const first = forecasts[0];
-      const current = forecasts.map(({ temperature }) => temperature.current);
-      const min = forecasts.map(({ temperature }) => temperature.min);
-      const max = forecasts.map(({ temperature }) => temperature.max);
-
-      return {
-        ...first,
-        temperature: {
-          ...first.temperature,
-          current: current.reduce((sum, value) => sum + value, 0) / current.length,
-          min: Math.min(...min),
-          max: Math.max(...max),
-        },
-      };
-    });
-  }, [weathers]);
+  const dailyWeathers = useMemo(
+    () => dailyRepresentativeWeathers(weathers ?? []),
+    [weathers],
+  );
 
   const nearestWeather = useMemo(() => {
     const forecasts = weathers ?? [];
@@ -143,11 +125,11 @@ export default function WeatherForecast() {
 
         {
           dailyWeathers.map((weather) => {
-            const { temperature } = weather;
             const date = getForecastDate(weather.forecastAt);
-            const skyStatus = getSkyStatus(weather)
             const isToday = date === '오늘';
             const selectedForDate = isToday && nearestWeather ? nearestWeather : weather;
+            const { temperature } = selectedForDate;
+            const skyStatus = getSkyStatus(selectedForDate)
             const isSelected = selectedWeather?.id === selectedForDate.id;
 
             return (
@@ -179,7 +161,7 @@ export default function WeatherForecast() {
                   className="bg-[rgba(12,12,13,0.74)] text-[#f7f7f8] font-semibold text-[14px] tracking-[-0.35px] px-3.5 py-3 rounded-[10px] flex flex-col gap-2 leading-none border-0"
                 >
                   <div className="whitespace-pre">날씨: {getSkyStatusText(skyStatus)}</div>
-                  <div className="whitespace-pre">평균: {displayTemp(temperature.current)}</div>
+                  <div className="whitespace-pre">기온: {displayTemp(temperature.current)}</div>
                   <div className="whitespace-pre">최저: {displayTemp(temperature.min)}</div>
                   <div className="whitespace-pre">최고: {displayTemp(temperature.max)}</div>
                 </TooltipContent>

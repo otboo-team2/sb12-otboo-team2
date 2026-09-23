@@ -6,6 +6,7 @@ import com.otboo.recommendation.ai.RecommendationAiRequest;
 import com.otboo.common.security.AuthPrincipal;
 import com.otboo.common.security.LoginUser;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -28,8 +29,10 @@ public class RecommendationController {
     @GetMapping
     public ResponseEntity<RecommendationDto> find(
             @LoginUser AuthPrincipal me,
-            @RequestParam UUID weatherId) {
-        return ResponseEntity.ok(recommendationService.find(me.userId(), weatherId));
+            @RequestParam UUID weatherId,
+            @RequestParam(required = false) List<UUID> excludeClothesIds) {
+        return ResponseEntity.ok(recommendationService.find(
+                me.userId(), weatherId, excludeClothesIds));
     }
 
     @PostMapping(value = "/ai", consumes = MediaType.APPLICATION_JSON_VALUE)

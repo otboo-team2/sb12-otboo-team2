@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.times;
 
 import com.otboo.common.exception.BusinessException;
@@ -59,6 +60,8 @@ class AiRecommendationServiceTest {
     private final RecommendationAiRequest request = new RecommendationAiRequest(weatherId, "데이트룩 추천해줘");
     private final RecommendationDto basic = new RecommendationDto(weatherId, userId,
             List.of(new OotdDto(UUID.randomUUID(), "셔츠", null, "TOP", List.of())));
+    private final RecommendationCondition emptyCondition =
+            new RecommendationCondition(null, List.of(), List.of(), List.of());
     private final RecommendationCandidates candidates = new RecommendationCandidates(
             weatherId, userId, 25.0, PrecipitationType.NONE, 3, Set.of("캐주얼"),
             List.of(new ClothesDto(basic.clothes().get(0).clothesId(), userId, "셔츠",
@@ -105,7 +108,8 @@ class AiRecommendationServiceTest {
         var ids = List.of(candidates.clothes().getFirst().id());
         given(search.search(userId, ids, vector)).willReturn(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), condition, candidates, candidates.clothes()))
                 .willReturn(new RecommendationGenerationResult(ids, "데이트에 어울리는 셔츠입니다."));
 
         var result = service.find(userId, request);
@@ -120,9 +124,119 @@ class AiRecommendationServiceTest {
         verify(vectorSearch).getIfAvailable();
         verify(search).search(userId, ids, vector);
         verify(clothesVerifier).verify(userId, ids, ids);
-        verify(openAiRecommendationClient).generate(request.prompt(), candidates, candidates.clothes());
+        verify(openAiRecommendationClient).generate(
+                eq(request.prompt()), same(condition), eq(candidates), eq(candidates.clothes()));
         verifyNoMoreInteractions(recommendationService, openAiRecommendationClient, queryEmbeddingService,
                 vectorSearch, search, clothesVerifier);
+    }
+
+    @Test
+    void excludesCurrentRecommendationBeforeRetrievalAndGeneration() {
+        ClothesDto excluded = candidates.clothes().getFirst();
+        ClothesDto remaining = new ClothesDto(UUID.randomUUID(), userId, "다른 셔츠", null,
+                ClothesType.TOP, false, List.of());
+        var all = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of("캐주얼"), List.of(excluded, remaining));
+        var filtered = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of("캐주얼"), List.of(remaining));
+        var alternativeRequest = new RecommendationAiRequest(
+                weatherId, request.prompt(), List.of(excluded.id()));
+        var filteredBasic = new RecommendationDto(weatherId, userId,
+                List.of(new OotdDto(remaining.id(), remaining.name(), null, "TOP", List.of())));
+        var search = mock(RecommendationClothesVectorSearch.class);
+        var vector = List.of(0.1f);
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(all);
+        given(recommendationService.recommend(filtered)).willReturn(filteredBasic);
+        given(vectorSearch.getIfAvailable()).willReturn(search);
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(emptyCondition);
+        given(queryEmbeddingService.embed(request.prompt(), emptyCondition, filtered.preferredStyles()))
+                .willReturn(vector);
+        given(search.search(userId, List.of(remaining.id()), vector)).willReturn(List.of(remaining.id()));
+        given(clothesVerifier.verify(userId, List.of(remaining.id()), List.of(remaining.id())))
+                .willReturn(List.of(remaining.id()));
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, filtered, List.of(remaining)))
+                .willReturn(new RecommendationGenerationResult(List.of(remaining.id()), "다른 추천"));
+
+        var result = service.find(userId, alternativeRequest);
+
+        assertThat(result.clothes()).extracting(OotdDto::clothesId).containsExactly(remaining.id());
+        verify(search).search(userId, List.of(remaining.id()), vector);
+        verify(openAiRecommendationClient).generate(
+                request.prompt(), emptyCondition, filtered, List.of(remaining));
+    }
+
+    @Test
+    void externalFailureFallsBackWithoutExcludedClothes() {
+        ClothesDto excluded = candidates.clothes().getFirst();
+        ClothesDto remaining = new ClothesDto(UUID.randomUUID(), userId, "다른 셔츠", null,
+                ClothesType.TOP, false, List.of());
+        var all = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of(), List.of(excluded, remaining));
+        var filtered = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of(), List.of(remaining));
+        var filteredBasic = new RecommendationDto(weatherId, userId,
+                List.of(new OotdDto(remaining.id(), remaining.name(), null, "TOP", List.of())));
+        var alternativeRequest = new RecommendationAiRequest(
+                weatherId, request.prompt(), List.of(excluded.id(), UUID.randomUUID()));
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(all);
+        given(recommendationService.recommend(filtered)).willReturn(filteredBasic);
+        given(vectorSearch.getIfAvailable()).willReturn(mock(RecommendationClothesVectorSearch.class));
+        given(openAiRecommendationClient.extractCondition(request.prompt()))
+                .willThrow(new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR));
+
+        var result = service.find(userId, alternativeRequest);
+
+        assertThat(result).isSameAs(filteredBasic);
+        assertThat(result.clothes()).extracting(OotdDto::clothesId).containsExactly(remaining.id());
+    }
+
+    @Test
+    void rejectsExcludedIdReturnedByGeneration() {
+        ClothesDto excluded = candidates.clothes().getFirst();
+        ClothesDto remaining = new ClothesDto(UUID.randomUUID(), userId, "다른 셔츠", null,
+                ClothesType.TOP, false, List.of());
+        var all = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of(), List.of(excluded, remaining));
+        var filtered = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of(), List.of(remaining));
+        var filteredBasic = new RecommendationDto(weatherId, userId,
+                List.of(new OotdDto(remaining.id(), remaining.name(), null, "TOP", List.of())));
+        var alternativeRequest = new RecommendationAiRequest(
+                weatherId, request.prompt(), List.of(excluded.id()));
+        var search = mock(RecommendationClothesVectorSearch.class);
+        var vector = List.of(0.1f);
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(all);
+        given(recommendationService.recommend(filtered)).willReturn(filteredBasic);
+        given(vectorSearch.getIfAvailable()).willReturn(search);
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(emptyCondition);
+        given(queryEmbeddingService.embed(request.prompt(), emptyCondition, filtered.preferredStyles()))
+                .willReturn(vector);
+        given(search.search(userId, List.of(remaining.id()), vector)).willReturn(List.of(remaining.id()));
+        given(clothesVerifier.verify(userId, List.of(remaining.id()), List.of(remaining.id())))
+                .willReturn(List.of(remaining.id()));
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, filtered, List.of(remaining)))
+                .willReturn(new RecommendationGenerationResult(List.of(excluded.id()), "잘못된 추천"));
+
+        var result = service.find(userId, alternativeRequest);
+
+        assertThat(result).isSameAs(filteredBasic);
+        assertThat(result.clothes()).extracting(OotdDto::clothesId).doesNotContain(excluded.id());
+    }
+
+    @Test
+    void allCandidatesExcludedReturnsEmptyWithoutExternalCalls() {
+        var alternativeRequest = new RecommendationAiRequest(
+                weatherId, request.prompt(), List.of(candidates.clothes().getFirst().id()));
+        var empty = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of("캐주얼"), List.of());
+        var emptyResult = new RecommendationDto(weatherId, userId, List.of());
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(empty)).willReturn(emptyResult);
+
+        assertThat(service.find(userId, alternativeRequest)).isSameAs(emptyResult);
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, vectorSearch, clothesVerifier);
     }
 
     @Test
@@ -138,12 +252,12 @@ class AiRecommendationServiceTest {
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(allCandidates);
         given(recommendationService.recommend(allCandidates)).willReturn(basic);
         given(vectorSearch.getIfAvailable()).willReturn(search);
-        given(openAiRecommendationClient.extractCondition(request.prompt()))
-                .willReturn(new RecommendationCondition(null, List.of(), List.of(), List.of()));
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
         given(queryEmbeddingService.embed(any(), any(), any())).willReturn(List.of(0.1f));
         given(search.search(userId, candidateIds, List.of(0.1f))).willReturn(candidateIds);
         given(clothesVerifier.verify(userId, candidateIds, candidateIds)).willReturn(List.of(validId));
-        given(openAiRecommendationClient.generate(request.prompt(), allCandidates,
+        given(openAiRecommendationClient.generate(request.prompt(), condition, allCandidates,
                 List.of(candidates.clothes().getFirst())))
                 .willReturn(new RecommendationGenerationResult(List.of(validId), "선택 이유"));
 
@@ -158,7 +272,8 @@ class AiRecommendationServiceTest {
         var ids = List.of(candidates.clothes().getFirst().id());
         stubRetrievedIds(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, candidates, candidates.clothes()))
                 .willReturn(new RecommendationGenerationResult(List.of(UUID.randomUUID()), "허위 추천"));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
@@ -170,7 +285,8 @@ class AiRecommendationServiceTest {
         var ids = List.of(validId);
         stubRetrievedIds(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, candidates, candidates.clothes()))
                 .willReturn(new RecommendationGenerationResult(List.of(validId, UUID.randomUUID()), "잘못된 조합"));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
@@ -182,8 +298,34 @@ class AiRecommendationServiceTest {
         var ids = List.of(validId);
         stubRetrievedIds(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, candidates, candidates.clothes()))
                 .willReturn(new RecommendationGenerationResult(List.of(validId, validId), "중복 조합"));
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+    }
+
+    @Test
+    void rejectsGenerationThatCombinesDressWithTopAndBottom() {
+        ClothesDto top = candidates.clothes().getFirst();
+        ClothesDto bottom = new ClothesDto(UUID.randomUUID(), userId, "바지", null,
+                ClothesType.BOTTOM, false, List.of());
+        ClothesDto dress = new ClothesDto(UUID.randomUUID(), userId, "원피스", null,
+                ClothesType.DRESS, false, List.of());
+        var all = new RecommendationCandidates(weatherId, userId, 25.0,
+                PrecipitationType.NONE, 3, Set.of(), List.of(top, bottom, dress));
+        var ids = all.clothes().stream().map(ClothesDto::id).toList();
+        var search = mock(RecommendationClothesVectorSearch.class);
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(all);
+        given(recommendationService.recommend(all)).willReturn(basic);
+        given(vectorSearch.getIfAvailable()).willReturn(search);
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(emptyCondition);
+        given(queryEmbeddingService.embed(request.prompt(), emptyCondition, all.preferredStyles()))
+                .willReturn(List.of(0.1f));
+        given(search.search(userId, ids, List.of(0.1f))).willReturn(ids);
+        given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
+        given(openAiRecommendationClient.generate(request.prompt(), emptyCondition, all, all.clothes()))
+                .willReturn(new RecommendationGenerationResult(ids, "잘못된 조합"));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
     }
@@ -202,12 +344,12 @@ class AiRecommendationServiceTest {
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(all);
         given(recommendationService.recommend(all)).willReturn(basic);
         given(vectorSearch.getIfAvailable()).willReturn(search);
-        given(openAiRecommendationClient.extractCondition(request.prompt()))
-                .willReturn(new RecommendationCondition(null, List.of(), List.of(), List.of()));
+        var condition = new RecommendationCondition(null, List.of(), List.of(), List.of());
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(condition);
         given(queryEmbeddingService.embed(any(), any(), any())).willReturn(List.of(0.1f));
         given(search.search(userId, ids, List.of(0.1f))).willReturn(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), all, all.clothes()))
+        given(openAiRecommendationClient.generate(request.prompt(), condition, all, all.clothes()))
                 .willReturn(new RecommendationGenerationResult(List.of(third.id(), first.id()), "선택 이유"));
 
         var result = service.find(userId, request);
@@ -256,7 +398,7 @@ class AiRecommendationServiceTest {
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(List.of());
 
         assertThat(service.find(userId, request)).isSameAs(basic);
-        verify(openAiRecommendationClient, never()).generate(any(), any(), any());
+        verify(openAiRecommendationClient, never()).generate(any(), any(), any(), any());
     }
 
     @Test
@@ -264,7 +406,8 @@ class AiRecommendationServiceTest {
         var ids = List.of(candidates.clothes().getFirst().id());
         stubRetrievedIds(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, candidates, candidates.clothes()))
                 .willReturn(new RecommendationGenerationResult(ids, " "));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
@@ -278,7 +421,8 @@ class AiRecommendationServiceTest {
         var ids = List.of(candidates.clothes().getFirst().id());
         stubRetrievedIds(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
-        given(openAiRecommendationClient.generate(request.prompt(), candidates, candidates.clothes()))
+        given(openAiRecommendationClient.generate(
+                request.prompt(), emptyCondition, candidates, candidates.clothes()))
                 .willThrow(new BusinessException(code));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
@@ -289,8 +433,7 @@ class AiRecommendationServiceTest {
         given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
         given(recommendationService.recommend(candidates)).willReturn(basic);
         given(vectorSearch.getIfAvailable()).willReturn(search);
-        given(openAiRecommendationClient.extractCondition(request.prompt()))
-                .willReturn(new RecommendationCondition(null, List.of(), List.of(), List.of()));
+        given(openAiRecommendationClient.extractCondition(request.prompt())).willReturn(emptyCondition);
         given(queryEmbeddingService.embed(any(), any(), any())).willReturn(List.of(0.1f));
         given(search.search(userId, ids, List.of(0.1f))).willReturn(ids);
         return search;

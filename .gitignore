@@ -40,3 +40,4 @@ logs/
 
 # 업로드된 이미지(로컬 저장소)
 data/images/
+app-api/data/images/

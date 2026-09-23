@@ -3,6 +3,7 @@ package com.otboo.recommendation;
 import com.otboo.clothes.entity.ClothesType;
 import com.otboo.weather.PrecipitationType;
 import com.otboo.weather.dto.WeatherDto;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /** 현재 데이터로 안전하게 판단할 수 있는 날씨 기반 의상 제외 규칙. */
@@ -10,6 +11,11 @@ import org.springframework.stereotype.Component;
 public class WeatherClothesFilter {
 
     private static final double HOT_TEMPERATURE = 28.0;
+    private static final Map<String, TemperatureRange> WARMTH_RANGES = Map.of(
+            "얇음", new TemperatureRange(18.0, 35.0),
+            "보통", new TemperatureRange(10.0, 27.0),
+            "두꺼움", new TemperatureRange(-5.0, 15.0),
+            "매우 두꺼움", new TemperatureRange(Double.NEGATIVE_INFINITY, 5.0));
 
     public boolean isSuitable(WeatherDto weather, Integer temperatureSensitivity, ClothesType type) {
         if (weather == null) {
@@ -39,29 +45,28 @@ public class WeatherClothesFilter {
             return true;
         }
 
-        // 온도 민감도가 높을수록 더 낮은 기온에서도 더위를 느끼는 것으로 보정한다.
+        // 온도 민감도가 높을수록 같은 기온을 더 춥게 느끼는 것으로 보정한다.
         int sensitivity = temperatureSensitivity == null
                 ? 3 : Math.clamp(temperatureSensitivity, 1, 5);
         double sensitivityOffset = (sensitivity - 3) * 0.5;
-        double hotThreshold = HOT_TEMPERATURE - sensitivityOffset;
-        if (currentTemperature >= hotThreshold
+        double perceivedTemperature = currentTemperature - sensitivityOffset;
+        if (perceivedTemperature >= HOT_TEMPERATURE
                 && (type == ClothesType.OUTER || type == ClothesType.SCARF)) {
             return false;
         }
 
-        double warmthMaxTemperature = warmth == null ? Double.POSITIVE_INFINITY : switch (warmth) {
-            case "얇음" -> 35.0;
-            case "보통" -> 28.0;
-            case "두꺼움" -> 22.0;
-            case "매우 두꺼움" -> 16.0;
-            default -> Double.POSITIVE_INFINITY;
-        };
-        // 기존 더위 기준과 같은 방향으로 민감도를 보온성 기준에도 반영한다.
-        double adjustedWarmthMaxTemperature = warmthMaxTemperature - sensitivityOffset;
-        if (currentTemperature > adjustedWarmthMaxTemperature) {
+        TemperatureRange range = warmth == null ? null : WARMTH_RANGES.get(warmth);
+        if (range != null && !range.includes(perceivedTemperature)) {
             return false;
         }
 
         return true;
+    }
+
+    private record TemperatureRange(double min, double max) {
+
+        private boolean includes(double temperature) {
+            return temperature >= min && temperature <= max;
+        }
     }
 }
