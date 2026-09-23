@@ -13,6 +13,62 @@ spring:
     # 배치는 웹 서버를 띄우지 않는다. 단독 실행 후 종료되는 컨테이너.
     web-application-type: none
   batch:
+    jdbc:
+      initialize-schema: always
     job:
       # 기동만으로 전체 잡이 도는 것을 막는다. 실행할 잡을 지정해서 돌린다.
       enabled: false
+
+management:
+  metrics:
+    enable:
+      # Spring Batch 5.2의 동일 메트릭 중복 등록 경고 방지. 배치별 메트릭은 tasklet에서 직접 기록한다.
+      spring.batch: false
+
+otboo:
+  jwt:
+    secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}
+  weather:
+    api-key: ${WEATHER_API_KEY:}
+    kakao-api-key: ${KAKAO_REST_API_KEY:}
+
+  # ─────────── Pinterest 코디 핀 ───────────
+  # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
+  # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
+  pinterest:
+    # sandbox 로 붙일 때만 바꾼다: https://api-sandbox.pinterest.com
+    # sandbox 는 보드·핀이 운영과 완전히 분리돼 있다. 큐레이션한 실제 보드는 보이지 않고,
+    # sandbox 안에서 만든 보드만 조회된다. 토큰도 환경별로 따로다.
+    base-url: ${PINTEREST_BASE_URL:}
+    access-token: ${PINTEREST_ACCESS_TOKEN:}
+    # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
+    board-ids: ${PINTEREST_BOARD_IDS:}
+    page-size: 100
+
+  # ─────────── 외부 API 호출 정책 ───────────
+  # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
+  external-api:
+    defaults:
+      connect-timeout: 3s
+      read-timeout: 10s
+      max-retries: 0
+      backoff: 1s
+
+    apis:
+      # 박교현 — OpenWeatherMap 예보 수집
+      # 배치는 사용자를 기다리게 하지 않으므로 재시도에 여유를 둘 수 있다.
+      weather:
+        read-timeout: 5s      # TODO(담당자): 실제 응답 시간 재보고 조정
+        max-retries: 0        # TODO(담당자): 조회만 하므로 재시도해도 안전하면 2 로
+        backoff: 2s
+      kakao:
+        read-timeout: 5s
+        max-retries: 0
+        backoff: 2s
+
+      # Pinterest 보드 핀 동기화 (app-api 의 같은 블록과 값을 맞춘다)
+      pinterest:
+        read-timeout: 10s
+        # 조회만 해서 재시도해도 중복이 생기지는 않는다. 다만 Trial 은 하루 호출 상한이 앱 단위라
+        # 재시도가 그 한도를 먹는다. 동기화 배치에서 실패율을 본 뒤 올린다.
+        max-retries: 0

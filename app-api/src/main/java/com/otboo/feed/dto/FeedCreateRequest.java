@@ -6,8 +6,6 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 public record FeedCreateRequest(
-    UUID authorId,
-
     @NotNull(message = "날씨 정보가 필요합니다.")
     UUID weatherId,
 

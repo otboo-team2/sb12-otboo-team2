@@ -13,6 +13,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/api/sse': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
@@ -21,8 +25,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/images': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: 'ws://localhost:8081',
         changeOrigin: true,
         ws: true,
       },

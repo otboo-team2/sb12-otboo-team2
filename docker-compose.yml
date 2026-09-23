@@ -42,6 +42,112 @@ services:
       timeout: 3s
       retries: 20
 
+  kafka:
+    image: apache/kafka:4.3.1
+    hostname: kafka
+    container_name: otboo-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # ── 피드 검색 (Elasticsearch) ─────────────────────────────────────────────
+  # 공식 이미지에는 한국어 형태소 분석기(nori)가 없다. 플러그인을 넣은 이미지를 직접 굽는다.
+  # 최초 1회 `docker compose build elasticsearch` 가 필요하고, 그 뒤로는 캐시가 쓰인다.
+  elasticsearch:
+    build:
+      context: ./docker/elasticsearch
+    image: otboo-elasticsearch:8.18.8
+    container_name: otboo-elasticsearch
+    restart: unless-stopped
+    environment:
+      # 단일 노드. 로컬에서 replica 를 요구하면 인덱스가 영원히 yellow 로 남는다.
+      discovery.type: single-node
+      # 로컬 전용이라 TLS·인증을 끈다. 배포(AWS OpenSearch)에서는 절대 이렇게 두지 않는다.
+      xpack.security.enabled: "false"
+      # 기본 힙(1/2 메모리)은 개발 노트북에서 과하다. 색인량이 작아 512m 로 충분하다.
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+      # 디스크가 차면 ES 가 인덱스를 read-only 로 바꿔 색인이 조용히 실패한다.
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      # yellow 까지 정상으로 본다. 단일 노드에서 green 은 replica 가 0 일 때만 나온다.
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  # ── 관측 (KAN-35) ─────────────────────────────────────────────────────────
+  # 앱은 보통 호스트에서 bootRun 으로 뜨므로, 컨테이너에서 호스트를 가리켜 긁어간다.
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: otboo-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      # 로컬은 오래 보관할 이유가 없다. 디스크만 먹는다.
+      - --storage.tsdb.retention.time=7d
+      # 그래프에서 시간 범위를 바꿔도 URL 이 남게 한다
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      # 맥·윈도우 도커에는 이미 있지만 리눅스에는 없다. 없으면 앱을 못 찾는다.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: otboo-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      # 로컬 전용이라 로그인을 끈다. 배포에서는 절대 이렇게 두지 않는다.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: light
+      # 열자마자 개요 대시보드가 보이게 한다
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/otboo-overview.json
+    ports:
+      - "3000:3000"
+    volumes:
+      # 데이터소스·대시보드를 파일로 자동 등록한다. 팀원마다 UI 에서 설정할 필요가 없다.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   mysql-data:
   redis-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:

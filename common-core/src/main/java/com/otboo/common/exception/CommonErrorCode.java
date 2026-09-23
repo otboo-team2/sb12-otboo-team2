@@ -18,6 +18,7 @@ public enum CommonErrorCode implements ErrorCode {
     MISSING_PARAMETER("COMMON_002", HttpStatus.BAD_REQUEST, "필수 파라미터가 없습니다."),
     TYPE_MISMATCH("COMMON_003", HttpStatus.BAD_REQUEST, "파라미터 타입이 올바르지 않습니다."),
     INVALID_CURSOR("COMMON_004", HttpStatus.BAD_REQUEST, "커서 값이 올바르지 않습니다."),
+    INVALID_IMAGE("COMMON_007", HttpStatus.BAD_REQUEST, "이미지 파일이 올바르지 않습니다."),
 
     // 401 / 403 — 인증 · 인가
     UNAUTHORIZED("COMMON_100", HttpStatus.UNAUTHORIZED, "인증이 필요합니다."),
@@ -32,8 +33,12 @@ public enum CommonErrorCode implements ErrorCode {
 
     // 5xx — 서버 · 외부 연동
     INTERNAL_ERROR("COMMON_900", HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
+    STORAGE_ERROR("COMMON_904", HttpStatus.INTERNAL_SERVER_ERROR, "파일을 저장하지 못했습니다."),
     EXTERNAL_API_ERROR("COMMON_901", HttpStatus.BAD_GATEWAY, "외부 서비스 호출에 실패했습니다."),
-    EXTERNAL_API_TIMEOUT("COMMON_902", HttpStatus.GATEWAY_TIMEOUT, "외부 서비스 응답이 지연되었습니다.");
+    EXTERNAL_API_TIMEOUT("COMMON_902", HttpStatus.GATEWAY_TIMEOUT, "외부 서비스 응답이 지연되었습니다."),
+    // 상대가 막은 게 아니라 우리가 건 하루 호출 상한이다. 크레딧 방어용.
+    EXTERNAL_API_LIMIT_EXCEEDED("COMMON_903", HttpStatus.SERVICE_UNAVAILABLE,
+            "외부 서비스 호출 한도를 초과했습니다. 잠시 후 다시 시도해주세요.");
 
     private final String code;
     private final HttpStatus status;

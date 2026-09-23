@@ -7,12 +7,159 @@ spring:
     import: classpath:config/db.yml           # 공통 DB·인프라 설정 (common-core)
   jackson:
     time-zone: UTC                            # 응답은 UTC 기준 ISO-8601
+  elasticsearch:
+    # AWS OpenSearch 로 옮길 때 코드는 그대로 두고 이 값만 바꾼다(+username/password).
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+    connection-timeout: 3s
+    socket-timeout: 10s
   servlet:
     multipart:
       max-file-size: 10MB                     # 의상·프로필 이미지 업로드
       max-request-size: 12MB
 
+  # ─────────── 메일 (비밀번호 초기화 임시 비밀번호 발송) ───────────
+  # ⚠️ host 를 여기에 빈 값으로라도 적으면 안 된다. 부트는 "설정됐다"고 보고
+  #    빈 주소로 발송을 시도한다. 아래 환경변수로만 넣는다.
+  #
+  #      SPRING_MAIL_HOST=smtp.gmail.com  SPRING_MAIL_PORT=587
+  #      SPRING_MAIL_USERNAME=<계정>       SPRING_MAIL_PASSWORD=<앱 비밀번호>
+  #
+  # 설정하지 않으면 임시 비밀번호가 메일 대신 로그로 나간다(local 전용).
+  # prod 에서는 없으면 기동하지 않는다 — PasswordResetMailerConfig 참고.
+  mail:
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      # 발송이 DB 트랜잭션 안에서 일어난다. 오래 매달리면 커넥션을 붙잡는다.
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
+  # ─────────── 소셜 로그인 ───────────
+  # 프론트가 /oauth2/authorization/{provider} 로 보내면 제공자는
+  # /login/oauth2/code/{provider} 로 돌려준다. 둘 다 스프링 시큐리티 기본 경로다.
+  #
+  # ⚠️ client-id 가 빈 문자열이면 앱이 기동조차 안 된다. 그래서 자리표시자를 기본값으로 둔다.
+  #    실제 값은 .env 의 제공자별 CLIENT_ID / CLIENT_SECRET 으로 넣는다.
+  #    설정하지 않으면 버튼을 눌렀을 때 제공자 쪽에서 거부하고 로그인 화면으로 돌아온다.
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:not-configured}
+            scope:
+              - email
+              - profile
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:not-configured}
+            client-secret: ${KAKAO_CLIENT_SECRET:not-configured}
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - profile_nickname
+              - account_email
+        provider:
+          kakao:
+            authorization-uri: https://kauth.kakao.com/oauth/authorize
+            token-uri: https://kauth.kakao.com/oauth/token
+            user-info-uri: https://kapi.kakao.com/v2/user/me
+            user-name-attribute: id
+
 otboo:
+  password-reset:
+    from: ${MAIL_FROM:no-reply@otboo.com}
+    # 같은 주소로 다시 요청할 수 있게 되기까지. 로그인 없이 부를 수 있는 API 라
+    # 이게 없으면 남의 메일함을 초기화 메일로 채울 수 있다.
+    cooldown: 3m
+  # ─────────── 피드 검색 ───────────
+  # engine=mysql         : ngram FULLTEXT + LIKE. ES 없이 동작한다.
+  # engine=elasticsearch : nori 형태소 + ngram. 색인 동기화가 함께 켜진다.
+  #
+  # 기본값이 mysql 인 것은 <실행 환경이 스스로 밝히게> 하기 위해서다.
+  # 소스 기본값을 elasticsearch 로 두면 아무 설정도 하지 않은 환경 — 특히 테스트 — 까지
+  # 색인 파이프라인을 띄운다. 그 상태로 통합 테스트를 돌리면 초기 색인이
+  # <테스트 DB 를 원본으로 삼아 전체 재색인>을 해서 개발자·팀 공용 인덱스를 날린다.
+  #
+  # 켜는 곳: 로컬은 .env(SEARCH_ENGINE=elasticsearch), 배포는 태스크 환경변수.
+  search:
+    engine: ${SEARCH_ENGINE:mysql}
+    index-name: ${SEARCH_INDEX_NAME:feeds}
+    # ES 가 죽어도 피드 목록 화면은 떠야 한다. 끄면 검색 실패가 그대로 500 이 된다.
+    fallback-to-mysql: true
+    # 색인이 비어 있을 때만 기동 시 전량 색인한다. 이미 차 있으면 건너뛴다.
+    index-on-startup: true
+    bulk-size: 500
+
+  oauth:
+    # 요청 파라미터로 받지 않는다. 받으면 ?redirect=https://공격자 로 오픈 리다이렉트가 된다.
+    success-redirect: ${OAUTH_SUCCESS_REDIRECT:/}
+    failure-redirect: ${OAUTH_FAILURE_REDIRECT:/auth/login}
+  weather:
+    kakao-api-key: ${KAKAO_REST_API_KEY:}
+  clothes:
+    extraction:
+      gemini-api-key: ${GEMINI_API_KEY:}
+      gemini-model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+      max-redirects: 3
+      max-html-bytes: 2097152
+      max-image-bytes: 10485760
+      max-total-image-bytes: 26214400
+      max-detail-images: 6
+      max-page-text-chars: 15000
+      max-discovered-image-candidates: 200
+  # 박교현 — 추천 LLM 연결 설정
+  recommendation:
+    search:
+      enabled: ${RECOMMENDATION_SEARCH_ENABLED:false}
+      index-name: ${RECOMMENDATION_CLOTHES_INDEX:recommendation-clothes}
+    ai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:gpt-5.6-luna}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+      embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
+  fashn:
+    api-key: ${FASHN_API_KEY:}
+  # ─────────── Pinterest 코디 핀 ───────────
+  # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
+  # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
+  pinterest:
+    # sandbox 로 붙일 때만 바꾼다: https://api-sandbox.pinterest.com (app-batch 와 값을 맞춘다)
+    base-url: ${PINTEREST_BASE_URL:}
+    access-token: ${PINTEREST_ACCESS_TOKEN:}
+    # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
+    board-ids: ${PINTEREST_BOARD_IDS:}
+    page-size: 100
+  virtual-try-on:
+    dispatch-interval: 5000
+    poll-interval: 5000
+    default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
+    image:
+      min-width: 200
+      min-height: 200
+      min-aspect-ratio: 0.1   # 1:10
+      max-aspect-ratio: 10.0  # 10:1
+  # 업로드 이미지(프로필·의상). 지금은 로컬 디스크에 쓴다.
+  # ⚠️ 인스턴스를 여러 개 띄우면 각자 다른 디스크에 저장돼 이미지가 반쪽만 보인다. S3 전환은 별도 티켓.
+  storage:
+    base-dir: ${STORAGE_BASE_DIR:./data/images}
+    base-url: /images
+    max-size: 5242880          # 5MB. 프론트(ProfileImageUpload)와 같은 값
+    # 기존 ImageStorage와 연결하지 않은 비공개 S3 기반. 명시적으로 켜기 전에는 빈도 만들지 않는다.
+    s3:
+      enabled: ${S3_STORAGE_ENABLED:false}
+      bucket: ${AWS_S3_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+      presigned-url-ttl: ${S3_PRESIGNED_URL_TTL:15m}
+      max-size: ${S3_MAX_SIZE:10485760}
+      connect-timeout: 3s
+      read-timeout: 30s
+
   jwt:
     # 운영에서는 반드시 환경변수로 덮어쓴다. 최소 32바이트.
     secret: ${JWT_SECRET:otboo-local-development-secret-key-change-me-please}
@@ -21,6 +168,52 @@ otboo:
     cookie-secure: ${JWT_COOKIE_SECURE:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+
+  # ─────────── 외부 API 호출 정책 ───────────
+  # 담당자는 자기 블록만 고치면 된다. 공통 자바 코드는 건드리지 않는다.
+  # 블록이 없어도 defaults 로 동작하므로 앱이 안 뜨는 일은 없다.
+  #
+  # max-retries 기본값이 0 인 것은 의도적이다.
+  #   재시도가 안전한 API 만(= 재호출해도 과금·중복 생성이 없는 API) 담당자가 올린다.
+  external-api:
+    defaults:
+      connect-timeout: 3s
+      read-timeout: 10s
+      max-retries: 0
+      backoff: 1s
+
+    apis:
+      # 류승지 — Pinterest 코디 추천
+      pinterest:
+        read-timeout: 10s
+        # 조회만 해서 재시도해도 중복이 생기지는 않는다. 다만 Trial 은 하루 호출 상한이 앱 단위라
+        # 재시도가 그 한도를 먹는다. 동기화 배치에서 실패율을 본 뒤 올린다.
+        max-retries: 0
+
+      # 안소현 — 링크 추출 / 파싱
+      link-extract:
+        read-timeout: 10s
+        max-retries: 0        # TODO(담당자): 상대 사이트 차단 정책 확인 후 결정
+
+      # 안소현 — 의상 Gemini 자동입력
+      clothes-gemini:
+        read-timeout: 60s
+        max-retries: 0
+        daily-limit: ${CLOTHES_GEMINI_DAILY_LIMIT:50}
+
+      # 박교현 — 추천 LLM
+      llm:
+        read-timeout: 60s     # TODO(담당자): 실제 응답 시간 재보고 조정
+        max-retries: 0        # TODO(담당자): 재시도 = 토큰 재과금입니다. 올릴 거면 1 까지만
+        daily-limit: 500      # TODO(담당자): 남은 크레딧 기준으로 확정. 없으면 무제한
+
+      # 양정우 — 가상 피팅 AI
+      # ⚠️ 생성에 10초~2분이 걸려 HTTP 요청 하나로 기다릴 수 없습니다.
+      #    virtual_try_on_jobs 에 job 을 만들고 비동기로 처리하는 구조가 필요하고,
+      #    이 설정은 그 안에서 일어나는 '호출 한 번'에만 적용됩니다.
+      virtual-try-on:
+        read-timeout: 120s
+        max-retries: 0        # 재시도 = 재과금 + 결과물 중복 생성. 올리지 마세요
 
 server:
   port: ${SERVER_PORT:8080}
@@ -33,6 +226,26 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    tags:
+      # 지표마다 붙는 라벨. 나중에 앱이 여러 개가 되면 이걸로 구분한다.
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        # 이게 없으면 http_server_requests_seconds_bucket 이 안 나가고,
+        # 그러면 Grafana 에서 p95 를 계산할 수 없다(평균만 볼 수 있다).
+        http.server.requests: true
+        # 피드 검색 엔진(MySQL · ES) 비교용. TimedFeedSearch 가 남긴다.
+        otboo_feed_search: true
+        # 의상 링크 자동입력 전체와 Gemini 구간을 분리해 p95 를 비교한다.
+        otboo_clothes_extraction: true
+        otboo_clothes_gemini: true
+      slo:
+        # 이 경계로 버킷이 생긴다. "300ms 안에 몇 %가 끝났나"를 바로 볼 수 있다.
+        http.server.requests: 100ms, 300ms, 1s, 3s
+        otboo_feed_search: 50ms, 100ms, 300ms, 1s
+        otboo_clothes_extraction: 1s, 3s, 5s, 10s, 20s
+        otboo_clothes_gemini: 1s, 3s, 5s, 10s, 20s
 
 ---
 # prod 에서는 관측 엔드포인트만 남기고 나머지를 닫는다
@@ -40,6 +253,11 @@ spring:
   config:
     activate:
       on-profile: prod
+
+server:
+  # nginx 뒤에 선다. 이게 없으면 스프링이 자기 주소를 http://app-api:8080 으로 알고
+  # 구글에 그 주소로 redirect_uri 를 보내 소셜 로그인이 거절된다.
+  forward-headers-strategy: framework
 
 otboo:
   jwt:

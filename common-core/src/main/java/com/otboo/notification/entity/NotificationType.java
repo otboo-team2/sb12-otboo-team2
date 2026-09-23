@@ -1,4 +1,4 @@
-package com.otboo.common.event;
+package com.otboo.notification.entity;
 
 /**
  * 알림 종류. DB {@code notifications.type} 의 CHECK 제약과 값이 일치해야 한다.

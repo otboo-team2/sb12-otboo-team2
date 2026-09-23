@@ -1,0 +1,97 @@
+{
+  "uid": "otboo-overview",
+  "title": "otboo 개요",
+  "description": "기본 지표 4개. 판을 깔아둔 것이고, 파트별 지표는 각자 추가한다.",
+  "tags": ["otboo"],
+  "timezone": "utc",
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "요청 처리율 (req/s)",
+      "description": "엔드포인트별 초당 요청 수. 부하 테스트할 때 이 그래프가 기준선이 된다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{job=\"otboo-api\"}[1m]))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "응답 시간 p95 (초)",
+      "description": "평균이 아니라 p95 를 본다. 평균은 느린 요청 몇 건을 빠른 요청 다수가 가려버린다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 0 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{job=\"otboo-api\"}[5m])))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "5xx 응답 수",
+      "description": "0 이 정상이다. 올라오면 그 시각의 requestId 로 로그를 찾는다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 20, "drawStyle": "bars" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (uri) (increase(http_server_requests_seconds_count{job=\"otboo-api\", status=~\"5..\"}[1m]))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "JVM 힙 사용량",
+      "description": "톱니 모양이면 정상(GC). 계속 우상향이면 어딘가 참조를 놓지 않고 있다.",
+      "datasource": { "type": "prometheus", "uid": "otboo-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(jvm_memory_used_bytes{job=\"otboo-api\", area=\"heap\"})",
+          "legendFormat": "사용 중"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(jvm_memory_max_bytes{job=\"otboo-api\", area=\"heap\"})",
+          "legendFormat": "최대"
+        }
+      ]
+    }
+  ]
+}

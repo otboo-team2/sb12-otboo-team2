@@ -38,10 +38,10 @@ interface AddClothesModalProps {
 export default function AddClothesModal({ open, onClose }: AddClothesModalProps) {
   const { data: auth } = useAuthStore();
   const { add } = useClothesStore();
-  const { data: attributeDefs, fetch: fetchAttributes } = useClothesAttributeDefStore();
+  const { data: attributeDefs, fetchAll: fetchAttributes } = useClothesAttributeDefStore();
   const [mode, setMode] = useState<ModalMode>('form');
   const [loading, setLoading] = useState(false);
-  const { selectedImage, setSelectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
+  const { selectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -50,12 +50,13 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
   });
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [url, setUrl] = useState('');
+  const [extractedImageUrl, setExtractedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 의상 속성 정의 로드
   useEffect(() => {
     if (open) {
-      fetchAttributes();
+      fetchAttributes(100);
     }
   }, [open, fetchAttributes]);
 
@@ -75,7 +76,8 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
         ownerId: auth.userDto.id,
         name: formData.name,
         type: formData.type,
-        attributes: attributes
+        attributes,
+        sourceImageUrl: selectedImage ? undefined : extractedImageUrl ?? undefined,
       }, selectedImage || undefined);
       
       add(newClothes);
@@ -94,23 +96,28 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
     if (!url.trim()) return;
     
     setLoading(true);
+    setExtractedImageUrl(null);
     try {
       const extracted = await extractByUrl(url.trim());
-      setFormData({
-        name: extracted.name || formData.name,
-        type: extracted.type || formData.type,
-        attributes: extracted.attributes || formData.attributes
-      });
-      if (extracted.imageUrl) {
-        fetch(extracted.imageUrl)
-        .then((res) => res.blob())
-        .then((blob) => {
-          const filename = extracted.imageUrl?.split('/').pop() || 'image';
-          setSelectedImage(new File([blob], filename));
-        });
+      setFormData((previous) => ({
+        ...previous,
+        name: extracted.name ?? previous.name,
+        type: extracted.type ?? previous.type,
+        attributes: extracted.attributes.map(({ definitionId, value }) => ({
+          definitionId,
+          value,
+        })),
+      }));
+      setSelectedAttributes(Object.fromEntries(
+        extracted.attributes.map(({ definitionId, value }) => [definitionId, value]),
+      ));
+      clearImage();
+      setExtractedImageUrl(extracted.imageUrl ?? null);
+      if (extracted.failures.length > 0) {
+        toast.warning('일부 정보는 자동으로 가져오지 못했습니다. 등록 전에 확인해주세요.');
+      } else {
+        toast.success('URL에서 의상 정보를 불러왔습니다.');
       }
-      // URL로 불러온 데이터를 폼에 채워주는 로직은 추후 구현
-      toast.success('URL에서 의상 정보를 불러왔습니다.');
       setUrl('');
       setMode('form');
     } catch (error) {
@@ -126,8 +133,14 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
     setFormData({ name: '', type: '' as ClothesType, attributes: [] });
     setSelectedAttributes({});
     clearImage();
+    setExtractedImageUrl(null);
     setUrl('');
     onClose();
+  };
+
+  const handleLocalImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setExtractedImageUrl(null);
+    handleImageChange(event);
   };
 
   // 선택된 속성들을 ClothesAttributeDto 배열로 변환
@@ -163,8 +176,8 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
             {/* 이미지 업로드 */}
             <div className="box-border content-stretch flex flex-col items-end justify-start pb-[26px] pt-0 px-0 relative shrink-0 w-[100px] self-center">
               <div className="aspect-square bg-gray-300 mb-[-26px] relative rounded-[100px] shrink-0 w-full overflow-hidden cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                {imagePreview ? (
-                  <img src={imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                {imagePreview ?? extractedImageUrl ? (
+                  <img src={imagePreview ?? extractedImageUrl ?? undefined} alt="미리보기" className="w-full h-full object-cover" />
                 ) : (
                   <div className="aspect-square overflow-clip relative size-full flex items-center justify-center">
                     <div className="absolute inset-[29.167%] overflow-clip">
@@ -187,7 +200,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleImageChange}
+                onChange={handleLocalImageChange}
                 className="hidden"
               />
             </div>

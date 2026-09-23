@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>otboo — 날씨에 맞는 오늘의 옷차림</title>
+<meta name="description" content="otboo는 오늘 날씨와 내 옷장을 함께 보고 입을 옷을 추천하는 서비스입니다.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f7f9;
+    --border: #e3e6ea;
+    --text: #16191d;
+    --muted: #5c6470;
+    --accent: #2f6f4e;
+    --accent-soft: #e8f3ed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171a;
+      --surface: #1c2024;
+      --border: #2b3138;
+      --text: #e9ecef;
+      --muted: #a2abb6;
+      --accent: #7fc4a0;
+      --accent-soft: #1e2b25;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a;
+    --surface: #1c2024;
+    --border: #2b3138;
+    --text: #e9ecef;
+    --muted: #a2abb6;
+    --accent: #7fc4a0;
+    --accent-soft: #1e2b25;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+                 "Noto Sans KR", Segoe UI, Roboto, sans-serif;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+  header { border-bottom: 1px solid var(--border); }
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0; gap: 16px;
+  }
+  .logo { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+  .logo span { color: var(--accent); }
+  nav a {
+    color: var(--muted); text-decoration: none; font-size: 15px; margin-left: 20px;
+  }
+  nav a:hover { color: var(--text); }
+
+  .hero { padding: 72px 0 56px; }
+  .hero h1 {
+    font-size: clamp(30px, 6vw, 46px);
+    line-height: 1.25; letter-spacing: -0.03em; margin: 0 0 20px;
+  }
+  .hero p { font-size: 18px; color: var(--muted); margin: 0 0 12px; max-width: 34em; }
+
+  .about {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; margin: 8px 0 56px;
+  }
+  .about h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .about p { margin: 0; font-size: 15.5px; }
+
+  section { padding-bottom: 56px; }
+  h2.section-title { font-size: 22px; letter-spacing: -0.02em; margin: 0 0 24px; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    background: var(--bg);
+  }
+  .card h3 { margin: 0 0 8px; font-size: 16.5px; letter-spacing: -0.01em; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 18px 20px;
+  }
+  .note h3 { margin: 0 0 8px; font-size: 16px; }
+  .note p { margin: 0 0 8px; font-size: 15px; }
+  .note p:last-child { margin-bottom: 0; }
+  .note a { color: inherit; }
+
+  footer {
+    border-top: 1px solid var(--border); padding: 28px 0 48px;
+    color: var(--muted); font-size: 14.5px;
+  }
+  footer a { color: var(--muted); }
+  footer .links { margin-bottom: 8px; }
+  footer .links a { margin-right: 18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <div class="logo">ot<span>boo</span></div>
+    <nav>
+      <a href="#features">기능</a>
+      <a href="privacy.html">개인정보처리방침</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <h1>오늘 날씨에 뭘 입지,<br>매일 아침 고민하지 않게</h1>
+    <p>otboo는 지금 있는 곳의 날씨 예보와 내 옷장을 함께 보고 오늘 입을 옷을 추천합니다.
+       기온이 몇 도인지가 아니라 “그래서 뭘 입어야 하는지”를 알려주는 것이 목표입니다.</p>
+  </div>
+
+  <div class="about">
+    <h2>About otboo (English)</h2>
+    <p>otboo is a weather-based outfit recommendation service. It combines the local weather
+       forecast with the clothing a user has registered in their own wardrobe, and suggests what
+       to wear today. It also shows curated outfit reference photos that match the current
+       temperature range and sky condition.</p>
+  </div>
+
+  <section id="features">
+    <h2 class="section-title">주요 기능</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>날씨 기반 추천</h3>
+        <p>위치의 예보를 기온 구간으로 바꾸고, 그 구간에 맞는 옷을 고릅니다.
+           같은 20도라도 맑은 날과 비 오는 날의 추천이 다릅니다.</p>
+      </div>
+      <div class="card">
+        <h3>내 옷장</h3>
+        <p>가진 옷을 등록해두면 그 안에서 추천합니다. 상품 페이지 주소를 넣으면
+           이름·색상 같은 정보를 자동으로 채웁니다.</p>
+      </div>
+      <div class="card">
+        <h3>코디 레퍼런스</h3>
+        <p>오늘 날씨에 맞는 코디 사진을 함께 보여줍니다. 옷장에 없는 조합도
+           참고할 수 있게 하기 위한 기능입니다.</p>
+      </div>
+      <div class="card">
+        <h3>코디 기록</h3>
+        <p>그날 입은 옷을 남겨두면 지난 기록을 다시 찾아볼 수 있습니다.
+           비슷한 날씨였던 날에 뭘 입었는지 확인할 수 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Pinterest 콘텐츠 이용</h2>
+    <div class="note">
+      <h3>이미지를 복사하지 않습니다</h3>
+      <p>코디 레퍼런스 사진 중 일부는 otboo 팀이 Pinterest에서 직접 큐레이션한 보드에서
+         가져옵니다. otboo는 이미지 파일을 자체 서버로 복사하거나 재호스팅하지 않고
+         Pinterest의 이미지 주소를 참조하며, 모든 사진은 원본 핀으로 연결됩니다.</p>
+      <p>otboo는 Pinterest 전체를 검색하지 않고, 다른 Pinterest 사용자의 계정이나 개인정보에
+         접근하지 않습니다. 자세한 내용은 <a href="privacy.html">개인정보처리방침</a>에 있습니다.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="privacy.html">개인정보처리방침 · Privacy Policy</a>
+      <a href="https://github.com/otboo-team2/sb12-otboo-team2">GitHub</a>
+    </div>
+    <div>© 2026 otboo</div>
+  </div>
+</footer>
+
+</body>
+</html>

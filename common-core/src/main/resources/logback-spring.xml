@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  앱 3개가 공유하는 로그 "형식". common-core 에 두면 각 앱이 따로 설정할 필요가 없다.
+
+  핵심은 %X{requestId} 다. MDC 에 담긴 값이 모든 로그 줄에 자동으로 붙어서,
+  요청 하나가 남긴 줄들을 나중에 한 번에 뽑을 수 있다.
+    grep 'requestId=3f2a9c1b' app.log
+
+  ⚠️ 로그 "레벨"은 여기서 정하지 않는다. config/db.yml 의 logging.level 이 담당한다.
+     두 군데에서 정하면 어느 쪽이 이겼는지 매번 확인해야 한다.
+     (스프링 부트는 logback 초기화 뒤에 logging.level 을 덮어쓰므로 yml 이 이긴다)
+-->
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProperty scope="context" name="appName" source="spring.application.name"
+                    defaultValue="otboo"/>
+
+    <!--
+      requestId 는 앞 8자만 보여준다. UUID 36자를 다 찍으면 줄이 밀려 메시지가 안 보인다.
+      값이 없을 때를 위해 :- 기본값을 준다. 없으면 "requestId_IS_UNDEFINED" 가 찍힌다.
+    -->
+    <property name="CONSOLE_PATTERN"
+              value="%d{HH:mm:ss.SSS} %highlight(%-5level) [%.8X{requestId:-        }] %cyan(%logger{36}) : %msg%n%wEx"/>
+
+    <!-- 운영: 수집기가 읽는다. 시각은 UTC, 색상 없음, requestId·userId 전체 -->
+    <property name="PLAIN_PATTERN"
+              value="%d{yyyy-MM-dd'T'HH:mm:ss.SSS'Z', UTC} %-5level [${appName}] [%X{requestId:-}] [%X{userId:-}] %logger{40} : %msg%n%wEx"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+      ⚠️ 파일로 쓰지 않는다. 컨테이너 표준출력만 남기고 수집은 바깥(도커·CloudWatch)에 맡긴다.
+      파일로 쓰면 컨테이너 재시작 때 사라지고 디스크도 채운다.
+    -->
+    <appender name="PLAIN" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PLAIN_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="PLAIN"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+</configuration>

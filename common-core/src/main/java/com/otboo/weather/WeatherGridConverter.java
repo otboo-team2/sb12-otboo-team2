@@ -1,5 +1,9 @@
 package com.otboo.weather;
 
+import com.otboo.common.exception.BusinessException;
+import com.otboo.weather.exception.WeatherErrorCode;
+import java.util.Optional;
+
 public final class WeatherGridConverter {
 
     // 기상청 단기예보 격자 변환에 사용하는 Lambert Conformal Conic 상수
@@ -33,7 +37,7 @@ public final class WeatherGridConverter {
     public static GridCoordinate toGrid(double latitude, double longitude) {
         if (!Double.isFinite(latitude) || latitude < -90 || latitude > 90
                 || !Double.isFinite(longitude) || longitude < -180 || longitude > 180) {
-            throw new IllegalArgumentException("위도는 -90~90, 경도는 -180~180 범위여야 합니다.");
+            throw new BusinessException(WeatherErrorCode.INVALID_COORDINATE);
         }
 
         double radius = GRID_RADIUS * SCALE
@@ -53,6 +57,19 @@ public final class WeatherGridConverter {
         return new GridCoordinate(x, y);
     }
 
+
+    public static Optional<GridCoordinate> tryToGrid(double latitude, double longitude) {
+        try {
+            return Optional.of(toGrid(latitude, longitude));
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == WeatherErrorCode.INVALID_COORDINATE
+                    || e.getErrorCode() == WeatherErrorCode.UNSUPPORTED_LOCATION) {
+                return Optional.empty();
+            }
+            throw e;
+        }
+    }
+
     public static GeographicCoordinate toCoordinate(int x, int y) {
         validateGrid(x, y);
         // 정수 격자점을 위경도로 역변환
@@ -67,9 +84,9 @@ public final class WeatherGridConverter {
         return new GeographicCoordinate(Math.toDegrees(latitude), Math.toDegrees(longitude));
     }
 
-    private static void validateGrid(int x, int y) {
+    public static void validateGrid(int x, int y) {
         if (x < MIN_GRID_X || x > MAX_GRID_X || y < MIN_GRID_Y || y > MAX_GRID_Y) {
-            throw new IllegalArgumentException("기상청 격자는 x 1~149, y 1~253 범위여야 합니다.");
+            throw new BusinessException(WeatherErrorCode.UNSUPPORTED_LOCATION);
         }
     }
 

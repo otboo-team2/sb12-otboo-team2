@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import weatherIcon from '@/assets/illust_logos/il_Weather.svg';
 import feedIcon from '@/assets/illust_logos/il_feed.svg';
+import messageIcon from '@/assets/icons/ic_send.svg';
 import settingIcon from '@/assets/illust_logos/il_setting.svg';
 import setting2Icon from '@/assets/illust_logos/il_setting-2.svg';
 import closetIcon from '@/assets/illust_logos/il_closet.svg';
@@ -20,9 +21,9 @@ interface SideMenuBtnProps {
 function SideMenuBtn({ label = "Label", isActive = false, onClick, icon }: SideMenuBtnProps) {
   const baseClass = "box-border content-stretch flex gap-[11px] h-[54px] items-center justify-start p-[10px] relative shrink-0 w-full cursor-pointer";
   const activeClass = "bg-white rounded-[10px] shadow-[0px_3px_10px_0px_rgba(0,0,0,0.03)] border border-gray-200";
-  
+
   return (
-    <div 
+    <div
       className={`${baseClass} ${isActive ? activeClass : ""}`}
       onClick={onClick}
     >
@@ -62,6 +63,25 @@ function ClosetIcon() {
       <img alt="옷장" className="block max-w-none size-full" src={closetIcon} />
     </div>
   );
+}
+
+function FittingIcon() {
+    return (
+        <div className="overflow-clip relative shrink-0 size-6">
+            <svg viewBox="0 0 24 24" fill="none" className="size-full">
+                <path d="M8 4L4 7v4h2v9h12v-9h2V7l-4-3-2 2h-4L8 4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                <path d="M12 11l1.5 1.5L16 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        </div>
+    );
+}
+
+function MessageIcon() {
+    return (
+        <div className="overflow-clip relative shrink-0 size-6">
+            <img alt="메시지" className="block max-w-none size-full" src={messageIcon} />
+        </div>
+    );
 }
 
 function ProfileIcon() {
@@ -109,6 +129,18 @@ const menuItems = [
     icon: <FeedIcon />
   },
   {
+    id: 'virtual-fitting',
+    label: '가상피팅',
+    path: '/virtual-fitting',
+    icon: <FittingIcon />
+  },
+  {
+    id: 'dm',
+    label: '메시지',
+    path: '/dm',
+    icon: <MessageIcon />
+  },
+  {
     id: 'profiles',
     label: '프로필',
     path: '/profiles',
@@ -137,11 +169,11 @@ export default function SideMenu() {
   // 현재 경로에 따라 활성 메뉴 업데이트
   useEffect(() => {
     const currentPath = location.pathname;
-    const activeItem = menuItems.find(item => 
-      currentPath === item.path || 
+    const activeItem = menuItems.find(item =>
+      currentPath === item.path ||
       (item.path !== '/' && currentPath.startsWith(item.path))
     );
-    
+
     if (activeItem) {
       setActiveMenu(activeItem.id);
     }
@@ -161,7 +193,7 @@ export default function SideMenu() {
             <img src={LogoSvg} alt="옷장을 부탁해" className="h-full object-contain" />
           </div>
         </div>
-        
+
         <div className="content-stretch flex flex-col gap-2 items-start justify-start relative shrink-0 w-full mt-[70px]">
           {menuItems
           .filter(item => {
@@ -179,7 +211,7 @@ export default function SideMenu() {
           ))}
         </div>
       </div>
-      
+
       {/* 우측 보더 */}
       <div className="absolute border-r border-gray-200 inset-0 pointer-events-none shadow-[6px_0px_10px_0px_rgba(0,0,0,0.01)]" />
     </div>

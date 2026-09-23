@@ -2,23 +2,33 @@ export type Role = 'USER' | 'ADMIN';
 export type OAuthProvider = 'google' | 'kakao';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER';
 export type SortDirection = 'ASCENDING' | 'DESCENDING';
-export type ClothesType = 
-  | 'TOP' 
-  | 'BOTTOM' 
-  | 'DRESS' 
-  | 'OUTER' 
-  | 'UNDERWEAR' 
-  | 'ACCESSORY' 
-  | 'SHOES' 
-  | 'SOCKS' 
-  | 'HAT' 
-  | 'BAG' 
-  | 'SCARF' 
+export type ClothesType =
+  | 'TOP'
+  | 'BOTTOM'
+  | 'DRESS'
+  | 'OUTER'
+  | 'UNDERWEAR'
+  | 'ACCESSORY'
+  | 'SHOES'
+  | 'SOCKS'
+  | 'HAT'
+  | 'BAG'
+  | 'SCARF'
   | 'ETC';
 export type SkyStatus = 'CLEAR' | 'MOSTLY_CLOUDY' | 'CLOUDY';
 export type PrecipitationType = 'NONE' | 'RAIN' | 'RAIN_SNOW' | 'SNOW' | 'SHOWER';
 export type WindStrength = 'WEAK' | 'MODERATE' | 'STRONG';
+export type NotificationType =
+    | 'ROLE_CHANGED'
+    | 'CLOTHES_ATTRIBUTE_ADDED'
+    | 'FEED_LIKED'
+    | 'FEED_COMMENTED'
+    | 'FOLLOW_CREATED'
+    | 'FEED_CREATED'
+    | 'DM_RECEIVED'
+    | 'VIRTUAL_TRY_ON_COMPLETED';
 export type NotificationLevel = 'INFO' | 'WARNING' | 'ERROR';
+export type VirtualTryOnJobStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 
 export interface ErrorResponse {
   exceptionName: string;
@@ -125,6 +135,7 @@ export interface ClothesAttributeDefDto {
   createdAt: string;
   name: string;
   selectableValues: string[];
+  selectableValueIds?: string[];
 }
 
 export interface ClothesDto {
@@ -134,6 +145,32 @@ export interface ClothesDto {
   imageUrl?: string;
   type: ClothesType;
   attributes: ClothesAttributeWithDefDto[];
+}
+
+export type ClothesExtractionSource =
+  | 'STRUCTURED_DATA'
+  | 'PAGE_TEXT'
+  | 'DETAIL_IMAGE';
+
+export interface ExtractedClothesAttributeDto {
+  definitionId: string;
+  definitionName: string;
+  value: string;
+  evidence: string;
+  source: ClothesExtractionSource;
+}
+
+export interface ClothesExtractionFailureDto {
+  field: string;
+  reason: string;
+}
+
+export interface ClothesExtractionDto {
+  name?: string;
+  type?: ClothesType;
+  attributes: ExtractedClothesAttributeDto[];
+  imageUrl?: string;
+  failures: ClothesExtractionFailureDto[];
 }
 
 export interface OotdDto {
@@ -184,15 +221,43 @@ export interface RecommendationDto {
   weatherId: string;
   userId: string;
   clothes: OotdDto[];
+  reason?: string;
+}
+
+// Pinterest 코디 참고 사진. 서버의 pinterest.tag enum 이름과 같아야 한다.
+export type StyleTag = 'MINIMAL' | 'STREET' | 'CASUAL' | 'CLASSIC' | 'FORMAL' | 'SPORTY';
+export type TempBand = 'T28UP' | 'T23_27' | 'T20_22' | 'T17_19' | 'T12_16' | 'T9_11' | 'T5_8' | 'T4DOWN';
+export type SkyTag = 'CLEAR' | 'CLOUDY' | 'RAIN' | 'SNOW';
+
+export interface OutfitReferenceDto {
+  pinId: string;
+  imageUrl: string;
+  /** 원본 핀 주소. 사진마다 반드시 이 주소로 연결한다 */
+  pinUrl: string;
+  link: string | null;
+  title: string | null;
+  styles: StyleTag[];
+}
+
+export interface OutfitReferencesDto {
+  weatherId: string;
+  /** 이번 검색에 쓴 조건. 실제 검색은 앞뒤 기온 구간까지 넓혀서 한다 */
+  tempBand: TempBand;
+  sky: SkyTag;
+  /** Pinterest 동기화 전이거나 조건에 맞는 핀이 없으면 비어 있다 */
+  references: OutfitReferenceDto[];
 }
 
 export interface NotificationDto {
   id: string;
   createdAt: string;
   receiverId: string;
+  actorId: string | null;
   title: string;
   content: string;
   level: NotificationLevel;
+  type: NotificationType;
+  relatedEntityId: string | null;
 }
 
 export interface DirectMessageDto {
@@ -201,6 +266,21 @@ export interface DirectMessageDto {
   sender: UserSummary;
   receiver: UserSummary;
   content: string;
+}
+
+export interface DmConversationDto {
+    messageId: string;
+    lastMessageAt: string;
+    lastMessageContent: string;
+    partner: UserSummary;
+}
+
+export interface VirtualTryOnJobDto {
+    jobId: string;
+    status: VirtualTryOnJobStatus;
+    resultImageUrl: string | null;
+    failureReason: string | null;
+    retryable: boolean;
 }
 
 export interface JwtDto {
@@ -275,6 +355,7 @@ export interface ClothesCreateRequest {
   name: string;
   type: ClothesType;
   attributes: ClothesAttributeDto[];
+  sourceImageUrl?: string;
 }
 
 export interface ClothesUpdateRequest {
@@ -296,6 +377,12 @@ export interface ClothesAttributeDefUpdateRequest {
 export interface FollowCreateRequest {
   followeeId: string;
   followerId: string;
+}
+
+export interface VirtualTryOnRequest {
+    topClothesId: string;
+    bottomClothesId: string;
+    additionalClothesId?: string | null;
 }
 
 export interface CursorParams {
@@ -328,7 +415,7 @@ export interface ClothesListParams extends CursorParams {
   ownerId: string;
 }
 
-export interface ClothesAttributeDefListParams extends SortParams{
+export interface ClothesAttributeDefListParams extends CursorParams, SortParams {
   sortBy: "createdAt" | "name";
   keywordLike?: string;
 }
@@ -352,6 +439,12 @@ export interface WeatherParams {
 
 export interface RecommendationParams {
   weatherId: string;
+}
+
+export interface OutfitReferenceParams {
+  weatherId: string;
+  styles?: StyleTag[];
+  limit?: number;
 }
 
 export interface DirectMessageParams extends CursorParams {

@@ -1,0 +1,27 @@
+# Prometheus 수집 설정 (로컬 개발용)
+#
+# 앱은 컨테이너가 아니라 호스트에서 bootRun 으로 뜨는 경우가 많아서
+# host.docker.internal 로 호스트를 가리킨다. 리눅스에는 이 이름이 기본으로 없어
+# docker-compose.yml 에서 extra_hosts 로 만들어준다.
+
+global:
+  # 15초. 더 짧게 잡으면 로컬에서 CPU 만 먹고, 더 길면 그래프가 뚝뚝 끊겨 보인다.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: local
+
+scrape_configs:
+  - job_name: otboo-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          application: otboo-api
+
+  # 배치는 단독 실행 후 종료돼서 Prometheus 가 긁어갈 시점에 살아 있지 않다.
+  # 배치 지표는 Pushgateway 나 잡 완료 시각 기록이 필요하다(후속 작업).
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

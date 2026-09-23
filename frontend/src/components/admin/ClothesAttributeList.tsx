@@ -1,6 +1,7 @@
 import {useEffect} from "react";
 import {useClothesAttributeDefStore} from "@/lib/stores/useClothesAttributeDefStore";
 import {type ClothesAttributeDefDto} from "@/lib/api/types";
+import {useInfiniteScroll} from "@/lib/hooks/useInfiniteScroll";
 import {
   Table,
   TableBody,
@@ -17,12 +18,24 @@ interface ClothesAttributeListProps {
 }
 
 export default function ClothesAttributeList({ onItemClick }: ClothesAttributeListProps) {
-  const { data: attributes, loading, fetch, params, updateParams } = useClothesAttributeDefStore();
+  const {
+    data: attributes,
+    loading,
+    fetch,
+    fetchMore,
+    hasNext,
+    params,
+    updateParams,
+  } = useClothesAttributeDefStore();
 
-  // params가 변경될 때마다 fetch 호출
+  const { ref: scrollRef } = useInfiniteScroll({
+    onLoadMore: () => fetchMore(),
+  });
+
+  // 최초 진입 시 목록 조회. 검색·정렬 변경은 스토어의 updateParams가 재조회한다.
   useEffect(() => {
     fetch();
-  }, [params, fetch]);
+  }, [fetch]);
 
   const handleSort = (field: 'name' | 'createdAt') => {
     const currentSortBy = params.sortBy;
@@ -59,7 +72,7 @@ export default function ClothesAttributeList({ onItemClick }: ClothesAttributeLi
     });
   };
 
-  if (loading) {
+  if (loading && attributes.length === 0) {
     return (
       <div className="px-5">
         <div className="flex items-center justify-center h-32 w-full">
@@ -165,8 +178,18 @@ export default function ClothesAttributeList({ onItemClick }: ClothesAttributeLi
                 </TableCell>
               </TableRow>
             ))}
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={3} className="px-5">
+                  <div className="flex items-center justify-center h-16 w-full">
+                    <p className="text-[#575765] text-[14px] font-['SUIT:SemiBold',_sans-serif]">더 불러오는 중...</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
+        {hasNext() && <div ref={scrollRef} className="w-full h-1 mt-4" />}
       </div>
     </div>
   );

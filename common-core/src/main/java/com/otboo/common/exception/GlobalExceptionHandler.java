@@ -1,5 +1,6 @@
 package com.otboo.common.exception;
 
+import com.otboo.common.logging.SafeExceptionLog;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -31,7 +33,7 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = e.getErrorCode();
         // 5xx 만 스택트레이스를 남긴다. 4xx 는 정상적인 사용자 오류라 로그를 오염시킨다.
         if (errorCode.getStatus().is5xxServerError()) {
-            log.error("[{}] {}", errorCode.getCode(), e.getMessage(), e);
+            log.error("[{}] {}", errorCode.getCode(), errorCode.getMessage(), SafeExceptionLog.sanitized(e));
         } else {
             log.warn("[{}] {} {}", errorCode.getCode(), e.getMessage(), e.getDetails());
         }
@@ -81,12 +83,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * SSE 등 스트리밍 연결에서 클라이언트가 이미 끊은 뒤 서버가 거기에 쓰려고 할 때 발생.
+     * 이미 못 쓰는 연결이라 무엇을 반환해도 실패하므로, 응답 시도 자체를 하지 않고 조용히 넘어간다.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException e) {
+        // 이미 끊긴 연결이라 응답을 시도하지 않고 그냥 넘어간다
+    }
+
+    /**
      * 마지막 방어선. 예상 못한 예외의 내부 메시지를 그대로 내보내면 구현 정보가 샌다.
      * 상세는 로그에만 남기고 응답에는 고정 메시지를 준다.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception e) {
-        log.error("[{}] 처리되지 않은 예외", CommonErrorCode.INTERNAL_ERROR.getCode(), e);
+        log.error("[{}] 처리되지 않은 예외", CommonErrorCode.INTERNAL_ERROR.getCode(), SafeExceptionLog.sanitized(e));
         return build(CommonErrorCode.INTERNAL_ERROR, Map.of());
     }
 

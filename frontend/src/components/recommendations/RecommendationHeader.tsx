@@ -1,14 +1,19 @@
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import hangerIcon from '@/assets/icons/il_hanger.svg';
 import refreshIcon from '@/assets/icons/ic_refresh.svg';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
+import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
 import AddFeedModal from './AddFeedModal';
+import OutfitReferenceModal from './OutfitReferenceModal';
 import FeedDetailModal from "@/components/feeds/FeedDetailModal.tsx";
 import type {FeedDto} from "@/lib/api";
 
 export default function RecommendationHeader() {
-  const {loading, fetch} = useRecommendationStore();
+  const {loading, fetchAlternative} = useRecommendationStore();
+  const {selectedWeather} = useWeatherStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const [createdFeed, setCreatedFeed] = useState<FeedDto | undefined>();
 
   const handleRegister = () => {
@@ -16,7 +21,11 @@ export default function RecommendationHeader() {
   }
 
   const handleRefresh = () => {
-    fetch();
+    fetchAlternative();
+  }
+
+  const handleStyleRecommend = () => {
+    setIsStyleModalOpen(true);
   }
 
   return (
@@ -38,6 +47,18 @@ export default function RecommendationHeader() {
 
       {/* 버튼 섹션 */}
       <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+        {/* 스타일 추천 버튼 */}
+        <button
+          type="button"
+          className="bg-white box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-gray-50 transition-colors border border-[#d4d4d9] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]"
+          onClick={handleStyleRecommend}
+        >
+          <div className="font-semibold leading-none not-italic relative shrink-0 text-[#696975] text-[16px] text-nowrap tracking-[-0.4px]">
+            <p className="leading-normal whitespace-pre">스타일 추천</p>
+          </div>
+          <Sparkles className="size-5 text-[#696975]" aria-hidden="true" />
+        </button>
+
         {/* 다른 옷 추천 버튼 */}
         <button
           className="bg-white box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-[#d4d4d9] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]"
@@ -68,6 +89,12 @@ export default function RecommendationHeader() {
         open={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
         onCreated={setCreatedFeed}
+      />
+      {/* 스타일 추천(코디 참고 사진) 모달 */}
+      <OutfitReferenceModal
+        open={isStyleModalOpen}
+        onClose={() => setIsStyleModalOpen(false)}
+        weatherId={selectedWeather?.id}
       />
       {/* 피드 상세 모달 */}
       {

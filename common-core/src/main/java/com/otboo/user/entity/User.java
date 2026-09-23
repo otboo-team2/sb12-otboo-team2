@@ -54,6 +54,11 @@ public class User extends BaseEntity {
         this.password = encodedPassword;
     }
 
+    /** 이름은 계정에만 둔다. 프로필 수정 화면에서 바꿔도 최종적으로 여기가 바뀐다. */
+    public void changeName(String name) {
+        this.name = name;
+    }
+
     public void changeRole(Role role) {
         this.role = role;
     }
