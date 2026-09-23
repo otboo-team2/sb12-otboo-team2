@@ -2,13 +2,7 @@ package com.otboo.sse;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import com.otboo.notification.broadcast.NotificationBroadcastMessage;
 import com.otboo.notification.entity.NotificationLevel;
@@ -23,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -128,6 +123,49 @@ class SseDeliveryServiceTest {
 
             verify(dead).complete();
             verify(healthy, never()).complete();
+        }
+    }
+
+    @Nested
+    @DisplayName("deliver — 전송 실패")
+    class DeliverSendFailure {
+
+        @Test
+        @DisplayName("전송에 실패하면 emitter를 제거한다")
+        void removesEmitterWhenSendFails() throws IOException {
+            UUID receiverId = UUID.randomUUID();
+            NotificationBroadcastMessage data = notification(receiverId);
+            SseEmitter emitter = mock(SseEmitter.class);
+            doThrow(new IOException("연결 끊김")).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
+            when(sseMessageRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(sseEmitterRepository.findByUserId(receiverId)).thenReturn(emitter);
+
+            sseDeliveryService.deliver(data);
+
+            verify(sseEmitterRepository).remove(receiverId, emitter);
+        }
+    }
+
+    @Nested
+    @DisplayName("connect — 놓친 메시지 여러 건 replay")
+    class ConnectReplaysMultipleMessages {
+
+        @Test
+        @DisplayName("놓친 메시지가 여러 건이면 모두 전송한다")
+        void replaysAllMissedMessages() throws IOException {
+            UUID receiverId = UUID.randomUUID();
+            UUID lastEventId = UUID.randomUUID();
+            SseMessage first = SseMessage.of(notification(receiverId));
+            SseMessage second = SseMessage.of(notification(receiverId));
+            when(sseMessageRepository.findAllAfter(lastEventId, receiverId))
+                .thenReturn(List.of(first, second));
+
+            try (MockedConstruction<SseEmitter> mocked = mockConstruction(SseEmitter.class)) {
+                sseDeliveryService.connect(receiverId, lastEventId);
+
+                SseEmitter createdEmitter = mocked.constructed().get(0);
+                verify(createdEmitter, times(2)).send(any(SseEmitter.SseEventBuilder.class));
+            }
         }
     }
 }
