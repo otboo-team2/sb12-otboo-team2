@@ -33,7 +33,7 @@ otboo:
 
 sse:
   timeout: 1800000            # 30분
-  event-queue-capacity: 1000  # 재연결 replay용 버퍼, 서버 전체 공용
+  event-queue-capacity: 50    # 유저 1명당 용량
   heartbeat-interval: 20000   # 20초
 
 ---

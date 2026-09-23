@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 import com.otboo.notification.entity.NotificationType;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +36,9 @@ class SseDeliveryServiceTest {
     void setUp() {
         sseEmitterRepository = mock(SseEmitterRepository.class);
         sseMessageRepository = mock(SseMessageRepository.class);
-        sseDeliveryService = new SseDeliveryService(sseEmitterRepository, sseMessageRepository);
+        Executor eventTaskExecutor = Runnable::run;
+        sseDeliveryService = new SseDeliveryService(
+            sseEmitterRepository, sseMessageRepository, eventTaskExecutor);
         ReflectionTestUtils.setField(sseDeliveryService, "timeout", 1_800_000L);
     }
 
