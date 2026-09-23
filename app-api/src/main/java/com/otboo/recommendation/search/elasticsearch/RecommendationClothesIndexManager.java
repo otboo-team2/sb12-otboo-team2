@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
 import co.elastic.clients.elasticsearch.indices.ExistsAliasRequest;
+import co.elastic.clients.elasticsearch.indices.GetAliasRequest;
 import co.elastic.clients.elasticsearch.indices.UpdateAliasesRequest;
 import co.elastic.clients.elasticsearch.indices.RefreshRequest;
 import co.elastic.clients.elasticsearch._types.FieldValue;
@@ -12,6 +13,7 @@ import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import java.util.List;
+import java.util.Set;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -42,7 +44,7 @@ public class RecommendationClothesIndexManager {
     }
 
     public String physicalIndexName() {
-        return alias() + "-v1";
+        return alias() + "-v2";
     }
 
     public boolean exists() throws IOException {
@@ -50,27 +52,67 @@ public class RecommendationClothesIndexManager {
     }
 
     /** 인덱스가 없을 때만 명시한 매핑으로 생성한다. */
-    public boolean createIndexIfMissing() throws IOException {
-        if (client.indices().existsAlias(ExistsAliasRequest.of(a -> a.name(alias()))).value()) {
+    public synchronized boolean createIndexIfMissing() throws IOException {
+        boolean aliasExists = client.indices()
+                .existsAlias(ExistsAliasRequest.of(a -> a.name(alias()))).value();
+        Set<String> aliasedIndices = aliasExists
+                ? client.indices().getAlias(GetAliasRequest.of(a -> a.name(alias()))).result().keySet()
+                : Set.of();
+        if (aliasedIndices.contains(physicalIndexName())) {
             return false;
         }
-        if (!exists()) {
-            try (Reader mapping = mappingReader()) {
-                // 인덱스와 alias를 함께 생성해 중간 상태를 남기지 않는다.
-                client.indices().create(CreateIndexRequest.of(request -> request
-                        .index(physicalIndexName()).withJson(mapping).aliases(alias(), a -> a)));
-                log.info("추천 의상 Elasticsearch 인덱스를 생성했다. index={}, alias={}", physicalIndexName(), alias());
-                return true;
-            } catch (ElasticsearchException e) {
-                if (!"resource_already_exists_exception".equals(e.error().type()) || !exists()) {
-                    throw e;
-                }
+
+        boolean created = createPhysicalIndexIfMissing(!aliasExists);
+        if (!aliasExists) {
+            if (!created) {
+                attachAlias();
             }
+            return created;
         }
-        // 이전 버전에서 물리 인덱스만 생성했거나 다른 인스턴스가 먼저 생성한 경우.
+
+        // 기존 alias는 복사와 원자적 전환이 끝날 때까지 계속 서비스한다.
+        var reindex = client.reindex(request -> request
+                .source(source -> source.index(alias()))
+                .dest(destination -> destination.index(physicalIndexName()))
+                .refresh(true)
+                .waitForCompletion(true));
+        if (Boolean.TRUE.equals(reindex.timedOut()) || !reindex.failures().isEmpty()) {
+            throw new IOException("추천 의상 인덱스 버전 복사 실패");
+        }
+        UpdateAliasesRequest.Builder aliases = new UpdateAliasesRequest.Builder();
+        aliasedIndices.forEach(index -> aliases.actions(action -> action
+                .remove(remove -> remove.index(index).alias(alias()))));
+        aliases.actions(action -> action.add(add -> add.index(physicalIndexName()).alias(alias())));
+        client.indices().updateAliases(aliases.build());
+        log.info("추천 의상 Elasticsearch alias를 새 버전으로 전환했다. index={}, alias={}",
+                physicalIndexName(), alias());
+        return true;
+    }
+
+    private boolean createPhysicalIndexIfMissing(boolean attachAlias) throws IOException {
+        if (exists()) {
+            return false;
+        }
+        try (Reader mapping = mappingReader()) {
+            CreateIndexRequest.Builder request = new CreateIndexRequest.Builder()
+                    .index(physicalIndexName()).withJson(mapping);
+            if (attachAlias) {
+                request.aliases(alias(), alias -> alias);
+            }
+            client.indices().create(request.build());
+            log.info("추천 의상 Elasticsearch 인덱스를 생성했다. index={}", physicalIndexName());
+            return true;
+        } catch (ElasticsearchException e) {
+            if (!"resource_already_exists_exception".equals(e.error().type()) || !exists()) {
+                throw e;
+            }
+            return false;
+        }
+    }
+
+    private void attachAlias() throws IOException {
         client.indices().updateAliases(UpdateAliasesRequest.of(r -> r.actions(a -> a
                 .add(add -> add.index(physicalIndexName()).alias(alias())))));
-        return false;
     }
 
     public void refresh() throws IOException {

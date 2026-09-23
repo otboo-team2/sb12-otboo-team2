@@ -38,8 +38,9 @@ class RecommendationClothesLogSecurityTest {
     private final ClothesService clothes = mock(ClothesService.class);
     private final ElasticsearchClient es = mock(ElasticsearchClient.class);
     private final RecommendationClothesEmbeddingService embeddings = mock(RecommendationClothesEmbeddingService.class);
+    private final RecommendationClothesMetadataAnalyzer metadata = mock(RecommendationClothesMetadataAnalyzer.class);
     private final RecommendationClothesIndexManager manager = mock(RecommendationClothesIndexManager.class);
-    private final RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(es, clothes, embeddings, manager);
+    private final RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(es, clothes, metadata, embeddings, manager);
     private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
     private final List<Logger> loggers = List.of(
             (Logger) LoggerFactory.getLogger(RecommendationClothesIndexer.class),
@@ -53,6 +54,7 @@ class RecommendationClothesLogSecurityTest {
         when(manager.alias()).thenReturn("recommendation-clothes");
         when(clothes.findForRecommendation(id)).thenReturn(List.of(new ClothesDto(id, UUID.randomUUID(), "test", null, ClothesType.TOP, false, List.of())));
         when(embeddings.embed(any())).thenReturn(List.of(0.1f));
+        when(metadata.analyze(any())).thenReturn(RecommendationClothesMetadata.EMPTY);
         var factory = new ExternalApiClientFactory(new ExternalApiProperties(null, Map.of())) {
             @Override public ExternalApiClient create(String name, HttpClient.Redirect redirect, Consumer<RestClient.Builder> customizer) {
                 return super.create(name, redirect, b -> { customizer.accept(b); server = MockRestServiceServer.bindTo(b).build(); });

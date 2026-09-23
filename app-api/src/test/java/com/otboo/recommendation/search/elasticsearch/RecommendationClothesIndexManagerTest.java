@@ -11,6 +11,7 @@ import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.endpoints.BooleanResponse;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -38,12 +39,13 @@ class RecommendationClothesIndexManagerTest {
         verify(indices).create(captor.capture());
         var request = captor.getValue();
         assertThat(manager.indexName()).isEqualTo("recommendation-clothes");
-        assertThat(request.index()).isEqualTo("recommendation-clothes-v1");
+        assertThat(request.index()).isEqualTo("recommendation-clothes-v2");
         assertThat(request.aliases()).containsKey(manager.alias());
         assertThat(request.mappings().dynamic().jsonValue()).isEqualTo("strict");
         var fields = request.mappings().properties();
-        assertThat(fields).containsOnlyKeys("clothesId", "ownerId", "type", "content", "embedding");
-        for (String name : new String[]{"clothesId", "ownerId", "type"}) {
+        assertThat(fields).containsOnlyKeys("clothesId", "ownerId", "type", "content",
+                "inferredStyles", "formality", "occasions", "embedding");
+        for (String name : new String[]{"clothesId", "ownerId", "type", "inferredStyles", "formality", "occasions"}) {
             assertThat(fields.get(name).isKeyword()).isTrue();
         }
         assertThat(fields.get("content").text().analyzer()).isEqualTo("korean");
@@ -59,9 +61,44 @@ class RecommendationClothesIndexManagerTest {
     @Test
     void existingAliasIsNotReassigned() throws IOException {
         when(indices.existsAlias(any(ExistsAliasRequest.class))).thenReturn(new BooleanResponse(true));
+        when(indices.getAlias(any(GetAliasRequest.class))).thenReturn(GetAliasResponse.of(response -> response
+                .result("recommendation-clothes-v2", value -> value
+                        .aliases("recommendation-clothes", alias -> alias))));
         assertThat(manager.createIndexIfMissing()).isFalse();
         verify(indices, never()).create(any(CreateIndexRequest.class));
         verify(indices, never()).updateAliases(any(UpdateAliasesRequest.class));
+    }
+
+    @Test
+    void existingV1AliasIsCopiedThenAtomicallyMovedToV2() throws IOException {
+        when(indices.existsAlias(any(ExistsAliasRequest.class))).thenReturn(new BooleanResponse(true));
+        when(indices.getAlias(any(GetAliasRequest.class))).thenReturn(GetAliasResponse.of(response -> response
+                .result("recommendation-clothes-v1", value -> value
+                        .aliases("recommendation-clothes", alias -> alias))));
+        when(client.reindex(any(java.util.function.Function.class)))
+                .thenReturn(co.elastic.clients.elasticsearch.core.ReindexResponse.of(response -> response
+                        .timedOut(false).failures(List.of())));
+
+        assertThat(manager.createIndexIfMissing()).isTrue();
+
+        var create = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        verify(indices).create(create.capture());
+        assertThat(create.getValue().index()).isEqualTo("recommendation-clothes-v2");
+        assertThat(create.getValue().aliases()).isEmpty();
+        var reindex = ArgumentCaptor.forClass(java.util.function.Function.class);
+        verify(client).reindex(reindex.capture());
+        var reindexRequest = ((java.util.function.Function<co.elastic.clients.elasticsearch.core.ReindexRequest.Builder,
+                co.elastic.clients.util.ObjectBuilder<co.elastic.clients.elasticsearch.core.ReindexRequest>>)
+                reindex.getValue()).apply(new co.elastic.clients.elasticsearch.core.ReindexRequest.Builder()).build();
+        assertThat(reindexRequest.source().index()).containsExactly("recommendation-clothes");
+        assertThat(reindexRequest.dest().index()).isEqualTo("recommendation-clothes-v2");
+        var aliases = ArgumentCaptor.forClass(UpdateAliasesRequest.class);
+        verify(indices).updateAliases(aliases.capture());
+        assertThat(aliases.getValue().actions()).hasSize(2);
+        assertThat(aliases.getValue().actions().get(0).remove().index())
+                .isEqualTo("recommendation-clothes-v1");
+        assertThat(aliases.getValue().actions().get(1).add().index())
+                .isEqualTo("recommendation-clothes-v2");
     }
 
     @Test
@@ -176,7 +213,7 @@ class RecommendationClothesIndexManagerTest {
         var captor = ArgumentCaptor.forClass(UpdateAliasesRequest.class);
         verify(indices).updateAliases(captor.capture());
         var add = captor.getValue().actions().getFirst().add();
-        assertThat(add.index()).isEqualTo("recommendation-clothes-v1");
+        assertThat(add.index()).isEqualTo("recommendation-clothes-v2");
         assertThat(add.alias()).isEqualTo("recommendation-clothes");
     }
 

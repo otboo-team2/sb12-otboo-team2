@@ -11,6 +11,8 @@ import com.otboo.clothes.ClothesService;
 import com.otboo.clothes.dto.ClothesDto;
 import com.otboo.clothes.entity.ClothesType;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
+import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -23,8 +25,9 @@ class RecommendationClothesIndexerConcurrencyTest {
     private final ElasticsearchClient client = mock(ElasticsearchClient.class);
     private final ClothesService clothes = mock(ClothesService.class);
     private final RecommendationClothesEmbeddingService embeddings = mock(RecommendationClothesEmbeddingService.class);
+    private final RecommendationClothesMetadataAnalyzer metadata = mock(RecommendationClothesMetadataAnalyzer.class);
     private final RecommendationClothesIndexManager manager = mock(RecommendationClothesIndexManager.class);
-    private final RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(client, clothes, embeddings, manager);
+    private final RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(client, clothes, metadata, embeddings, manager);
 
     @Test
     void laterUpdateMustNotBeOverwrittenBySlowEarlierEmbedding() throws Exception {
@@ -37,6 +40,7 @@ class RecommendationClothesIndexerConcurrencyTest {
     }
 
     private void runRace(boolean delete) throws Exception {
+        when(metadata.analyze(any())).thenReturn(RecommendationClothesMetadata.EMPTY);
         CountDownLatch firstEmbedding = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         AtomicReference<ClothesDto> database = new AtomicReference<>(dto("A"));
@@ -84,6 +88,7 @@ class RecommendationClothesIndexerConcurrencyTest {
 
     @Test
     void duplicateEventsUpsertTheSameDocumentId() throws Exception {
+        when(metadata.analyze(any())).thenReturn(RecommendationClothesMetadata.EMPTY);
         when(manager.alias()).thenReturn("recommendation-clothes");
         when(clothes.findForRecommendation(id)).thenReturn(List.of(dto("current")));
         when(embeddings.embed(any())).thenReturn(List.of(0.1f));

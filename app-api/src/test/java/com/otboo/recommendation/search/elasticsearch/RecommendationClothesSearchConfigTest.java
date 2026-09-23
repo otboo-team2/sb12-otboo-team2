@@ -27,13 +27,15 @@ class RecommendationClothesSearchConfigTest {
                 .withBean(com.otboo.clothes.repository.ClothesRepository.class, () -> mock(com.otboo.clothes.repository.ClothesRepository.class))
                 .withBean(com.otboo.recommendation.ai.RecommendationClothesEmbeddingService.class,
                         () -> mock(com.otboo.recommendation.ai.RecommendationClothesEmbeddingService.class))
+                .withBean(com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer.class,
+                        () -> mock(com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer.class))
                 .withPropertyValues("otboo.recommendation.search.enabled=true",
                         "otboo.recommendation.search.index-name=custom-clothes")
                 .run(c -> {
                     assertThat(c).hasNotFailed();
                     var manager = c.getBean(RecommendationClothesIndexManager.class);
                     assertThat(manager.alias()).isEqualTo("custom-clothes");
-                    assertThat(manager.physicalIndexName()).isEqualTo("custom-clothes-v1");
+                    assertThat(manager.physicalIndexName()).isEqualTo("custom-clothes-v2");
                     assertThat(c).hasSingleBean(RecommendationClothesVectorSearch.class);
                     verifyNoInteractions(client);
                 });
