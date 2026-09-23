@@ -216,6 +216,8 @@ class OpenAiRecommendationClientTest {
     void generationSendsOnlyVerifiedClothesAndParsesSelection() throws Exception {
         var clothes = verifiedClothes();
         String id = clothes.getFirst().id().toString();
+        var condition = new RecommendationCondition(
+                RecommendationOccasion.WORK, List.of(), List.of(), List.of());
         server.expect(requestTo("https://api.openai.com/v1/responses"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(request -> {
@@ -227,7 +229,16 @@ class OpenAiRecommendationClientTest {
                     assertThat(input.path("temperature").asDouble()).isEqualTo(25.0);
                     assertThat(input.path("temperatureSensitivity").asInt()).isEqualTo(3);
                     assertThat(input.path("preferredStyles").get(0).asText()).isEqualTo("캐주얼");
+                    assertThat(input.path("requestCondition").path("occasion").asText())
+                            .isEqualTo("WORK");
+                    assertThat(input.path("requestCondition").path("styles")).isEmpty();
+                    assertThat(input.path("requestCondition").path("categories")).isEmpty();
+                    assertThat(input.path("requestCondition").path("keywords")).isEmpty();
                     assertThat(input.path("clothes").get(0).path("clothesId").asText()).isEqualTo(id);
+                    assertThat(body.path("instructions").asText())
+                            .contains("requestCondition은 이번 요청에서 확인된 조건")
+                            .contains("preferredStyles는 저장된 사용자 선호")
+                            .contains("상황을 특정 스타일로 치환하지 않는다");
                     assertThat(body.path("tools").get(0).path("parameters").path("properties")
                             .path("clothesIds").path("items").path("enum").get(0).asText()).isEqualTo(id);
                     assertThat(body.path("store").asBoolean()).isFalse();
@@ -236,10 +247,68 @@ class OpenAiRecommendationClientTest {
                         "{\"clothesIds\":[\"" + id + "\"],\"reason\":\"데이트에 어울립니다\"}"))),
                         MediaType.APPLICATION_JSON));
 
-        var result = client.generate("데이트룩 추천해줘", generationCandidates(clothes), clothes);
+        var result = client.generate(
+                "데이트룩 추천해줘", condition, generationCandidates(clothes), clothes);
 
         assertThat(result.clothesIds()).containsExactly(clothes.getFirst().id());
         assertThat(result.reason()).isEqualTo("데이트에 어울립니다");
+        server.verify();
+    }
+
+    @Test
+    void generationKeepsExplicitStylesSeparateFromStoredPreferences() throws Exception {
+        var clothes = verifiedClothes();
+        String id = clothes.getFirst().id().toString();
+        var condition = new RecommendationCondition(
+                null, List.of("포멀"), List.of(), List.of());
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andExpect(request -> {
+                    var body = objectMapper.readTree(
+                            ((org.springframework.mock.http.client.MockClientHttpRequest) request)
+                                    .getBodyAsString());
+                    var input = objectMapper.readTree(body.path("input").get(0).path("content").asText());
+                    assertThat(input.path("requestCondition").path("styles").size()).isEqualTo(1);
+                    assertThat(input.path("requestCondition").path("styles").get(0).asText())
+                            .isEqualTo("포멀");
+                    assertThat(input.path("preferredStyles").size()).isEqualTo(1);
+                    assertThat(input.path("preferredStyles").get(0).asText()).isEqualTo("캐주얼");
+                })
+                .andRespond(withSuccess(response(List.of(function("select_recommendation_clothes",
+                        "{\"clothesIds\":[\"" + id + "\"],\"reason\":\"추천 이유\"}"))),
+                        MediaType.APPLICATION_JSON));
+
+        client.generate("추천해줘", condition, generationCandidates(clothes), clothes);
+
+        server.verify();
+    }
+
+    @Test
+    void generationPreservesNullOccasionAndExplicitStyleAndCategory() throws Exception {
+        var clothes = verifiedClothes();
+        String id = clothes.getFirst().id().toString();
+        var condition = new RecommendationCondition(
+                null, List.of("캐주얼"), List.of(ClothesType.TOP), List.of());
+        server.expect(requestTo("https://api.openai.com/v1/responses"))
+                .andExpect(request -> {
+                    var body = objectMapper.readTree(
+                            ((org.springframework.mock.http.client.MockClientHttpRequest) request)
+                                    .getBodyAsString());
+                    var requestCondition = objectMapper.readTree(
+                            body.path("input").get(0).path("content").asText()).path("requestCondition");
+                    assertThat(requestCondition.has("occasion")).isTrue();
+                    assertThat(requestCondition.path("occasion").isNull()).isTrue();
+                    assertThat(requestCondition.path("styles").size()).isEqualTo(1);
+                    assertThat(requestCondition.path("styles").get(0).asText()).isEqualTo("캐주얼");
+                    assertThat(requestCondition.path("categories").size()).isEqualTo(1);
+                    assertThat(requestCondition.path("categories").get(0).asText()).isEqualTo("TOP");
+                    assertThat(requestCondition.path("keywords")).isEmpty();
+                })
+                .andRespond(withSuccess(response(List.of(function("select_recommendation_clothes",
+                        "{\"clothesIds\":[\"" + id + "\"],\"reason\":\"추천 이유\"}"))),
+                        MediaType.APPLICATION_JSON));
+
+        client.generate("추천해줘", condition, generationCandidates(clothes), clothes);
+
         server.verify();
     }
 
@@ -253,7 +322,8 @@ class OpenAiRecommendationClientTest {
         expectResponse(response(List.of(function("select_recommendation_clothes", arguments))));
         var clothes = verifiedClothes();
 
-        assertThatThrownBy(() -> client.generate("추천해줘", generationCandidates(clothes), clothes))
+        assertThatThrownBy(() -> client.generate(
+                "추천해줘", emptyCondition(), generationCandidates(clothes), clothes))
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR));
         server.verify();
@@ -267,7 +337,8 @@ class OpenAiRecommendationClientTest {
                 function("select_recommendation_clothes", arguments),
                 function("select_recommendation_clothes", arguments))));
 
-        assertThatThrownBy(() -> client.generate("추천해줘", generationCandidates(clothes), clothes))
+        assertThatThrownBy(() -> client.generate(
+                "추천해줘", emptyCondition(), generationCandidates(clothes), clothes))
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR));
         server.verify();
@@ -276,6 +347,10 @@ class OpenAiRecommendationClientTest {
     private List<ClothesDto> verifiedClothes() {
         return List.of(new ClothesDto(UUID.randomUUID(), UUID.randomUUID(), "셔츠", null,
                 ClothesType.TOP, false, List.of()));
+    }
+
+    private RecommendationCondition emptyCondition() {
+        return new RecommendationCondition(null, List.of(), List.of(), List.of());
     }
 
     private RecommendationCandidates generationCandidates(List<ClothesDto> clothes) {

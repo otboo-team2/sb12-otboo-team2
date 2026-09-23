@@ -2,6 +2,7 @@ package com.otboo.recommendation.ai;
 
 import com.otboo.recommendation.RecommendationDto;
 import com.otboo.recommendation.RecommendationCandidates;
+import com.otboo.recommendation.OotdCombinationPolicy;
 import com.otboo.recommendation.RecommendationService;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
@@ -41,7 +42,13 @@ public class AiRecommendationService {
         }
 
         // MySQL 조회와 날씨 필터는 외부 AI 오류 처리 범위 밖에서 수행한다.
-        RecommendationCandidates candidates = recommendationService.findCandidates(userId, request.weatherId());
+        RecommendationCandidates found = recommendationService.findCandidates(userId, request.weatherId());
+        Set<UUID> excludedIds = Set.copyOf(request.excludeClothesIds());
+        RecommendationCandidates candidates = new RecommendationCandidates(
+                found.weatherId(), found.userId(), found.temperature(), found.precipitationType(),
+                found.temperatureSensitivity(), found.preferredStyles(), found.clothes().stream()
+                        .filter(clothes -> !excludedIds.contains(clothes.id()))
+                        .toList());
         RecommendationDto basic = recommendationService.recommend(candidates);
         if (candidates.clothes().isEmpty()) {
             return basic;
@@ -52,8 +59,9 @@ public class AiRecommendationService {
         }
         List<UUID> candidateIds = candidates.clothes().stream().map(clothes -> clothes.id()).toList();
         List<UUID> retrievedIds = List.of();
+        RecommendationCondition condition = null;
         try {
-            RecommendationCondition condition = openAiRecommendationClient.extractCondition(request.prompt());
+            condition = openAiRecommendationClient.extractCondition(request.prompt());
             var vector = queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles());
             retrievedIds = search.search(userId, candidateIds, vector);
             if (condition != null) {
@@ -84,16 +92,22 @@ public class AiRecommendationService {
         }
         try {
             RecommendationGenerationResult generated = openAiRecommendationClient.generate(
-                    request.prompt(), candidates, verifiedClothes);
+                    request.prompt(), condition, candidates, verifiedClothes);
             if (generated == null || generated.clothesIds().isEmpty()
                     || generated.reason() == null || generated.reason().isBlank()
                     || generated.clothesIds().size() != Set.copyOf(generated.clothesIds()).size()
-                    || !Set.copyOf(verifiedIds).containsAll(generated.clothesIds())) {
+                    || !Set.copyOf(verifiedIds).containsAll(generated.clothesIds())
+                    || generated.clothesIds().stream().anyMatch(excludedIds::contains)) {
                 log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
                 return basic;
             }
-            List<OotdDto> clothes = generated.clothesIds().stream()
-                    .map(id -> toOotd(candidatesById.get(id))).toList();
+            List<ClothesDto> generatedClothes = generated.clothesIds().stream()
+                    .map(candidatesById::get).toList();
+            if (!OotdCombinationPolicy.isValid(generatedClothes)) {
+                log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
+                return basic;
+            }
+            List<OotdDto> clothes = generatedClothes.stream().map(AiRecommendationService::toOotd).toList();
             return new RecommendationDto(candidates.weatherId(), userId, clothes, generated.reason());
         } catch (BusinessException e) {
             if (e.getErrorCode() != CommonErrorCode.EXTERNAL_API_ERROR

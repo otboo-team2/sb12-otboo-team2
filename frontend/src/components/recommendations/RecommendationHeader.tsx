@@ -10,7 +10,7 @@ import FeedDetailModal from "@/components/feeds/FeedDetailModal.tsx";
 import type {FeedDto} from "@/lib/api";
 
 export default function RecommendationHeader() {
-  const {loading, fetch} = useRecommendationStore();
+  const {loading, fetchAlternative} = useRecommendationStore();
   const {selectedWeather} = useWeatherStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
@@ -21,7 +21,7 @@ export default function RecommendationHeader() {
   }
 
   const handleRefresh = () => {
-    fetch();
+    fetchAlternative();
   }
 
   const handleStyleRecommend = () => {

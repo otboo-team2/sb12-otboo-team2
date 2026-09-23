@@ -11,7 +11,6 @@ import com.otboo.user.repository.ProfileRepository;
 import com.otboo.user.preference.UserPreferenceRepository;
 import com.otboo.weather.entity.Weather;
 import com.otboo.weather.repository.WeatherRepository;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -32,7 +31,22 @@ public class RecommendationService {
 
     @Transactional(readOnly = true)
     public RecommendationDto find(UUID userId, UUID weatherId) {
-        return recommend(findCandidates(userId, weatherId));
+        return find(userId, weatherId, List.of());
+    }
+
+    @Transactional(readOnly = true)
+    public RecommendationDto find(UUID userId, UUID weatherId, List<UUID> excludeClothesIds) {
+        RecommendationCandidates candidates = findCandidates(userId, weatherId);
+        if (excludeClothesIds == null || excludeClothesIds.isEmpty()) {
+            return recommend(candidates);
+        }
+        Set<UUID> excludedIds = Set.copyOf(excludeClothesIds);
+        return recommend(new RecommendationCandidates(
+                candidates.weatherId(), candidates.userId(), candidates.temperature(),
+                candidates.precipitationType(), candidates.temperatureSensitivity(),
+                candidates.preferredStyles(), candidates.clothes().stream()
+                        .filter(clothes -> !excludedIds.contains(clothes.id()))
+                        .toList()));
     }
 
     @Transactional(readOnly = true)
@@ -67,12 +81,12 @@ public class RecommendationService {
 
     /** DB 재조회 없이 동일 후보로 기존 규칙 기반 추천을 구성한다. */
     public RecommendationDto recommend(RecommendationCandidates candidates) {
-        Set<ClothesType> selectedTypes = EnumSet.noneOf(ClothesType.class);
-        List<OotdDto> clothes = candidates.clothes().stream()
+        List<ClothesDto> orderedCandidates = candidates.clothes().stream()
                 .sorted((left, right) -> Boolean.compare(
                         matchesStyle(right, candidates.preferredStyles()),
                         matchesStyle(left, candidates.preferredStyles())))
-                .filter(item -> selectedTypes.add(item.type()))
+                .toList();
+        List<OotdDto> clothes = OotdCombinationPolicy.select(orderedCandidates).stream()
                 .map(RecommendationService::toOotd)
                 .toList();
 

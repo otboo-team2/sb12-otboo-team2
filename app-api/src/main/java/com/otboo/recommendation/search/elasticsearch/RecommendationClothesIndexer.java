@@ -10,6 +10,7 @@ import com.otboo.common.logging.SafeExceptionLog;
 import com.otboo.clothes.ClothesService;
 import com.otboo.clothes.dto.ClothesDto;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
+import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class RecommendationClothesIndexer {
 
     private final ElasticsearchClient client;
     private final ClothesService clothesService;
+    private final RecommendationClothesMetadataAnalyzer metadataAnalyzer;
     private final RecommendationClothesEmbeddingService embeddingService;
     private final RecommendationClothesIndexManager indexManager;
 
@@ -50,9 +52,11 @@ public class RecommendationClothesIndexer {
                 return delete(clothesId);
             }
 
+            stage = "metadata";
+            var metadata = metadataAnalyzer.analyze(clothes.getFirst());
             stage = "document";
             RecommendationClothesDocument document =
-                    RecommendationClothesDocument.of(clothes.getFirst());
+                    RecommendationClothesDocument.of(clothes.getFirst(), metadata);
             stage = "embedding";
             List<Float> embedding = embeddingService.embed(document);
             RecommendationClothesDocument indexed = new RecommendationClothesDocument(
@@ -60,6 +64,9 @@ public class RecommendationClothesIndexer {
                     document.ownerId(),
                     document.type(),
                     document.content(),
+                    document.inferredStyles(),
+                    document.formality(),
+                    document.occasions(),
                     embedding);
             stage = "es_upsert";
             client.index(IndexRequest.of(request -> request

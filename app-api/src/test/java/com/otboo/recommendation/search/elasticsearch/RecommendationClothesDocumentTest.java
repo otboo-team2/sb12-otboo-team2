@@ -6,6 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.otboo.clothes.dto.ClothesAttributeWithDefDto;
 import com.otboo.clothes.dto.ClothesDto;
 import com.otboo.clothes.entity.ClothesType;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
+import com.otboo.recommendation.ai.RecommendationFormality;
+import com.otboo.recommendation.ai.RecommendationOccasion;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -26,9 +29,10 @@ class RecommendationClothesDocumentTest {
         assertThat(document.ownerId()).isEqualTo(owner.toString());
         assertThat(document.embedding()).isNull();
         var json = new ObjectMapper().valueToTree(document);
-        assertThat(json.size()).isEqualTo(5);
+        assertThat(json.size()).isEqualTo(8);
         assertThat(json.has("clothesId") && json.has("ownerId") && json.has("type")
-                && json.has("content") && json.has("embedding")).isTrue();
+                && json.has("content") && json.has("inferredStyles") && json.has("formality")
+                && json.has("occasions") && json.has("embedding")).isTrue();
     }
 
     @Test
@@ -36,5 +40,22 @@ class RecommendationClothesDocumentTest {
         var clothes = new ClothesDto(UUID.randomUUID(), UUID.randomUUID(), "셔츠", null,
                 ClothesType.TOP, false, List.of());
         assertThat(RecommendationClothesDocument.contentOf(clothes)).isEqualTo("셔츠 타입:TOP");
+    }
+
+    @Test
+    void metadataIsStoredAndAddedToEmbeddingContentOnlyWhenPresent() {
+        var clothes = new ClothesDto(UUID.randomUUID(), UUID.randomUUID(), "로퍼", null,
+                ClothesType.SHOES, false, List.of());
+        var metadata = new RecommendationClothesMetadata(
+                List.of("포멀", "클래식"), RecommendationFormality.HIGH,
+                List.of(RecommendationOccasion.FORMAL, RecommendationOccasion.WORK));
+
+        var document = RecommendationClothesDocument.of(clothes, metadata);
+
+        assertThat(document.inferredStyles()).containsExactly("포멀", "클래식");
+        assertThat(document.formality()).isEqualTo(RecommendationFormality.HIGH);
+        assertThat(document.occasions()).containsExactly(RecommendationOccasion.FORMAL, RecommendationOccasion.WORK);
+        assertThat(document.content()).isEqualTo(
+                "로퍼 타입:SHOES 추론스타일:클래식,포멀 격식도:HIGH 적합상황:WORK,FORMAL");
     }
 }

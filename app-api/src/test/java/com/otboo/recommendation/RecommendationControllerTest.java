@@ -61,7 +61,7 @@ class RecommendationControllerTest {
         UUID userId = UUID.randomUUID();
         UUID weatherId = UUID.randomUUID();
         UUID clothesId = UUID.randomUUID();
-        given(recommendationService.find(userId, weatherId)).willReturn(
+        given(recommendationService.find(userId, weatherId, null)).willReturn(
                 new RecommendationDto(weatherId, userId,
                         List.of(new com.otboo.feed.dto.OotdDto(
                                 clothesId, "상의", null, "TOP", List.of()))));
@@ -76,6 +76,24 @@ class RecommendationControllerTest {
                 .andExpect(jsonPath("$.clothes[0].type").value("TOP"))
                 .andExpect(jsonPath("$.reason").doesNotExist());
         verifyNoInteractions(aiRecommendationService);
+    }
+
+    @Test
+    void delegatesExcludedClothesIdsForBasicRecommendation() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        UUID excludedId = UUID.randomUUID();
+        given(recommendationService.find(userId, weatherId, List.of(excludedId)))
+                .willReturn(new RecommendationDto(weatherId, userId, List.of()));
+
+        mockMvc.perform(get("/api/recommendations")
+                        .param("weatherId", weatherId.toString())
+                        .param("excludeClothesIds", excludedId.toString())
+                        .with(authentication(userAuthentication(userId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.clothes").isEmpty());
+
+        verify(recommendationService).find(userId, weatherId, List.of(excludedId));
     }
 
     @Test
@@ -99,6 +117,25 @@ class RecommendationControllerTest {
                 .andExpect(jsonPath("$.reason").value("날씨에 맞는 추천"));
         verify(aiRecommendationService).find(userId, request);
         verifyNoInteractions(recommendationService);
+    }
+
+    @Test
+    void acceptsNullExcludedClothesAsEmpty() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        var request = new RecommendationAiRequest(weatherId, "추천해줘", List.of());
+        given(aiRecommendationService.find(userId, request))
+                .willReturn(new RecommendationDto(weatherId, userId, List.of()));
+
+        mockMvc.perform(post("/api/recommendations/ai")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"weatherId":"%s","prompt":"추천해줘","excludeClothesIds":null}
+                                """.formatted(weatherId))
+                        .with(authentication(userAuthentication(userId))))
+                .andExpect(status().isOk());
+
+        verify(aiRecommendationService).find(userId, request);
     }
 
     @ParameterizedTest
