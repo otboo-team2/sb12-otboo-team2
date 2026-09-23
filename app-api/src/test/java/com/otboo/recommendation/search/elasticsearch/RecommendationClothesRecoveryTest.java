@@ -9,6 +9,7 @@ import co.elastic.clients.elasticsearch.core.DeleteRequest;
 import com.otboo.clothes.ClothesService;
 import com.otboo.clothes.repository.ClothesRepository;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
+import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +27,7 @@ class RecommendationClothesRecoveryTest {
         ElasticsearchClient client = mock(ElasticsearchClient.class);
         ClothesService clothes = mock(ClothesService.class);
         RecommendationClothesEmbeddingService embeddings = mock(RecommendationClothesEmbeddingService.class);
+        RecommendationClothesMetadataAnalyzer metadata = mock(RecommendationClothesMetadataAnalyzer.class);
         RecommendationClothesIndexManager manager = mock(RecommendationClothesIndexManager.class);
         ClothesRepository repository = mock(ClothesRepository.class);
         when(manager.alias()).thenReturn("recommendation-clothes");
@@ -40,7 +42,7 @@ class RecommendationClothesRecoveryTest {
             documents.remove(request.id());
             return null;
         });
-        RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(client, clothes, embeddings, manager);
+        RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(client, clothes, metadata, embeddings, manager);
         assertThat(indexer.delete(ghost)).isFalse();
         assertThat(documents).containsExactly(ghost.toString());
 

@@ -20,7 +20,8 @@ class RecommendationClothesEmbeddingServiceTest {
     @Test
     void embedsDocumentContent() {
         var document = new RecommendationClothesDocument(
-                "clothes-id", "owner-id", "TOP", "셔츠 타입:TOP", null);
+                "clothes-id", "owner-id", "TOP", "셔츠 타입:TOP",
+                List.of(), null, List.of(), null);
         given(client.embed(document.content())).willReturn(List.of(1.0f, 2.0f));
 
         assertThat(service.embed(document)).containsExactly(1.0f, 2.0f);
