@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.otboo.clothes.dto.ClothesAttributeWithDefDto;
 import com.otboo.clothes.entity.ClothesType;
 import com.otboo.clothes.dto.ClothesDto;
 import com.otboo.recommendation.RecommendationCandidates;
@@ -235,10 +236,28 @@ class OpenAiRecommendationClientTest {
                     assertThat(input.path("requestCondition").path("categories")).isEmpty();
                     assertThat(input.path("requestCondition").path("keywords")).isEmpty();
                     assertThat(input.path("clothes").get(0).path("clothesId").asText()).isEqualTo(id);
+                    assertThat(input.path("clothes").get(0).path("name").asText()).isEqualTo("셔츠");
+                    assertThat(input.path("clothes").get(0).path("type").asText()).isEqualTo("TOP");
+                    assertThat(input.path("clothes").get(0).path("attributes").get(0).path("name").asText())
+                            .isEqualTo("스타일");
+                    assertThat(input.path("clothes").get(0).path("attributes").get(0).path("value").asText())
+                            .isEqualTo("스트릿");
+                    var metadata = input.path("clothes").get(0).path("recommendationMetadata");
+                    assertThat(metadata.path("inferredStyles").get(0).asText()).isEqualTo("포멀");
+                    assertThat(metadata.path("formality").asText()).isEqualTo("HIGH");
+                    assertThat(metadata.path("occasions").get(0).asText()).isEqualTo("WORK");
                     assertThat(body.path("instructions").asText())
                             .contains("requestCondition은 이번 요청에서 확인된 조건")
                             .contains("preferredStyles는 저장된 사용자 선호")
-                            .contains("상황을 특정 스타일로 치환하지 않는다");
+                            .contains("명시적 요청 조건과 preferredStyles가 충돌하면 명시적 요청 조건을 우선한다")
+                            .contains("후보는 제공된 name, type, attributes, recommendationMetadata만 근거로 비교한다")
+                            .contains("명확히 충돌하면 우선 선택하지 않되")
+                            .contains("metadata가 없다는 이유만으로 부적합하다고 단정하지 않는다")
+                            .contains("제공되지 않은 소재·디자인·실루엣·상황 적합성을 만들어내지 않는다")
+                            .contains("reason은 일반 사용자가 자연스럽게 이해할 수 있는 한국어 1~3문장")
+                            .contains("enum 값이나")
+                            .contains("내부 용어를 노출하지 않는다")
+                            .contains("사용자의 실제 요청에 맞는 자연스러운 표현으로 설명한다");
                     assertThat(body.path("tools").get(0).path("parameters").path("properties")
                             .path("clothesIds").path("items").path("enum").get(0).asText()).isEqualTo(id);
                     assertThat(body.path("store").asBoolean()).isFalse();
@@ -247,8 +266,10 @@ class OpenAiRecommendationClientTest {
                         "{\"clothesIds\":[\"" + id + "\"],\"reason\":\"데이트에 어울립니다\"}"))),
                         MediaType.APPLICATION_JSON));
 
-        var result = client.generate(
-                "데이트룩 추천해줘", condition, generationCandidates(clothes), clothes);
+        var result = client.generate("데이트룩 추천해줘", condition,
+                generationCandidates(clothes), clothes, Map.of(clothes.getFirst().id(),
+                        new RecommendationClothesMetadata(List.of("포멀"),
+                                RecommendationFormality.HIGH, List.of(RecommendationOccasion.WORK))));
 
         assertThat(result.clothesIds()).containsExactly(clothes.getFirst().id());
         assertThat(result.reason()).isEqualTo("데이트에 어울립니다");
@@ -346,7 +367,8 @@ class OpenAiRecommendationClientTest {
 
     private List<ClothesDto> verifiedClothes() {
         return List.of(new ClothesDto(UUID.randomUUID(), UUID.randomUUID(), "셔츠", null,
-                ClothesType.TOP, false, List.of()));
+                ClothesType.TOP, false, List.of(new ClothesAttributeWithDefDto(
+                        UUID.randomUUID(), "스타일", List.of("스트릿"), "스트릿"))));
     }
 
     private RecommendationCondition emptyCondition() {
