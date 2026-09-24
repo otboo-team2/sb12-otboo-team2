@@ -5,8 +5,10 @@ import type {BaseStore} from './types';
 import {createBaseStoreActions} from "@/lib/stores/actions.ts";
 
 interface RecommendationStore extends BaseStore<RecommendationDto, RecommendationParams> {
-  lastAiPrompt?: string;
-  seenClothesIds: string[];
+  inputPrompt: string;
+  recommendationMode: 'BASE' | 'AI';
+  seenOutfits: string[][];
+  setInputPrompt: (prompt: string) => void;
   fetchAiRecommendation: (prompt: string, excludeClothesIds?: string[]) => Promise<void>;
   fetchAlternative: () => Promise<void>;
 }
@@ -14,7 +16,13 @@ interface RecommendationStore extends BaseStore<RecommendationDto, Recommendatio
 const clothesIds = (recommendation: RecommendationDto) =>
   recommendation.clothes?.map(clothes => clothes.clothesId) ?? [];
 
-const uniqueIds = (...groups: string[][]) => [...new Set(groups.flat())];
+const canonicalOutfit = (ids: string[]) => [...new Set(ids)].sort();
+
+const addOutfit = (history: string[][], ids: string[]) => {
+  const outfit = canonicalOutfit(ids);
+  if (outfit.length === 0 || history.some(seen => seen.join(',') === outfit.join(','))) return history;
+  return [...history, outfit];
+};
 
 export const useRecommendationStore = create<RecommendationStore>((set, get) => {
   const base = createBaseStoreActions({set, get, fetchApi: getRecommendation});
@@ -55,52 +63,57 @@ export const useRecommendationStore = create<RecommendationStore>((set, get) => 
 
   return {
     ...base,
-    lastAiPrompt: undefined,
-    seenClothesIds: [],
+    inputPrompt: '',
+    recommendationMode: 'BASE',
+    seenOutfits: [],
+    setInputPrompt: inputPrompt => set({inputPrompt}),
     // 날씨가 바뀐 요청은 진행 중인 이전 날씨 요청을 기다리지 않는다.
     fetch: (options) => {
       const params = {...get().params};
-      set({lastAiPrompt: undefined, seenClothesIds: []});
+      set({recommendationMode: 'BASE', seenOutfits: []});
       return fetchLatest(() => getRecommendation(params), options,
-          data => set({seenClothesIds: uniqueIds(clothesIds(data))}));
+          data => set({seenOutfits: addOutfit([], clothesIds(data))}));
     },
     fetchAiRecommendation: (prompt, excludeClothesIds = []) => {
       const weatherId = get().params.weatherId;
       const isAlternative = excludeClothesIds.length > 0;
-      if (!isAlternative) set({seenClothesIds: []});
       return fetchLatest(() => getAiRecommendation(weatherId, prompt, excludeClothesIds), undefined,
           data => set({
-            lastAiPrompt: prompt,
-            seenClothesIds: isAlternative
-              ? uniqueIds(get().seenClothesIds, excludeClothesIds, clothesIds(data))
-              : uniqueIds(clothesIds(data)),
+            inputPrompt: '',
+            recommendationMode: 'AI',
+            seenOutfits: addOutfit(isAlternative ? get().seenOutfits : [], clothesIds(data)),
           }));
     },
     fetchAlternative: () => {
-      const {data, lastAiPrompt, seenClothesIds} = get();
-      const excludeClothesIds = uniqueIds(seenClothesIds, data ? clothesIds(data) : []);
+      const {data, inputPrompt, recommendationMode, seenOutfits} = get();
+      const currentPrompt = inputPrompt.trim();
+      const targetMode = currentPrompt ? 'AI' : 'BASE';
+      const startsNewCycle = targetMode === 'AI' || recommendationMode !== targetMode;
+      const history = startsNewCycle
+        ? []
+        : data ? addOutfit(seenOutfits, clothesIds(data)) : seenOutfits;
       const params = {...get().params};
       let cycleReset = false;
-      const request = (excludedIds: string[]) => lastAiPrompt
-        ? getAiRecommendation(params.weatherId, lastAiPrompt, excludedIds)
-        : getRecommendation(params, excludedIds);
+      const request = (excludedOutfits: string[][]) => currentPrompt
+        ? getAiRecommendation(params.weatherId, currentPrompt, [], excludedOutfits)
+        : getRecommendation(params, [], excludedOutfits);
       return fetchLatest(async () => {
-        const alternative = await request(excludeClothesIds);
-        if (alternative.clothes.length > 0 || excludeClothesIds.length === 0) return alternative;
+        const alternative = await request(history);
+        if (alternative.clothes.length > 0 || history.length === 0) return alternative;
         cycleReset = true;
         return request([]);
       }, undefined, result => set({
-        seenClothesIds: cycleReset
-          ? uniqueIds(clothesIds(result))
-          : uniqueIds(excludeClothesIds, clothesIds(result)),
+        inputPrompt: '',
+        recommendationMode: targetMode,
+        seenOutfits: addOutfit(cycleReset ? [] : history, clothesIds(result)),
       }), () => {
-        if (cycleReset) set({seenClothesIds: []});
+        if (cycleReset) set({seenOutfits: []});
       });
     },
     clearData: () => {
       ++requestId;
       activeWeatherId = undefined;
-      set({lastAiPrompt: undefined, seenClothesIds: []});
+      set({inputPrompt: '', recommendationMode: 'BASE', seenOutfits: []});
       base.clearData();
     },
   };
