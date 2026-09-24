@@ -15,6 +15,9 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
+import com.otboo.recommendation.ai.RecommendationFormality;
+import com.otboo.recommendation.ai.RecommendationOccasion;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
@@ -94,6 +97,36 @@ class RecommendationClothesVectorSearchTest {
         assertThatThrownBy(() -> search.search(ownerId, List.of(first), vector))
                 .isInstanceOfSatisfying(BusinessException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(CommonErrorCode.EXTERNAL_API_ERROR));
+    }
+
+    @Test
+    void metadataIsLinkedByClothesIdAndRejectsWrongOwnerSource() throws IOException {
+        var firstDocument = new RecommendationClothesDocument(first.toString(), ownerId.toString(),
+                "TOP", "first", List.of("포멀"), RecommendationFormality.HIGH,
+                List.of(RecommendationOccasion.WORK), null);
+        var outsiderDocument = new RecommendationClothesDocument(second.toString(), outsider.toString(),
+                "SHOES", "outsider", List.of("스트릿"), RecommendationFormality.LOW,
+                List.of(RecommendationOccasion.DAILY), null);
+        SearchResponse<RecommendationClothesDocument> response = SearchResponse.of(r -> r
+                .took(1).timedOut(false).shards(s -> s.total(1).successful(1).failed(0))
+                .hits(h -> h.hits(List.of(
+                        Hit.of(hit -> hit.index("recommendation-clothes-v2").id(first.toString())
+                                .source(firstDocument)),
+                        Hit.of(hit -> hit.index("recommendation-clothes-v2").id(second.toString())
+                                .source(outsiderDocument))))));
+        when(client.search(any(SearchRequest.class), eq(RecommendationClothesDocument.class)))
+                .thenReturn(response);
+
+        assertThat(search.metadata(ownerId, List.of(first, second)))
+                .containsOnlyKeys(first)
+                .containsEntry(first, new RecommendationClothesMetadata(
+                        List.of("포멀"), RecommendationFormality.HIGH,
+                        List.of(RecommendationOccasion.WORK)));
+
+        var captor = ArgumentCaptor.forClass(SearchRequest.class);
+        verify(client).search(captor.capture(), eq(RecommendationClothesDocument.class));
+        assertThat(captor.getValue().source().filter().includes())
+                .containsExactly("clothesId", "ownerId", "inferredStyles", "formality", "occasions");
     }
 
     private SearchResponse<Void> response(boolean timedOut, int failed, UUID... ids) {

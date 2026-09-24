@@ -3,6 +3,7 @@ package com.otboo.recommendation.ai;
 import com.otboo.recommendation.RecommendationDto;
 import com.otboo.recommendation.RecommendationCandidates;
 import com.otboo.recommendation.OotdCombinationPolicy;
+import com.otboo.recommendation.ExcludedOutfits;
 import com.otboo.recommendation.RecommendationService;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
@@ -49,7 +50,10 @@ public class AiRecommendationService {
                 found.temperatureSensitivity(), found.preferredStyles(), found.clothes().stream()
                         .filter(clothes -> !excludedIds.contains(clothes.id()))
                         .toList());
-        RecommendationDto basic = recommendationService.recommend(candidates);
+        Set<Set<UUID>> excludedOutfits = ExcludedOutfits.canonicalize(request.excludedOutfits());
+        RecommendationDto basic = excludedOutfits.isEmpty()
+                ? recommendationService.recommend(candidates)
+                : recommendationService.recommend(candidates, request.excludedOutfits());
         if (candidates.clothes().isEmpty()) {
             return basic;
         }
@@ -91,13 +95,15 @@ public class AiRecommendationService {
             return basic;
         }
         try {
+            Map<UUID, RecommendationClothesMetadata> metadataById = search.metadata(userId, verifiedIds);
             RecommendationGenerationResult generated = openAiRecommendationClient.generate(
-                    request.prompt(), condition, candidates, verifiedClothes);
+                    request.prompt(), condition, candidates, verifiedClothes, metadataById);
             if (generated == null || generated.clothesIds().isEmpty()
                     || generated.reason() == null || generated.reason().isBlank()
                     || generated.clothesIds().size() != Set.copyOf(generated.clothesIds()).size()
                     || !Set.copyOf(verifiedIds).containsAll(generated.clothesIds())
-                    || generated.clothesIds().stream().anyMatch(excludedIds::contains)) {
+                    || generated.clothesIds().stream().anyMatch(excludedIds::contains)
+                    || ExcludedOutfits.contains(excludedOutfits, generated.clothesIds())) {
                 log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
                 return basic;
             }

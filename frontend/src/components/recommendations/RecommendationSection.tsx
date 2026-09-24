@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect} from 'react';
 import type {FormEvent} from 'react';
 import {MessageCirclePlus, Send} from 'lucide-react';
 import RecommendationHeader from './RecommendationHeader';
@@ -10,8 +10,10 @@ import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
 
 export default function RecommendationSection() {
   const { selectedWeather } = useWeatherStore();
-  const { data: recommendations, updateParams, fetchAiRecommendation, loading, error } = useRecommendationStore();
-  const [prompt, setPrompt] = useState('');
+  const {
+    data: recommendations, updateParams, fetchAiRecommendation, loading, error,
+    inputPrompt, setInputPrompt,
+  } = useRecommendationStore();
   const examples = [
     '오늘 데이트룩 추천해줘',
     '비 오는 날 편한 옷 추천해줘',
@@ -34,7 +36,7 @@ export default function RecommendationSection() {
 
   const handlePromptSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const value = prompt.trim();
+    const value = inputPrompt.trim();
     if (!value || !selectedWeather?.id || loading) return;
     await fetchAiRecommendation(value);
   };
@@ -48,22 +50,22 @@ export default function RecommendationSection() {
           <form onSubmit={handlePromptSubmit} className="relative w-full">
             <input
               type="text"
-              value={prompt}
+              value={inputPrompt}
               maxLength={100}
-              onChange={(event) => setPrompt(event.target.value)}
+              onChange={(event) => setInputPrompt(event.target.value)}
               placeholder="예) 오늘 데이트 가는데 캐주얼하게 입을 옷 추천해줘"
               className="h-[58px] w-full rounded-[12px] border-2 border-blue-400 bg-white pl-14 pr-20 text-[16px] font-semibold tracking-[-0.4px] text-[#212126] outline-none placeholder:text-[#a9a9b1] focus:border-blue-500"
               aria-label="자연어 추천 요청"
             />
             <MessageCirclePlus className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-blue-400" aria-hidden="true" />
             <span className="pointer-events-none absolute bottom-3 right-[68px] text-xs font-semibold text-[#b5b5bd]">
-              {prompt.length} / 100
+              {inputPrompt.length} / 100
             </span>
             <button
               type="submit"
               aria-label="추천 요청 보내기"
               className="absolute right-2 top-2 flex size-[42px] items-center justify-center rounded-[10px] bg-blue-500 text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
-              disabled={!prompt.trim() || loading}
+              disabled={!inputPrompt.trim() || loading}
             >
               <Send className="size-5" />
             </button>
@@ -77,7 +79,7 @@ export default function RecommendationSection() {
               <button
                 key={example}
                 type="button"
-                onClick={() => setPrompt(example)}
+                onClick={() => setInputPrompt(example)}
                 className="rounded-full border border-[#e1e1e5] bg-white px-3 py-1.5 text-sm font-semibold text-[#696975] transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
               >
                 {example}

@@ -7,9 +7,12 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.logging.SafeExceptionLog;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -58,6 +61,47 @@ public class RecommendationClothesVectorSearch {
                     .map(UUID::fromString)
                     .toList();
         } catch (IOException | ElasticsearchException error) {
+            throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR,
+                    SafeExceptionLog.sanitized(error));
+        }
+    }
+
+    /** MySQL 재검증을 통과한 ID에 연결할 추천 전용 metadata만 읽는다. */
+    public Map<UUID, RecommendationClothesMetadata> metadata(UUID ownerId, Collection<UUID> clothesIds) {
+        if (clothesIds == null || clothesIds.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> allowedIds = clothesIds.stream().map(UUID::toString).collect(Collectors.toSet());
+        List<FieldValue> ids = allowedIds.stream().sorted().map(FieldValue::of).toList();
+        SearchRequest request = SearchRequest.of(r -> r
+                .index(indexManager.alias())
+                .size(ids.size())
+                .source(s -> s.filter(f -> f.includes(
+                        "clothesId", "ownerId", "inferredStyles", "formality", "occasions")))
+                .allowPartialSearchResults(false)
+                .query(q -> q.bool(b -> b
+                        .filter(owner -> owner.term(t -> t.field("ownerId").value(ownerId.toString())))
+                        .filter(candidates -> candidates.terms(t -> t.field("clothesId")
+                                .terms(v -> v.value(ids)))))));
+        try {
+            var response = client.search(request, RecommendationClothesDocument.class);
+            if (response.timedOut() || response.shards().failed().intValue() > 0) {
+                throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
+            }
+            Map<UUID, RecommendationClothesMetadata> result = new LinkedHashMap<>();
+            for (var hit : response.hits().hits()) {
+                RecommendationClothesDocument source = hit.source();
+                if (source == null || !hit.id().equals(source.clothesId())
+                        || !allowedIds.contains(source.clothesId())
+                        || !ownerId.toString().equals(source.ownerId())) {
+                    continue;
+                }
+                UUID clothesId = UUID.fromString(source.clothesId());
+                result.put(clothesId, new RecommendationClothesMetadata(
+                        source.inferredStyles(), source.formality(), source.occasions()));
+            }
+            return Map.copyOf(result);
+        } catch (IOException | ElasticsearchException | IllegalArgumentException error) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR,
                     SafeExceptionLog.sanitized(error));
         }
