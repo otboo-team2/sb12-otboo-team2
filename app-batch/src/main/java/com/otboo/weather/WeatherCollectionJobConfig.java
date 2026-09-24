@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +23,7 @@ public class WeatherCollectionJobConfig {
     @Bean
     public Job weatherCollectionJob() {
         return new JobBuilder("weatherCollectionJob", jobRepository)
+                .incrementer(new RunIdIncrementer())
                 .start(weatherCollectionStep())
                 .build();
     }
