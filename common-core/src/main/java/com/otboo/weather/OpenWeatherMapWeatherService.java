@@ -33,19 +33,36 @@ public class OpenWeatherMapWeatherService {
         this.repository = repository;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public List<Weather> fetchAndSave(
+    public List<Weather> fetchAndConvert(
             double latitude, double longitude, int gridX, int gridY) {
         var calculated = WeatherGridConverter.toGrid(latitude, longitude);
         if (calculated.x() != gridX || calculated.y() != gridY) {
             throw new BusinessException(WeatherErrorCode.UNSUPPORTED_LOCATION);
         }
-        return saveForecast(gridX, gridY, Instant.now().truncatedTo(ChronoUnit.HOURS),
+        return convertForecast(gridX, gridY, Instant.now().truncatedTo(ChronoUnit.HOURS),
                 client.fetch(latitude, longitude));
     }
 
     @Transactional
+    public List<Weather> saveForecast(List<Weather> incoming) {
+        return incoming.stream().map(this::upsert).toList();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<Weather> fetchAndSave(
+            double latitude, double longitude, int gridX, int gridY) {
+        var converted = fetchAndConvert(latitude, longitude, gridX, gridY);
+        return saveForecast(converted);
+    }
+
+    @Transactional
     public List<Weather> saveForecast(
+            int gridX, int gridY, Instant forecastedAt, OpenWeatherMapForecast forecast) {
+        var converted = convertForecast(gridX, gridY, forecastedAt, forecast);
+        return saveForecast(converted);
+    }
+
+    private List<Weather> convertForecast(
             int gridX, int gridY, Instant forecastedAt, OpenWeatherMapForecast forecast) {
         if (forecast == null || forecast.list() == null) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
@@ -59,7 +76,6 @@ public class OpenWeatherMapWeatherService {
                 .map(entry -> toWeather(gridX, gridY, forecastedAt, entry, entries.get(entry.forecastAt().minus(24, ChronoUnit.HOURS))))
                 .filter(weather -> !weather.getForecastAt().isBefore(now)
                         && weather.getForecastAt().isBefore(until))
-                .map(this::upsert)
                 .toList();
     }
 
