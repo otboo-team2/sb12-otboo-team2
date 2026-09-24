@@ -97,6 +97,35 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void delegatesExcludedOutfitsForBasicRecommendation() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        List<List<UUID>> excludedOutfits = List.of(List.of(first, second));
+        given(recommendationService.find(userId, weatherId, null, excludedOutfits))
+                .willReturn(new RecommendationDto(weatherId, userId, List.of()));
+
+        mockMvc.perform(get("/api/recommendations")
+                        .param("weatherId", weatherId.toString())
+                        .param("excludedOutfits", first + "," + second)
+                        .with(authentication(userAuthentication(userId))))
+                .andExpect(status().isOk());
+
+        verify(recommendationService).find(userId, weatherId, null, excludedOutfits);
+    }
+
+    @Test
+    void rejectsMalformedBasicExcludedOutfits() throws Exception {
+        mockMvc.perform(get("/api/recommendations")
+                        .param("weatherId", UUID.randomUUID().toString())
+                        .param("excludedOutfits", "not-a-uuid")
+                        .with(authentication(userAuthentication(UUID.randomUUID()))))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(recommendationService, aiRecommendationService);
+    }
+
+    @Test
     void delegatesAiRequestWithTrimmedPrompt() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID weatherId = UUID.randomUUID();
@@ -136,6 +165,38 @@ class RecommendationControllerTest {
                 .andExpect(status().isOk());
 
         verify(aiRecommendationService).find(userId, request);
+    }
+
+    @Test
+    void delegatesAiExcludedOutfits() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        var request = new RecommendationAiRequest(
+                weatherId, "추천해줘", List.of(), List.of(List.of(first, second)));
+        given(aiRecommendationService.find(userId, request))
+                .willReturn(new RecommendationDto(weatherId, userId, List.of()));
+
+        mockMvc.perform(post("/api/recommendations/ai")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .with(authentication(userAuthentication(userId))))
+                .andExpect(status().isOk());
+
+        verify(aiRecommendationService).find(userId, request);
+    }
+
+    @Test
+    void rejectsEmptyAiExcludedOutfit() throws Exception {
+        mockMvc.perform(post("/api/recommendations/ai")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"weatherId":"%s","prompt":"추천해줘","excludedOutfits":[[]]}
+                                """.formatted(UUID.randomUUID()))
+                        .with(authentication(userAuthentication(UUID.randomUUID()))))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(recommendationService, aiRecommendationService);
     }
 
     @ParameterizedTest

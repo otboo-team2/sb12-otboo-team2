@@ -10,6 +10,7 @@ import com.otboo.clothes.entity.ClothesType;
 import com.otboo.clothes.entity.ClothesAttributeSelectableValue;
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
 import com.otboo.clothes.dto.ClothesAttributeWithDefDto;
+import com.otboo.feed.dto.OotdDto;
 import com.otboo.user.entity.Profile;
 import com.otboo.user.preference.UserPreference;
 import com.otboo.user.preference.UserPreferenceRepository;
@@ -20,6 +21,7 @@ import com.otboo.weather.repository.WeatherRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -120,6 +122,54 @@ class RecommendationServiceTest {
 
         assertThat(alternative.clothes()).extracting("clothesId").containsExactly(dress.id());
         assertThat(exhausted.clothes()).isEmpty();
+    }
+
+    @Test
+    void prioritizesLowUsageThenLowOverlapWhileKeepingDeterministicOutfitSelection() {
+        ClothesDto topA = clothes(UUID.randomUUID(), "상의 A", ClothesType.TOP, "캐주얼");
+        ClothesDto topF = clothes(UUID.randomUUID(), "상의 F", ClothesType.TOP, "캐주얼");
+        ClothesDto bottomB = clothes(UUID.randomUUID(), "하의 B", ClothesType.BOTTOM, "캐주얼");
+        ClothesDto bottomE = clothes(UUID.randomUUID(), "하의 E", ClothesType.BOTTOM, "캐주얼");
+        ClothesDto shoesC = clothes(UUID.randomUUID(), "신발 C", ClothesType.SHOES, "캐주얼");
+        ClothesDto shoesD = clothes(UUID.randomUUID(), "신발 D", ClothesType.SHOES, "캐주얼");
+        var candidates = new RecommendationCandidates(UUID.randomUUID(), UUID.randomUUID(), 20.0,
+                PrecipitationType.NONE, 3, Set.of(),
+                List.of(topA, topF, bottomB, bottomE, shoesC, shoesD));
+        RecommendationService service = new RecommendationService(
+                weatherRepository, profileRepository, preferenceRepository,
+                clothesService, weatherClothesFilter);
+
+        RecommendationDto unusedAlternative = service.recommend(candidates,
+                List.of(List.of(shoesC.id(), bottomB.id(), topA.id())));
+        List<List<UUID>> allItemsUsed = List.of(
+                List.of(topA.id(), bottomB.id(), shoesC.id()),
+                List.of(topF.id(), bottomE.id(), shoesD.id()));
+        RecommendationDto reusedAlternative = service.recommend(candidates, allItemsUsed);
+        List<List<UUID>> equalUsageWithLastOutfit = List.of(
+                List.of(topF.id(), bottomE.id(), shoesC.id()),
+                List.of(topF.id(), bottomB.id(), shoesD.id()),
+                List.of(topA.id(), bottomE.id(), shoesD.id()),
+                List.of(topA.id(), bottomB.id(), shoesC.id()));
+        RecommendationDto lowOverlapAlternative = service.recommend(candidates, equalUsageWithLastOutfit);
+        RecommendationDto sameInputAgain = service.recommend(candidates, equalUsageWithLastOutfit);
+        List<List<UUID>> everyCombination = List.of(
+                List.of(topA.id(), bottomB.id(), shoesC.id()),
+                List.of(topA.id(), bottomB.id(), shoesD.id()),
+                List.of(topA.id(), bottomE.id(), shoesC.id()),
+                List.of(topA.id(), bottomE.id(), shoesD.id()),
+                List.of(topF.id(), bottomB.id(), shoesC.id()),
+                List.of(topF.id(), bottomB.id(), shoesD.id()),
+                List.of(topF.id(), bottomE.id(), shoesC.id()),
+                List.of(topF.id(), bottomE.id(), shoesD.id()));
+
+        assertThat(unusedAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topF.id(), bottomE.id(), shoesD.id());
+        assertThat(reusedAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topA.id(), bottomB.id(), shoesD.id());
+        assertThat(lowOverlapAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topF.id(), bottomE.id(), shoesD.id());
+        assertThat(sameInputAgain).isEqualTo(lowOverlapAlternative);
+        assertThat(service.recommend(candidates, everyCombination).clothes()).isEmpty();
     }
 
     private ClothesDto clothes(UUID id, String name, ClothesType type, String style) {

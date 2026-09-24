@@ -11,7 +11,11 @@ import com.otboo.user.repository.ProfileRepository;
 import com.otboo.user.preference.UserPreferenceRepository;
 import com.otboo.weather.entity.Weather;
 import com.otboo.weather.repository.WeatherRepository;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -36,17 +40,26 @@ public class RecommendationService {
 
     @Transactional(readOnly = true)
     public RecommendationDto find(UUID userId, UUID weatherId, List<UUID> excludeClothesIds) {
+        return find(userId, weatherId, excludeClothesIds, List.of());
+    }
+
+    @Transactional(readOnly = true)
+    public RecommendationDto find(
+            UUID userId, UUID weatherId, List<UUID> excludeClothesIds,
+            List<List<UUID>> excludedOutfits) {
         RecommendationCandidates candidates = findCandidates(userId, weatherId);
-        if (excludeClothesIds == null || excludeClothesIds.isEmpty()) {
-            return recommend(candidates);
+        if (excludeClothesIds != null && !excludeClothesIds.isEmpty()) {
+            Set<UUID> excludedIds = Set.copyOf(excludeClothesIds);
+            candidates = new RecommendationCandidates(
+                    candidates.weatherId(), candidates.userId(), candidates.temperature(),
+                    candidates.precipitationType(), candidates.temperatureSensitivity(),
+                    candidates.preferredStyles(), candidates.clothes().stream()
+                            .filter(clothes -> !excludedIds.contains(clothes.id()))
+                            .toList());
         }
-        Set<UUID> excludedIds = Set.copyOf(excludeClothesIds);
-        return recommend(new RecommendationCandidates(
-                candidates.weatherId(), candidates.userId(), candidates.temperature(),
-                candidates.precipitationType(), candidates.temperatureSensitivity(),
-                candidates.preferredStyles(), candidates.clothes().stream()
-                        .filter(clothes -> !excludedIds.contains(clothes.id()))
-                        .toList()));
+        return excludedOutfits == null || excludedOutfits.isEmpty()
+                ? recommend(candidates)
+                : recommend(candidates, excludedOutfits);
     }
 
     @Transactional(readOnly = true)
@@ -81,16 +94,100 @@ public class RecommendationService {
 
     /** DB 재조회 없이 동일 후보로 기존 규칙 기반 추천을 구성한다. */
     public RecommendationDto recommend(RecommendationCandidates candidates) {
+        return recommend(candidates, List.of());
+    }
+
+    public RecommendationDto recommend(
+            RecommendationCandidates candidates, List<List<UUID>> excludedOutfits) {
         List<ClothesDto> orderedCandidates = candidates.clothes().stream()
                 .sorted((left, right) -> Boolean.compare(
                         matchesStyle(right, candidates.preferredStyles()),
                         matchesStyle(left, candidates.preferredStyles())))
                 .toList();
-        List<OotdDto> clothes = OotdCombinationPolicy.select(orderedCandidates).stream()
+        List<List<UUID>> history = excludedOutfits == null ? List.of() : excludedOutfits;
+        Set<Set<UUID>> excluded = ExcludedOutfits.canonicalize(history);
+        List<OotdDto> clothes = selectBestUnseen(orderedCandidates, history, excluded).stream()
                 .map(RecommendationService::toOotd)
                 .toList();
 
         return new RecommendationDto(candidates.weatherId(), candidates.userId(), clothes);
+    }
+
+    private static List<ClothesDto> selectBestUnseen(
+            List<ClothesDto> orderedCandidates, List<List<UUID>> history,
+            Set<Set<UUID>> excluded) {
+        List<List<ClothesType>> compositions = new ArrayList<>();
+        addComposition(compositions, OotdCombinationPolicy.select(orderedCandidates));
+        addComposition(compositions, OotdCombinationPolicy.select(orderedCandidates.stream()
+                .filter(item -> item.type() != ClothesType.DRESS)
+                .toList()));
+        List<ClothesDto> dressComposition = OotdCombinationPolicy.select(orderedCandidates.stream()
+                .filter(item -> item.type() != ClothesType.TOP && item.type() != ClothesType.BOTTOM)
+                .toList());
+        if (dressComposition.stream().anyMatch(item -> item.type() == ClothesType.DRESS)) {
+            addComposition(compositions, dressComposition);
+        }
+
+        List<List<ClothesDto>> unseen = new ArrayList<>();
+        for (List<ClothesType> composition : compositions) {
+            List<List<ClothesDto>> choices = composition.stream()
+                    .map(type -> orderedCandidates.stream().filter(item -> item.type() == type).toList())
+                    .toList();
+            collectUnseen(orderedCandidates, choices, 0, new LinkedHashSet<>(), excluded, unseen);
+        }
+        Map<UUID, Integer> usageCounts = usageCounts(history);
+        Set<UUID> lastOutfit = history.isEmpty()
+                ? Set.of() : Set.copyOf(history.get(history.size() - 1));
+        List<ClothesDto> best = List.of();
+        int bestUsage = Integer.MAX_VALUE;
+        int bestOverlap = Integer.MAX_VALUE;
+        for (List<ClothesDto> outfit : unseen) {
+            int usage = outfit.stream().mapToInt(item -> usageCounts.getOrDefault(item.id(), 0)).sum();
+            int overlap = (int) outfit.stream().filter(item -> lastOutfit.contains(item.id())).count();
+            if (usage < bestUsage || (usage == bestUsage && overlap < bestOverlap)) {
+                best = outfit;
+                bestUsage = usage;
+                bestOverlap = overlap;
+            }
+        }
+        return best;
+    }
+
+    private static void addComposition(
+            List<List<ClothesType>> compositions, List<ClothesDto> selection) {
+        List<ClothesType> types = selection.stream().map(ClothesDto::type).toList();
+        if (!types.isEmpty() && compositions.stream()
+                .noneMatch(existing -> Set.copyOf(existing).equals(Set.copyOf(types)))) {
+            compositions.add(types);
+        }
+    }
+
+    private static void collectUnseen(
+            List<ClothesDto> orderedCandidates, List<List<ClothesDto>> choices, int index,
+            Set<UUID> selectedIds, Set<Set<UUID>> excluded, List<List<ClothesDto>> unseen) {
+        if (index == choices.size()) {
+            List<ClothesDto> selected = orderedCandidates.stream()
+                    .filter(item -> selectedIds.contains(item.id()))
+                    .toList();
+            if (OotdCombinationPolicy.isValid(selected)
+                    && !ExcludedOutfits.contains(excluded, selectedIds)) {
+                unseen.add(selected);
+            }
+            return;
+        }
+        for (ClothesDto choice : choices.get(index)) {
+            selectedIds.add(choice.id());
+            collectUnseen(orderedCandidates, choices, index + 1, selectedIds, excluded, unseen);
+            selectedIds.remove(choice.id());
+        }
+    }
+
+    private static Map<UUID, Integer> usageCounts(List<List<UUID>> history) {
+        Map<UUID, Integer> counts = new HashMap<>();
+        for (List<UUID> outfit : history) {
+            Set.copyOf(outfit).forEach(id -> counts.merge(id, 1, Integer::sum));
+        }
+        return counts;
     }
 
     private static boolean matchesStyle(ClothesDto clothes, Set<String> preferredStyles) {
