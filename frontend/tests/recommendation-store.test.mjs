@@ -291,16 +291,16 @@ test('base alternatives accumulate canonical outfits while allowing individual c
     [['A', 'B', 'C'], ['A', 'B', 'D'], ['A', 'C', 'E']]);
 });
 
-test('weather change starts a fresh base cycle', async () => {
+test('weather change keeps exact outfit history for base diversity', async () => {
   const {store, calls} = fixture();
   store.setState({data: {weatherId: 'A', clothes: [{clothesId: 'A'}]}, seenOutfits: [['A']]});
 
   store.getState().updateParams({weatherId: 'B'});
-  assert.deepEqual(plain(store.getState().seenOutfits), []);
+  assert.deepEqual(plain(store.getState().seenOutfits), [['A']]);
   calls[0].resolve({weatherId: 'B', clothes: [{clothesId: 'B'}]});
   await flush();
 
-  assert.deepEqual(plain(store.getState().seenOutfits), [['B']]);
+  assert.deepEqual(plain(store.getState().seenOutfits), [['A'], ['B']]);
   assert.equal(store.getState().recommendationMode, 'BASE');
 });
 
