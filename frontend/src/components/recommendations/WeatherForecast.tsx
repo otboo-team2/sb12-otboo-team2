@@ -1,26 +1,11 @@
 import {type SkyStatus, type WeatherDto} from '@/lib/api/types';
 import {useWeatherStore} from '@/lib/stores/useWeatherStore';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
 import {useEffect, useMemo} from "react";
-import {dailyRepresentativeWeathers} from './weatherForecastUtils';
-
-// 날씨 상태를 한국어로 변환하는 함수
-function getSkyStatusText(skyStatus: SkyStatus): string {
-  switch (skyStatus) {
-    case 'CLEAR':
-      return '맑음';
-    case 'MOSTLY_CLOUDY':
-      return '구름많음';
-    case 'CLOUDY':
-      return '흐림';
-    default:
-      return '맑음';
-  }
-}
+import {dailyRepresentativeWeathers, seoulDateKey} from './weatherForecastUtils';
 
 function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
   switch (skyStatus) {
@@ -77,19 +62,21 @@ export default function WeatherForecast() {
   }, [weathers]);
 
   useEffect(() => {
-    if (nearestWeather) {
+    const selectedStillAvailable = selectedWeather
+      && weathers?.some((weather) => weather.id === selectedWeather.id);
+    if (nearestWeather && !selectedStillAvailable) {
       selectWeather(nearestWeather);
     }
-  }, [nearestWeather, selectWeather])
+  }, [nearestWeather, selectedWeather, selectWeather, weathers])
 
   if (loading || !weathers || weathers.length === 0) {
     return (
-      <div className="backdrop-blur-[15px] backdrop-filter bg-white/70 box-border content-stretch flex items-start justify-between px-[60px] py-5 relative rounded-[30px] shrink-0 w-full">
+      <div className="backdrop-blur-[15px] backdrop-filter bg-white/70 box-border flex items-start overflow-hidden px-2 py-4 relative rounded-[24px] shrink-0 w-full md:px-4 lg:px-6">
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
         
         {/* Skeleton for 5 weather items */}
         {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="content-stretch flex flex-col gap-1.5 items-center justify-center relative shrink-0 w-[120px]">
+          <div key={index} className={`content-stretch flex flex-1 min-w-[118px] flex-col gap-1.5 items-center justify-center relative shrink-0 ${index > 0 ? 'border-l border-gray-200' : ''}`}>
             {/* Date skeleton */}
             <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
             {/* Icon skeleton */}
@@ -102,30 +89,42 @@ export default function WeatherForecast() {
     );
   }
   const getForecastDate = (forecastAt: string) => {
-    const target = new Date(forecastAt);
-    const today = new Date();
-    const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-    const dayOffset = Math.round((startOfDay(target) - startOfDay(today)) / 86_400_000);
+    const targetKey = seoulDateKey(forecastAt);
+    const todayKey = seoulDateKey(new Date());
+    const toDayNumber = (key: string) => Date.parse(`${key}T00:00:00Z`);
+    const dayOffset = Math.round((toDayNumber(targetKey) - toDayNumber(todayKey)) / 86_400_000);
     if (dayOffset === 0) return "오늘";
     if (dayOffset === 1) return "내일";
     if (dayOffset === 2) return "모레";
-    return `${target.getMonth() + 1}월 ${target.getDate()}일`;
+    return '';
+  };
+
+  const getDateText = (forecastAt: string) => {
+    const parts = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    }).formatToParts(new Date(forecastAt));
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+    return `${month}.${day} (${weekday})`;
   };
 
   const getSkyStatus = (weather?: WeatherDto) => {
     return weather?.skyStatus || 'CLEAR';
   };
 
-  const displayTemp = (temp?: number) => temp ? `${Math.round(temp)}°` : '-';
+  const displayTemp = (temp?: number) => temp != null ? `${Math.round(temp)}°` : '-';
 
   return (
-    <TooltipProvider>
-      <div className="backdrop-blur-[15px] backdrop-filter bg-white/70 box-border content-stretch flex items-start justify-between px-[60px] py-5 relative rounded-[30px] shrink-0 w-full">
+    <div className="backdrop-blur-[15px] backdrop-filter bg-white/70 box-border flex overflow-hidden px-1 py-1 relative rounded-[30px] shrink-0 w-full md:px-3 md:py-2 lg:px-4">
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
 
         {
-          dailyWeathers.map((weather) => {
-            const date = getForecastDate(weather.forecastAt);
+          dailyWeathers.map((weather, index) => {
+            const date = index === 0 ? '오늘' : index === 1 ? '내일' : index === 2 ? '모레' : getForecastDate(weather.forecastAt);
             const isToday = date === '오늘';
             const selectedForDate = isToday && nearestWeather ? nearestWeather : weather;
             const { temperature } = selectedForDate;
@@ -133,43 +132,31 @@ export default function WeatherForecast() {
             const isSelected = selectedWeather?.id === selectedForDate.id;
 
             return (
-              <Tooltip key={weather.id}>
+              <div key={weather.id} className="flex flex-1 min-w-0">
                 <div
-                    className="content-stretch flex flex-col gap-1.5 items-center justify-center relative shrink-0 w-[120px] cursor-pointer hover:border-1 rounded-2xl"
+                    className={`content-stretch flex min-h-[148px] min-w-0 flex-1 flex-col gap-1 items-center justify-center relative shrink-0 cursor-pointer px-2 py-2 ${index > 0 ? 'border-l border-gray-200' : ''} ${isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'}`}
                     onClick={() => selectWeather(selectedForDate)}
                 >
-                  <div className={`font-${isSelected ? 'extrabold' : 'bold'} leading-none min-w-full not-italic relative shrink-0 text-base text-center tracking-[-0.4px] ${isSelected ? 'text-blue-500' : 'text-gray-800'}`} style={{ width: "min-content" }}>
-                    <p className="leading-normal">{date}</p>
+                  <div className={`font-${isSelected ? 'extrabold' : 'bold'} leading-tight not-italic relative flex h-[52px] flex-col items-center justify-start shrink-0 text-sm text-center tracking-[-0.35px] ${isSelected ? 'text-blue-500' : 'text-gray-800'}`}>
+                    <p className="h-6 text-lg font-bold">{date}</p>
+                    <p className={`mt-0 h-5 text-sm font-semibold ${isSelected ? 'text-blue-500' : 'text-gray-500'}`}>{getDateText(weather.forecastAt)}</p>
                   </div>
 
-                  <TooltipTrigger asChild>
-                    <div>
-                      <WeatherIcon skyStatus={skyStatus} />
+                  <div>
+                    <div><WeatherIcon skyStatus={skyStatus} /></div>
 
-                      <div className="font-semibold leading-none not-italic relative shrink-0 text-gray-500 text-base text-center text-nowrap tracking-[-0.4px]">
+                      <div className="font-extrabold leading-none not-italic relative shrink-0 text-gray-800 text-2xl text-center text-nowrap tracking-[-0.6px]">
                         <p className="leading-normal whitespace-pre">{displayTemp(temperature.current)}</p>
                       </div>
-                    </div>
-                  </TooltipTrigger>
+                      <div className="mt-0.5 text-sm font-semibold text-gray-500">
+                        {displayTemp(temperature.min)} / {displayTemp(temperature.max)}
+                      </div>
+                  </div>
                 </div>
-                <TooltipContent
-                  side="right"
-                  // sideOffset={-50}
-                  align="start"
-                  alignOffset={25}
-
-                  className="bg-[rgba(12,12,13,0.74)] text-[#f7f7f8] font-semibold text-[14px] tracking-[-0.35px] px-3.5 py-3 rounded-[10px] flex flex-col gap-2 leading-none border-0"
-                >
-                  <div className="whitespace-pre">날씨: {getSkyStatusText(skyStatus)}</div>
-                  <div className="whitespace-pre">기온: {displayTemp(temperature.current)}</div>
-                  <div className="whitespace-pre">최저: {displayTemp(temperature.min)}</div>
-                  <div className="whitespace-pre">최고: {displayTemp(temperature.max)}</div>
-                </TooltipContent>
-              </Tooltip>
+              </div>
             )
           })
         }
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }
