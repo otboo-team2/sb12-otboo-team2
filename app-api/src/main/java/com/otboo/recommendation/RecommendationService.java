@@ -100,9 +100,17 @@ public class RecommendationService {
     public RecommendationDto recommend(
             RecommendationCandidates candidates, List<List<UUID>> excludedOutfits) {
         List<ClothesDto> orderedCandidates = candidates.clothes().stream()
-                .sorted((left, right) -> Boolean.compare(
-                        matchesStyle(right, candidates.preferredStyles()),
-                        matchesStyle(left, candidates.preferredStyles())))
+                .sorted((left, right) -> {
+                    int weatherOrder = Double.compare(
+                            weatherDistance(left, candidates),
+                            weatherDistance(right, candidates));
+                    if (weatherOrder != 0) {
+                        return weatherOrder;
+                    }
+                    return Boolean.compare(
+                            matchesStyle(right, candidates.preferredStyles()),
+                            matchesStyle(left, candidates.preferredStyles()));
+                })
                 .toList();
         List<List<UUID>> history = excludedOutfits == null ? List.of() : excludedOutfits;
         Set<Set<UUID>> excluded = ExcludedOutfits.canonicalize(history);
@@ -202,6 +210,11 @@ public class RecommendationService {
                 .map(attribute -> attribute.value())
                 .findFirst()
                 .orElse(null);
+    }
+
+    private double weatherDistance(ClothesDto clothes, RecommendationCandidates candidates) {
+        return weatherClothesFilter.suitabilityDistance(
+                candidates.temperature(), candidates.temperatureSensitivity(), warmthOf(clothes));
     }
 
     private static OotdDto toOotd(ClothesDto clothes) {

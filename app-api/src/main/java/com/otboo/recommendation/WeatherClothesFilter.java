@@ -63,10 +63,31 @@ public class WeatherClothesFilter {
         return true;
     }
 
+    double suitabilityDistance(Double currentTemperature, Integer temperatureSensitivity, String warmth) {
+        if (currentTemperature == null || warmth == null) {
+            return 0.0;
+        }
+        int sensitivity = temperatureSensitivity == null
+                ? 3 : Math.clamp(temperatureSensitivity, 1, 5);
+        double perceivedTemperature = currentTemperature - (sensitivity - 3) * 0.5;
+        TemperatureRange range = WARMTH_RANGES.get(warmth);
+        if (range == null) {
+            return 0.0;
+        }
+        return Math.abs(perceivedTemperature - range.midpoint());
+    }
+
     private record TemperatureRange(double min, double max) {
 
         private boolean includes(double temperature) {
             return temperature >= min && temperature <= max;
+        }
+
+        private double midpoint() {
+            if (Double.isInfinite(min)) {
+                return max - 10.0;
+            }
+            return (min + max) / 2.0;
         }
     }
 }
