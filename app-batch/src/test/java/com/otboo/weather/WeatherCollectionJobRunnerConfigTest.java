@@ -15,7 +15,6 @@ import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 
 class WeatherCollectionJobRunnerConfigTest {
@@ -27,7 +26,6 @@ class WeatherCollectionJobRunnerConfigTest {
         var jobRepository = mock(JobRepository.class);
         var job = mock(Job.class);
         given(job.getName()).willReturn("weatherCollectionJob");
-        given(job.getJobParametersIncrementer()).willReturn(new RunIdIncrementer());
         given(jobRepository.isJobInstanceExists(eq("weatherCollectionJob"), any()))
                 .willAnswer(invocation -> {
                     JobParameters parameters = invocation.getArgument(1);
@@ -55,8 +53,6 @@ class WeatherCollectionJobRunnerConfigTest {
         assertThat(second.getString("execution.id")).isNotBlank();
         assertThat(first.getString("execution.id"))
                 .isNotEqualTo(second.getString("execution.id"));
-        assertThat(first.getLong("run.id")).isNotNull();
-        assertThat(second.getLong("run.id")).isNotNull();
         assertThat(first.getParameters().get("execution.id").isIdentifying()).isTrue();
         assertThat(second.getParameters().get("execution.id").isIdentifying()).isTrue();
     }
