@@ -35,6 +35,10 @@ public enum ClothesErrorCode implements ErrorCode {
             "CLOTHES_012", HttpStatus.BAD_REQUEST, "이미지 파일과 원격 이미지를 함께 사용할 수 없습니다."),
     REMOTE_RESOURCE_TOO_LARGE(
             "CLOTHES_013", HttpStatus.PAYLOAD_TOO_LARGE, "외부 상품 데이터 크기가 허용 범위를 초과했습니다."),
+    C_IMAGE_ANALYSIS_UNAVAILABLE(
+            "CLOTHES_900", HttpStatus.SERVICE_UNAVAILABLE, "의상 이미지 분석을 사용할 수 없습니다."),
+    C_IMAGE_ANALYSIS_TIMEOUT(
+            "CLOTHES_901", HttpStatus.GATEWAY_TIMEOUT, "의상 이미지 분석 시간이 초과되었습니다."),
 
     NOT_OWNER(
             "CLOTHES_100", HttpStatus.FORBIDDEN, "본인의 의상만 등록하거나 수정할 수 있습니다."),

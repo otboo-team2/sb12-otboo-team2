@@ -1,0 +1,31 @@
+{
+  "datasetVersion": "phase2-live-page-collection-v6-corrected-13-r3",
+  "modelSha256": "AD4952EAA2E383DFC448858ED492D51ED159AC83DAEFF160FEE94D3D9E3F2D7D",
+  "scoreThreshold": 0.15,
+  "expectedDetectedCandidateCount": 86,
+  "expectedRetainedCandidateCount": 59,
+  "expectedRequiredProductCount": 13,
+  "longImageSample": {
+    "productId": "musinsa-6880014",
+    "candidateIndex": 0,
+    "sha256": "BF4BB888B9315FEF51A2F8F550588BA051C92059D29A501197A4AD435A32D150",
+    "expectedBoxCount": 1,
+    "expectedRawScore": 0.141506,
+    "expectedAdjustedScore": 0.181325
+  },
+  "products": [
+    { "productId": "musinsa-6880014", "top8": [0], "required": [0], "retained": [0] },
+    { "productId": "musinsa-7161042", "top8": [3, 12, 1, 11, 10, 4, 9, 8], "required": [1], "retained": [3, 12, 1, 11, 10, 4, 8] },
+    { "productId": "musinsa-6145056", "top8": [5, 4, 1, 2, 3], "required": [5], "retained": [5, 1] },
+    { "productId": "musinsa-7090063", "top8": [6, 1, 0, 11, 3, 2, 4, 8], "required": [6], "retained": [6, 1, 0, 3, 4, 8] },
+    { "productId": "musinsa-6412172", "top8": [3, 0, 1, 2], "required": [0], "retained": [3, 0, 1, 2] },
+    { "productId": "29cm-3747963", "top8": [2, 0, 8, 7, 3, 4, 5, 6], "required": [0], "retained": [2, 0, 3, 6] },
+    { "productId": "29cm-3091098", "top8": [5, 15, 8, 6, 10, 13, 16, 9], "required": [13], "retained": [5, 15, 8, 6, 10, 13, 16, 9] },
+    { "productId": "29cm-1923495", "top8": [3, 0, 1, 2], "required": [3], "retained": [3, 0, 1, 2] },
+    { "productId": "ably-76662727", "top8": [7, 1, 6, 2, 0, 3, 4, 5], "required": [2], "retained": [7, 1, 6, 2] },
+    { "productId": "ably-76264181", "top8": [1, 7, 6, 2, 0, 3, 4, 5], "required": [2], "retained": [1, 7, 6, 2] },
+    { "productId": "ably-76709359", "top8": [15, 3, 14, 2, 8, 1, 6, 12], "required": [2], "retained": [15, 3, 2, 8, 1] },
+    { "productId": "ably-76706057", "top8": [0, 33, 4, 3, 2, 32, 5, 23], "required": [32], "retained": [0, 33, 3, 2, 32, 5] },
+    { "productId": "ably-76149532", "top8": [1, 6, 7, 2, 0, 3, 4, 5], "required": [2], "retained": [1, 6, 7, 2] }
+  ]
+}
