@@ -2,6 +2,8 @@ import imageLocationIcon from '@/assets/icons/ic_local.svg';
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
+import rainIcon from '@/assets/illust_logos/il_rain.svg';
+import snowIcon from '@/assets/illust_logos/il_snow.svg';
 import clearCharacter from '@/assets/weather/clear.png';
 import partlyCloudyCharacter from '@/assets/weather/partly-cloudy.png';
 import cloudyCharacter from '@/assets/weather/cloudy.png';
@@ -9,34 +11,33 @@ import rainCharacter from '@/assets/weather/rain.png';
 import snowCharacter from '@/assets/weather/snow.png';
 import {CloudRain, Droplets, ThermometerSun, Wind} from 'lucide-react';
 import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
+import {dailyRepresentativeWeathers, seoulDateKey} from './weatherForecastUtils';
+import {getWeatherCondition, getWeatherConditionText} from './weatherDisplayUtils';
 
 interface CurrentWeatherProps {
   fetchLocation: () => Promise<void>;
 }
 
 export default function CurrentWeather({ fetchLocation }: CurrentWeatherProps) {
-  const {selectedWeather: weather} = useWeatherStore();
+  const {data: weathers, selectedWeather: weather} = useWeatherStore();
 
   const temperature = weather?.temperature?.current;
   const skyStatus = weather?.skyStatus || "CLEAR";
-  const tempMin = weather?.temperature?.min;
-  const tempMax = weather?.temperature?.max;
+  const dailyWeather = weather && dailyRepresentativeWeathers(weathers ?? []).find(
+    (candidate) => seoulDateKey(candidate.forecastAt) === seoulDateKey(weather.forecastAt),
+  );
+  const tempMin = dailyWeather?.temperature?.min;
+  const tempMax = dailyWeather?.temperature?.max;
   const tempDiff = weather?.temperature?.comparedToDayBefore;
   const humidity = weather?.humidity?.current;
   const precipitation = weather?.precipitation || { type: 'NONE', amount: 0, probability: 0 };
   const windSpeed = weather?.windSpeed || { speed: 0, asWord: 'WEAK' };
 
-  const getSkyStatusText = (status: string) => {
-    switch (status) {
-      case 'CLEAR': return '맑음';
-      case 'CLOUDY': return '흐림';
-      case 'MOSTLY_CLOUDY': return '구름많음';
-      default: return '';
-    }
-  };
+  const condition = getWeatherCondition(skyStatus, precipitation.type);
+  const conditionText = getWeatherConditionText(condition);
   const precipitationText = {NONE: '없음', RAIN: '비', SNOW: '눈', RAIN_SNOW: '비/눈', SHOWER: '소나기'}[precipitation.type] || '없음';
 
-  const weatherIcon = skyStatus === 'CLEAR' ? sunnyIcon : skyStatus === 'CLOUDY' ? overcastIcon : cloudyIcon;
+  const weatherIcon = condition === 'RAIN' ? rainIcon : condition === 'SNOW' ? snowIcon : condition === 'CLEAR' ? sunnyIcon : condition === 'CLOUDY' ? overcastIcon : cloudyIcon;
   const isSnow = precipitation.type === 'SNOW';
   const isRain = !isSnow && precipitation.type !== 'NONE' && precipitation.probability > 0;
   const character = isSnow ? snowCharacter : isRain ? rainCharacter : skyStatus === 'MOSTLY_CLOUDY' ? partlyCloudyCharacter : skyStatus === 'CLOUDY' ? cloudyCharacter : clearCharacter;
@@ -86,10 +87,10 @@ export default function CurrentWeather({ fetchLocation }: CurrentWeatherProps) {
             <div className="font-extrabold leading-none not-italic relative shrink-0 text-gray-900 text-[60px] text-center text-nowrap tracking-[-1.25px]">
               <p className="leading-normal whitespace-pre">{temperature != null ? `${Math.round(temperature)}°` : '-'}</p>
             </div>
-            <img alt={getSkyStatusText(skyStatus)} className="size-[72px] shrink-0" src={weatherIcon} />
+            <img alt={conditionText} className="size-[72px] shrink-0" src={weatherIcon} />
             <div className="content-stretch flex flex-col items-start justify-center gap-1 leading-none not-italic relative shrink-0">
               <div className="font-bold relative shrink-0 text-gray-900 text-4xl text-nowrap tracking-[-0.5px]">
-                <p className="leading-normal whitespace-pre">{getSkyStatusText(skyStatus)}</p>
+                <p className="leading-normal whitespace-pre">{conditionText}</p>
               </div>
               <div className="font-bold relative shrink-0 text-gray-500 text-xl tracking-[-0.35px]">
                 <p className="leading-normal">

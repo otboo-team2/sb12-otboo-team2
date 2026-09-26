@@ -41,8 +41,8 @@ test('daily cards keep an actual Weather object as their selectable representati
   assert.equal(result.length, 2);
   assert.equal(result[0].id, later.id);
   assert.equal(result[0].temperature.current, 22);
-  assert.equal(result[0].temperature.min, 10);
-  assert.equal(result[0].temperature.max, 24);
+  assert.equal(result[0].temperature.min, 12);
+  assert.equal(result[0].temperature.max, 22);
   assert.equal(result[1].id, nextDay.id);
 });
 
@@ -59,6 +59,6 @@ test('uses the forecast closest to Seoul noon for future dates', () => {
   ], new Date('2026-09-22T09:00:00+09:00'));
 
   assert.equal(result[0].id, 'noon');
-  assert.equal(result[0].temperature.min, 10);
-  assert.equal(result[0].temperature.max, 23);
+  assert.equal(result[0].temperature.min, 15);
+  assert.equal(result[0].temperature.max, 20);
 });

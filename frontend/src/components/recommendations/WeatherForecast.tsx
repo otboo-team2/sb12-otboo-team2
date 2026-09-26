@@ -3,11 +3,21 @@ import {useWeatherStore} from '@/lib/stores/useWeatherStore';
 
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
+import rainIcon from '@/assets/illust_logos/il_rain.svg';
+import snowIcon from '@/assets/illust_logos/il_snow.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
-import {useEffect, useMemo} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {dailyRepresentativeWeathers, seoulDateKey} from './weatherForecastUtils';
+import {getWeatherCondition} from './weatherDisplayUtils';
 
-function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
+function WeatherIcon({ skyStatus, precipitationType }: { skyStatus: SkyStatus; precipitationType?: WeatherDto['precipitation']['type'] }) {
+  const condition = getWeatherCondition(skyStatus, precipitationType);
+  if (condition === 'SNOW') {
+    return <div className="overflow-clip relative shrink-0 size-10"><img alt="눈" className="block max-w-none size-full" src={snowIcon} /></div>;
+  }
+  if (condition === 'RAIN') {
+    return <div className="overflow-clip relative shrink-0 size-10"><img alt="비" className="block max-w-none size-full" src={rainIcon} /></div>;
+  }
   switch (skyStatus) {
     case 'CLEAR':
       return (
@@ -38,36 +48,45 @@ function WeatherIcon({ skyStatus }: { skyStatus: SkyStatus }) {
 
 export default function WeatherForecast() {
   const { data: weathers, loading, selectedWeather, selectWeather } = useWeatherStore();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 5 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
   const dailyWeathers = useMemo(
-    () => dailyRepresentativeWeathers(weathers ?? []),
-    [weathers],
+    () => dailyRepresentativeWeathers(weathers ?? [], now),
+    [weathers, now],
   );
 
   const nearestWeather = useMemo(() => {
     const forecasts = weathers ?? [];
     if (forecasts.length === 0) return undefined;
 
-    const now = Date.now();
+    const currentTime = now.getTime();
     const futureForecasts = forecasts.filter(
-      (weather) => new Date(weather.forecastAt).getTime() >= now,
+      (weather) => new Date(weather.forecastAt).getTime() >= currentTime,
     );
     const candidates = futureForecasts.length > 0 ? futureForecasts : forecasts;
 
     return candidates.reduce((nearest, weather) =>
-      Math.abs(new Date(weather.forecastAt).getTime() - now)
-        < Math.abs(new Date(nearest.forecastAt).getTime() - now)
+      Math.abs(new Date(weather.forecastAt).getTime() - currentTime)
+        < Math.abs(new Date(nearest.forecastAt).getTime() - currentTime)
         ? weather
         : nearest,
     );
-  }, [weathers]);
+  }, [weathers, now]);
 
   useEffect(() => {
     const selectedStillAvailable = selectedWeather
       && weathers?.some((weather) => weather.id === selectedWeather.id);
-    if (nearestWeather && !selectedStillAvailable) {
+    const todayKey = seoulDateKey(now);
+    const selectedDateKey = selectedWeather ? seoulDateKey(selectedWeather.forecastAt) : undefined;
+    const selectedToday = !selectedWeather || selectedDateKey === todayKey;
+    if (nearestWeather && (!selectedStillAvailable || selectedToday)) {
       selectWeather(nearestWeather);
     }
-  }, [nearestWeather, selectedWeather, selectWeather, weathers])
+  }, [nearestWeather, now, selectedWeather, selectWeather, weathers])
 
   if (loading || !weathers || weathers.length === 0) {
     return (
@@ -75,7 +94,7 @@ export default function WeatherForecast() {
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
         
         {/* Skeleton for 5 weather items */}
-        {Array.from({ length: 6 }).map((_, index) => (
+        {Array.from({ length: 5 }).map((_, index) => (
           <div key={index} className={`content-stretch flex flex-1 min-w-[118px] flex-col gap-1.5 items-center justify-center relative shrink-0 ${index > 0 ? 'border-l border-gray-200' : ''}`}>
             {/* Date skeleton */}
             <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
@@ -127,10 +146,9 @@ export default function WeatherForecast() {
             const date = index === 0 ? '오늘' : index === 1 ? '내일' : index === 2 ? '모레' : getForecastDate(weather.forecastAt);
             const isToday = date === '오늘';
             const selectedForDate = isToday && nearestWeather ? nearestWeather : weather;
-            const { temperature } = selectedForDate;
+            const currentTemperature = selectedForDate.temperature.current;
             const skyStatus = getSkyStatus(selectedForDate)
             const isSelected = selectedWeather?.id === selectedForDate.id;
-
             return (
               <div key={weather.id} className="flex flex-1 min-w-0">
                 <div
@@ -143,13 +161,13 @@ export default function WeatherForecast() {
                   </div>
 
                   <div>
-                    <div><WeatherIcon skyStatus={skyStatus} /></div>
+                    <div><WeatherIcon skyStatus={skyStatus} precipitationType={selectedForDate.precipitation?.type} /></div>
 
                       <div className="font-extrabold leading-none not-italic relative shrink-0 text-gray-800 text-2xl text-center text-nowrap tracking-[-0.6px]">
-                        <p className="leading-normal whitespace-pre">{displayTemp(temperature.current)}</p>
+                        <p className="leading-normal whitespace-pre">{displayTemp(currentTemperature)}</p>
                       </div>
                       <div className="mt-0.5 text-sm font-semibold text-gray-500">
-                        {displayTemp(temperature.min)} / {displayTemp(temperature.max)}
+                        {displayTemp(weather.temperature.min)} / {displayTemp(weather.temperature.max)}
                       </div>
                   </div>
                 </div>
