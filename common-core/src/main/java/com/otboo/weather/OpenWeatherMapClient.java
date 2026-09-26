@@ -6,6 +6,9 @@ import com.otboo.common.http.ExternalApiClient;
 import com.otboo.common.http.ExternalApiClientFactory;
 import com.otboo.weather.exception.WeatherErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -48,6 +51,7 @@ public class OpenWeatherMapClient {
                 || forecast.list() == null || forecast.list().isEmpty()) {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
+        logRangeDebug(forecast);
         var validEntries = forecast.list().stream()
                 .filter(entry -> !invalid(entry))
                 .toList();
@@ -59,6 +63,23 @@ public class OpenWeatherMapClient {
             throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR);
         }
         return invalidCount == 0 ? forecast : new OpenWeatherMapForecast(forecast.cod(), validEntries);
+    }
+
+    private void logRangeDebug(OpenWeatherMapForecast forecast) {
+        var entries = forecast.list();
+        var zone = ZoneId.of("Asia/Seoul");
+        var formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+        log.debug("[WEATHER RANGE DEBUG] OWM count={}", entries.size());
+        log.debug("[WEATHER RANGE DEBUG] OWM first={} UTC / {} KST",
+                entries.getFirst().forecastAt(), entries.getFirst().forecastAt().atZone(zone).format(formatter));
+        log.debug("[WEATHER RANGE DEBUG] OWM last={} UTC / {} KST",
+                entries.getLast().forecastAt(), entries.getLast().forecastAt().atZone(zone).format(formatter));
+        var counts = entries.stream().collect(Collectors.groupingBy(
+                entry -> entry.forecastAt().atZone(zone).toLocalDate(),
+                java.util.TreeMap::new, Collectors.counting()));
+        log.debug("[WEATHER RANGE DEBUG] OWM KST counts={}", counts);
+        entries.forEach(entry -> log.debug("[WEATHER RANGE DEBUG] OWM forecast={} UTC / {} KST",
+                entry.forecastAt(), entry.forecastAt().atZone(zone).format(formatter)));
     }
 
     private static boolean invalid(OpenWeatherMapForecast.Entry entry) {

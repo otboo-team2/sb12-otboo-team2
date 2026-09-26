@@ -18,8 +18,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class OpenWeatherMapWeatherService {
 
     private static final BigDecimal PERCENT = BigDecimal.valueOf(100);
@@ -70,13 +72,34 @@ public class OpenWeatherMapWeatherService {
 
         Instant now = Instant.now();
         Instant until = now.plus(FORECAST_HOURS, ChronoUnit.HOURS);
+        log.debug("[WEATHER RANGE DEBUG] filter now={} UTC / {} KST, until={} UTC / {} KST",
+                now, now.atZone(java.time.ZoneId.of("Asia/Seoul")), until,
+                until.atZone(java.time.ZoneId.of("Asia/Seoul")));
         Map<Instant, OpenWeatherMapForecast.Entry> entries = forecast.list().stream()
                 .collect(Collectors.toMap(OpenWeatherMapForecast.Entry::forecastAt, Function.identity(), (a, b) -> b));
-        return forecast.list().stream()
+        var converted = forecast.list().stream()
                 .map(entry -> toWeather(gridX, gridY, forecastedAt, entry, entries.get(entry.forecastAt().minus(24, ChronoUnit.HOURS))))
+                .toList();
+        var filtered = converted.stream()
                 .filter(weather -> !weather.getForecastAt().isBefore(now)
                         && weather.getForecastAt().isBefore(until))
                 .toList();
+        log.debug("[WEATHER RANGE DEBUG] filter before={} after={}", converted.size(), filtered.size());
+        if (!filtered.isEmpty()) {
+            log.debug("[WEATHER RANGE DEBUG] filter first={} UTC / {} KST, last={} UTC / {} KST",
+                    filtered.getFirst().getForecastAt(), filtered.getFirst().getForecastAt().atZone(java.time.ZoneId.of("Asia/Seoul")),
+                    filtered.getLast().getForecastAt(), filtered.getLast().getForecastAt().atZone(java.time.ZoneId.of("Asia/Seoul")));
+        }
+        converted.stream()
+                .filter(weather -> !filtered.contains(weather))
+                .forEach(weather -> log.debug("[WEATHER RANGE DEBUG] excluded={} UTC / {} KST, reasonBeforeNow={} reasonAtOrAfterUntil={}",
+                        weather.getForecastAt(), weather.getForecastAt().atZone(java.time.ZoneId.of("Asia/Seoul")),
+                        weather.getForecastAt().isBefore(now), !weather.getForecastAt().isBefore(until)));
+        var zone = java.time.ZoneId.of("Asia/Seoul");
+        log.debug("[WEATHER RANGE DEBUG] 9/30 KST before={} after={}",
+                converted.stream().filter(w -> w.getForecastAt().atZone(zone).toLocalDate().toString().equals("2026-09-30")).count(),
+                filtered.stream().filter(w -> w.getForecastAt().atZone(zone).toLocalDate().toString().equals("2026-09-30")).count());
+        return filtered;
     }
 
     private Weather upsert(Weather incoming) {

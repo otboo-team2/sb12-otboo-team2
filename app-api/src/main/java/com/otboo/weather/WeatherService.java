@@ -16,6 +16,8 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -74,11 +76,27 @@ public class WeatherService {
         var grid = WeatherGridConverter.toGrid(latitude, longitude);
         var region = regionRepository.findByGridXAndGridY(grid.x(), grid.y()).orElse(null);
         var now = Instant.now();
+        var seoulTodayStart = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toInstant();
         var location = new WeatherApiLocation(latitude, longitude, grid.x(), grid.y(),
                 region == null ? List.of() : region.getLocationNames());
-        return weatherRepository.findLatestByGridAndForecastAtRange(
-                grid.x(), grid.y(), now, now.plus(120, ChronoUnit.HOURS))
-                .stream().map(weather -> toDto(weather, location)).toList();
+        var queried = weatherRepository.findLatestByGridAndForecastAtRange(
+                grid.x(), grid.y(), seoulTodayStart, now.plus(120, ChronoUnit.HOURS))
+                ;
+        var zone = ZoneId.of("Asia/Seoul");
+        log.debug("[WEATHER RANGE DEBUG] API from={} KST until={} UTC / {} KST count={}",
+                seoulTodayStart.atZone(zone), now.plus(120, ChronoUnit.HOURS),
+                now.plus(120, ChronoUnit.HOURS).atZone(zone), queried.size());
+        if (!queried.isEmpty()) {
+            log.debug("[WEATHER RANGE DEBUG] API first={} UTC / {} KST, last={} UTC / {} KST",
+                    queried.getFirst().getForecastAt(), queried.getFirst().getForecastAt().atZone(zone),
+                    queried.getLast().getForecastAt(), queried.getLast().getForecastAt().atZone(zone));
+        }
+        queried.stream().filter(weather -> weather.getForecastAt().atZone(zone).toLocalDate().toString().equals("2026-09-30"))
+                .forEach(weather -> log.debug("[WEATHER RANGE DEBUG] API 9/30 forecast={} UTC / {} KST",
+                        weather.getForecastAt(), weather.getForecastAt().atZone(zone)));
+        return queried.stream().map(weather -> toDto(weather, location)).toList();
     }
 
     private WeatherDto toDto(com.otboo.weather.entity.Weather weather, WeatherApiLocation location) {
