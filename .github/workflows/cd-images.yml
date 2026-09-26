@@ -21,6 +21,7 @@ concurrency:
 permissions:
   contents: read
   packages: write        # GHCR 푸시에 필요하다
+  id-token: write        # AWS OIDC 인증에 필요하다
 
 jobs:
   build:
@@ -97,3 +98,81 @@ jobs:
             echo "${{ steps.meta.outputs.tags }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-batch:
+    name: deploy app-batch
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECS_TASK_DEFINITION_FAMILY: ${{ vars.ECS_BATCH_TASK_DEFINITION }}
+      EVENTBRIDGE_SCHEDULER_NAME: ${{ vars.EVENTBRIDGE_BATCH_SCHEDULER }}
+      IMAGE: ghcr.io/${{ github.repository }}/app-batch:sha-${{ github.sha }}
+
+    steps:
+      - name: AWS 자격 증명 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+
+      - name: 배포 설정 검증
+        run: |
+          set -euo pipefail
+          for value in AWS_REGION ECS_TASK_DEFINITION_FAMILY EVENTBRIDGE_SCHEDULER_NAME; do
+            if [ -z "${!value}" ]; then
+              echo "GitHub Actions variable $value is not configured" >&2
+              exit 1
+            fi
+          done
+          if [ -z "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "GitHub Actions secret AWS_DEPLOY_ROLE_ARN is not configured" >&2
+            exit 1
+          fi
+
+      - name: 새 Batch Task Definition 등록
+        id: task-definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition \
+            --task-definition "$ECS_TASK_DEFINITION_FAMILY" \
+            --query taskDefinition > task-definition.json
+
+          jq --arg image "$IMAGE" '
+            del(
+              .taskDefinitionArn, .revision, .status, .requiresAttributes,
+              .compatibilities, .registeredAt, .registeredBy
+            )
+            | .containerDefinitions |= map(
+                if .name == "otboo-batch" then .image = $image else . end
+              )
+          ' task-definition.json > task-definition-rendered.json
+
+          arn="$(aws ecs register-task-definition \
+            --cli-input-json file://task-definition-rendered.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)"
+          echo "arn=$arn" >> "$GITHUB_OUTPUT"
+
+      - name: EventBridge Scheduler 대상 갱신
+        shell: bash
+        env:
+          TASK_DEFINITION_ARN: ${{ steps.task-definition.outputs.arn }}
+        run: |
+          set -euo pipefail
+          aws scheduler get-schedule \
+            --name "$EVENTBRIDGE_SCHEDULER_NAME" \
+            --output json \
+            | jq --arg task_definition_arn "$TASK_DEFINITION_ARN" '
+                del(.Name, .Arn, .CreationDate, .LastModificationDate)
+                | .Target.EcsParameters.TaskDefinitionArn = $task_definition_arn
+              ' > scheduler-update.json
+
+          aws scheduler update-schedule \
+            --name "$EVENTBRIDGE_SCHEDULER_NAME" \
+            --cli-input-json file://scheduler-update.json
+
+          echo "Batch task definition: $TASK_DEFINITION_ARN"
