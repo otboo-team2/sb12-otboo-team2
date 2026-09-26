@@ -78,6 +78,44 @@ class ProductPageExtractorTest {
     }
 
     @Test
+    void mergesSupplementAndGenericDetailImagesWithoutDuplicates() throws IOException {
+        givenHtml("product-detail-images.html");
+
+        ProductPageData result = createExtractor(
+                200,
+                List.of(supplementWithDetailImages(List.of(
+                        URI.create("https://cdn.example.com/detail-front.jpg"),
+                        URI.create("https://cdn.example.com/material-table.jpg")))))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.detailImageUrls()).containsExactly(
+                URI.create("https://cdn.example.com/detail-front.jpg"),
+                URI.create("https://cdn.example.com/material-table.jpg"),
+                URI.create("https://cdn.example.com/detail-back.jpg"),
+                URI.create("https://cdn.example.com/srcset-first.jpg"));
+        assertThat(result.detailImageUrls())
+                .doesNotContain(URI.create("https://cdn.example.com/product-main.jpg"))
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void deduplicatesAndCapsMergedCandidatesAfterExcludingPrimaryImage() throws IOException {
+        givenHtml("product-detail-images.html");
+        List<URI> supplementalCandidates = new ArrayList<>(candidateUris(198));
+        supplementalCandidates.add(URI.create("https://cdn.example.com/detail-front.jpg"));
+
+        ProductPageData result = createExtractor(
+                200,
+                List.of(supplementWithDetailImages(supplementalCandidates)))
+                .extract(PRODUCT_URI);
+
+        assertThat(result.detailImageUrls())
+                .hasSize(200)
+                .doesNotContain(URI.create("https://cdn.example.com/product-main.jpg"))
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
     void supplementsMusinsaPageWithEmbeddedProductData() throws IOException {
         URI musinsaProductUri = URI.create("https://www.musinsa.com/products/4189920");
         givenHtml(musinsaProductUri, "musinsa-next-data.html");
@@ -91,7 +129,28 @@ class ProductPageExtractorTest {
         assertThat(result.detailImageUrls()).containsExactly(
                 URI.create("https://image.msscdn.net/detail/first.jpg"),
                 URI.create("https://image.msscdn.net/detail/middle.jpg"),
-                URI.create("https://image.msscdn.net/detail/material-table.jpg"));
+                URI.create("https://image.msscdn.net/detail/material-table.jpg"),
+                URI.create("https://image.msscdn.net/gallery.jpg"));
+    }
+
+    @Test
+    void keepsMusinsaLongOriginalInsteadOfThumbnail() throws IOException {
+        URI productUri = URI.create("https://www.musinsa.com/products/6880014");
+        givenHtml(productUri, "musinsa-nested-goods-contents.html");
+
+        ProductPageData result = createExtractor(200).extract(productUri);
+
+        assertThat(result.detailImageUrls()).containsExactly(
+                URI.create("https://image.msscdn.net/detail/original-long.jpg"),
+                URI.create("https://image.msscdn.net/detail/data-src-full.jpg"),
+                URI.create("https://image.msscdn.net/detail/srcset-largest.jpg"),
+                URI.create("https://image.msscdn.net/detail/src-fallback.jpg"),
+                URI.create("https://image.msscdn.net/detail/detail-images-field.jpg"),
+                URI.create("https://image.msscdn.net/detail/detail-image-url-field.jpg"))
+                .doesNotContain(URI.create(
+                        "https://image.msscdn.net/thumb/200/original-long.jpg"))
+                .doesNotContain(URI.create(
+                        "https://image.msscdn.net/review/unrelated.jpg"));
     }
 
     @Test
@@ -103,7 +162,20 @@ class ProductPageExtractorTest {
 
         assertThat(result.detailImageUrls()).containsExactly(
                 URI.create("https://cdn.example.com/detail/material.jpg"),
-                URI.create("https://cdn.example.com/detail/model.jpg"));
+                URI.create("https://cdn.example.com/detail/model.jpg"),
+                URI.create("https://cdn.example.com/gallery/second.jpg"));
+    }
+
+    @Test
+    void collectsTwentyNineCmImageUrlAndFigureSources() throws IOException {
+        URI productUri = URI.create("https://www.29cm.co.kr/products/1923495");
+        givenHtml(productUri, "twentyninecm-flight-imageurl.html");
+
+        ProductPageData result = createExtractor(200).extract(productUri);
+
+        assertThat(result.detailImageUrls()).containsExactly(
+                URI.create("https://img.29cm.co.kr/item/detail-01.jpg"),
+                URI.create("https://img.29cm.co.kr/item/detail-02.jpg"));
     }
 
     @Test

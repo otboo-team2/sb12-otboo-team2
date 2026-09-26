@@ -112,6 +112,19 @@ otboo:
       max-detail-images: 6
       max-page-text-chars: 15000
       max-discovered-image-candidates: 200
+      # C(OpenCV selector + DB18)가 기본 경로다. B0 비교·롤백 시에만
+      # OTBOO_CLOTHES_EXTRACTION_C_SELECTOR_MODE=B0를 명시한다.
+      c-selector:
+        mode: ${OTBOO_CLOTHES_EXTRACTION_C_SELECTOR_MODE:C}
+        model-path: ${OTBOO_CLOTHES_EXTRACTION_C_SELECTOR_MODEL_PATH:}
+        model-sha256: ${OTBOO_CLOTHES_EXTRACTION_C_SELECTOR_MODEL_SHA256:AD4952EAA2E383DFC448858ED492D51ED159AC83DAEFF160FEE94D3D9E3F2D7D}
+        temp-directory: ${OTBOO_CLOTHES_EXTRACTION_C_SELECTOR_TEMP_DIRECTORY:${java.io.tmpdir}/otboo-clothes-c-selector}
+        max-selected-images: 8
+        max-scan-bytes: 104857600
+        max-decoded-pixels: 200000000
+        max-concurrent-analyses: 1
+        acquire-timeout: 250ms
+        analysis-timeout: 45s
   # 박교현 — 추천 LLM 연결 설정
   recommendation:
     search:

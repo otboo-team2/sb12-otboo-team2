@@ -24,4 +24,19 @@ dependencies {
     testImplementation 'org.testcontainers:elasticsearch'
     implementation 'org.jsoup:jsoup:1.23.2'
     implementation 'com.twelvemonkeys.imageio:imageio-webp:3.15.0'
+    implementation 'io.github.julienmerconsulting.apertix:opencv:4.10.0-3'
+}
+
+def cSelectorReplayRoot = System.getProperty('cSelectorReplayRoot')
+if (cSelectorReplayRoot != null && !cSelectorReplayRoot.isBlank()) {
+    tasks.withType(Test).configureEach {
+        systemProperty 'cSelectorReplayRoot', cSelectorReplayRoot
+    }
+}
+
+def db18ModelPath = System.getProperty('db18ModelPath')
+if (db18ModelPath != null && !db18ModelPath.isBlank()) {
+    tasks.withType(Test).configureEach {
+        systemProperty 'db18ModelPath', db18ModelPath
+    }
 }

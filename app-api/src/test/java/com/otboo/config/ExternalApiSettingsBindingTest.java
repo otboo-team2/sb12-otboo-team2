@@ -2,6 +2,7 @@ package com.otboo.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.otboo.clothes.extraction.CImageSelectionProperties;
 import com.otboo.clothes.extraction.ClothesExtractionConfig;
 import com.otboo.clothes.extraction.ClothesExtractionProperties;
 import com.otboo.common.config.ExternalApiConfig;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * application.yml 의 외부 API 설정이 실제로 바인딩되는지 본다.
@@ -25,7 +28,14 @@ class ExternalApiSettingsBindingTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
+            // 이 runner는 DB18 모델을 실제로 띄우지 않는 기존 바인딩 테스트용이다.
+            // C 기본값과 별개로, 모델이 필요 없는 테스트는 B0를 명시한다.
+            .withPropertyValues("otboo.clothes.extraction.c-selector.mode=B0")
             .withUserConfiguration(ExternalApiConfig.class, ClothesExtractionConfig.class);
+
+    private final ApplicationContextRunner cSelectorPropertiesRunner = new ApplicationContextRunner()
+            .withInitializer(new ConfigDataApplicationContextInitializer())
+            .withUserConfiguration(CSelectorPropertiesOnlyConfiguration.class);
 
     private void withProperties(java.util.function.Consumer<ExternalApiProperties> assertion) {
         runner.run((AssertableApplicationContext context) ->
@@ -75,10 +85,43 @@ class ExternalApiSettingsBindingTest {
     }
 
     @Test
+    @DisplayName("C selector 기본값은 C 이고 분석 자원은 제한되어 있다")
+    void cSelectorDefaultsToCAndOneConcurrentAnalysis() {
+        cSelectorPropertiesRunner.run(context -> {
+            CImageSelectionProperties properties =
+                    context.getBean(CImageSelectionProperties.class);
+
+            assertThat(properties.mode()).isEqualTo(CImageSelectionProperties.Mode.C);
+            assertThat(properties.modelPath()).isNull();
+            assertThat(properties.modelSha256())
+                    .isEqualTo("AD4952EAA2E383DFC448858ED492D51ED159AC83DAEFF160FEE94D3D9E3F2D7D");
+            assertThat(properties.maxSelectedImages()).isEqualTo(8);
+            assertThat(properties.maxScanBytes()).isEqualTo(100L * 1024 * 1024);
+            assertThat(properties.maxDecodedPixels()).isEqualTo(200_000_000L);
+            assertThat(properties.maxConcurrentAnalyses()).isEqualTo(1);
+            assertThat(properties.acquireTimeout()).isEqualTo(Duration.ofMillis(250));
+            assertThat(properties.analysisTimeout()).isEqualTo(Duration.ofSeconds(45));
+        });
+    }
+
+    @Test
+    @DisplayName("B0는 명시적으로 선택할 수 있다")
+    void b0CanBeSelectedExplicitly() {
+        runner.withPropertyValues("otboo.clothes.extraction.c-selector.mode=B0")
+                .run(context -> assertThat(context.getBean(CImageSelectionProperties.class).mode())
+                        .isEqualTo(CImageSelectionProperties.Mode.B0));
+    }
+
+    @Test
     @DisplayName("설정에 없는 API 도 기본값으로 뜬다 — 블록을 빠뜨려도 앱이 죽지 않는다")
     void 설정없는_api는_기본값() {
         withProperties(properties -> assertThat(properties.forApi("아직-안-붙인-api"))
                 .isEqualTo(new ApiSettings(Duration.ofSeconds(3), Duration.ofSeconds(10), 0,
                         Duration.ofSeconds(1), null)));
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(CImageSelectionProperties.class)
+    static class CSelectorPropertiesOnlyConfiguration {
     }
 }
