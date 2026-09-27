@@ -81,7 +81,21 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
             return;
         }
         if (node.isContainerNode()) {
+            if (node.isObject()) {
+                collectImageUrlField(node, baseUri, images);
+            }
             node.forEach(child -> collectImages(child, baseUri, images, descriptions));
+        }
+    }
+
+    private void collectImageUrlField(JsonNode node, URI baseUri, Set<URI> images) {
+        JsonNode value = node.get("imageUrl");
+        if (value == null || !value.isTextual()) {
+            return;
+        }
+        URI resolved = resolveTwentyNineCmImage(value.textValue(), baseUri);
+        if (resolved != null && !containsDecoyKeyword(resolved)) {
+            images.add(resolved);
         }
     }
 
@@ -103,13 +117,26 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
         if (description != null) {
             descriptions.add(description);
         }
-        for (Element image : detailDocument.select("img")) {
-            String source = firstNonBlank(image.attr("src"), image.attr("data-src"));
-            URI resolved = resolveHttpsImage(source, baseUri);
+        for (Element image : detailDocument.select("img, figure[data-image-url]")) {
+            String source = "figure".equals(image.normalName())
+                    ? image.attr("data-image-url")
+                    : firstNonBlank(image.attr("src"), image.attr("data-src"));
+            URI resolved = resolveTwentyNineCmImage(source, baseUri);
             if (resolved != null && !containsDecoyKeyword(resolved)) {
                 images.add(resolved);
             }
         }
+    }
+
+    private URI resolveTwentyNineCmImage(String source, URI baseUri) {
+        if (source == null) {
+            return null;
+        }
+        String trimmed = source.trim();
+        if (trimmed.startsWith("/item/") || trimmed.startsWith("/next-product/")) {
+            return resolveHttpsImage(trimmed, URI.create("https://img.29cm.co.kr"));
+        }
+        return resolveHttpsImage(trimmed, baseUri);
     }
 
     private URI resolveHttpsImage(String source, URI baseUri) {
