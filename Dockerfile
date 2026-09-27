@@ -10,7 +10,7 @@
 # 이미지는 레이어 캐시를 그대로 맞고 지나간다(그래서 MODULE 을 맨 뒤에서만 쓴다).
 
 # ─────────────────── 1. 빌드 ───────────────────
-FROM eclipse-temurin:21-jdk-jammy AS builder
+FROM eclipse-temurin:21-jdk-noble AS builder
 WORKDIR /workspace
 
 # 빌드 스크립트를 먼저 복사해 의존성만 내려받는다.
@@ -21,7 +21,8 @@ COPY common-core/build.gradle common-core/
 COPY app-api/build.gradle app-api/
 COPY app-realtime/build.gradle app-realtime/
 COPY app-batch/build.gradle app-batch/
-RUN chmod +x gradlew \
+RUN sed -i 's/\r$//' gradlew \
+    && chmod +x gradlew \
     && ./gradlew --no-daemon -q \
         :app-api:dependencies :app-realtime:dependencies :app-batch:dependencies \
         --configuration runtimeClasspath
@@ -47,7 +48,7 @@ RUN java -Djarmode=tools -jar /workspace/${MODULE}/build/libs/*-SNAPSHOT.jar \
         extract --layers --launcher --destination .
 
 # ─────────────────── 3. 실행 ───────────────────
-FROM eclipse-temurin:21-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-noble AS runtime
 
 # root 로 돌리지 않는다. 컨테이너가 뚫렸을 때 할 수 있는 일을 줄인다.
 RUN useradd --system --create-home --uid 10001 otboo

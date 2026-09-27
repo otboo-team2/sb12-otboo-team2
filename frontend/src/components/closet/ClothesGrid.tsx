@@ -3,6 +3,8 @@ import type {ClothesDto} from '@/lib/api/types';
 import ClothesItem from './ClothesItem';
 import EmptyCloset from './EmptyCloset';
 import {useInfiniteScroll} from "@/lib/hooks/useInfiniteScroll.ts";
+import { addFavorite, removeFavorite } from '@/lib/api/clothes';
+import { toast } from 'sonner';
 
 interface ClothesGridProps {
   onAddClick?: () => void;
@@ -12,10 +14,29 @@ interface ClothesGridProps {
 }
 
 export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDeleteClothes }: ClothesGridProps) {
-  const { data: clothes, loading, isEmpty, fetchMore } = useClothesStore();
+  const { data: clothes, loading, isEmpty, fetchMore, update, delete: remove, params } = useClothesStore();
   const { ref: scrollRef } = useInfiniteScroll({
     onLoadMore: () => fetchMore()
   });
+
+  const handleFavoriteToggle = async (clothes: ClothesDto) => {
+    try {
+      if (clothes.favorite) {
+        await removeFavorite(clothes.id);
+        if (params.favorite === true) {
+          remove(clothes.id);
+        } else {
+          update(clothes.id, { favorite: false });
+        }
+      } else {
+        await addFavorite(clothes.id);
+        update(clothes.id, { favorite: true });
+      }
+    } catch (error) {
+      console.error('옷 즐겨찾기 변경 실패:', error);
+      toast.error('즐겨찾기 변경에 실패했습니다.');
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -39,6 +60,7 @@ export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDele
               isOwner={isOwner}
               onEdit={onEditClothes}
               onDelete={onDeleteClothes}
+              onFavoriteToggle={isOwner ? handleFavoriteToggle : undefined}
             />
           ))}
           <div ref={scrollRef} className="h-1" />

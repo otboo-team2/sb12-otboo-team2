@@ -70,9 +70,10 @@ export const useRecommendationStore = create<RecommendationStore>((set, get) => 
     // 날씨가 바뀐 요청은 진행 중인 이전 날씨 요청을 기다리지 않는다.
     fetch: (options) => {
       const params = {...get().params};
-      set({recommendationMode: 'BASE', seenOutfits: []});
-      return fetchLatest(() => getRecommendation(params), options,
-          data => set({seenOutfits: addOutfit([], clothesIds(data))}));
+      const history = get().recommendationMode === 'BASE' ? get().seenOutfits : [];
+      set({recommendationMode: 'BASE', seenOutfits: history});
+      return fetchLatest(() => history.length > 0 ? getRecommendation(params, [], history) : getRecommendation(params), options,
+          data => set({seenOutfits: addOutfit(history, clothesIds(data))}));
     },
     fetchAiRecommendation: (prompt, excludeClothesIds = []) => {
       const weatherId = get().params.weatherId;
