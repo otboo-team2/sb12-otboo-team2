@@ -35,6 +35,7 @@ class ExternalApiSettingsBindingTest {
 
     private final ApplicationContextRunner cSelectorPropertiesRunner = new ApplicationContextRunner()
             .withInitializer(new ConfigDataApplicationContextInitializer())
+            .withPropertyValues("otboo.clothes.extraction.c-selector.mode=C")
             .withUserConfiguration(CSelectorPropertiesOnlyConfiguration.class);
 
     private void withProperties(java.util.function.Consumer<ExternalApiProperties> assertion) {
