@@ -100,11 +100,11 @@ public class ProductPageExtractor {
         for (ImageCandidate candidate : htmlImages) {
             imageCandidates.add(candidate.uri());
         }
-        imageCandidates = capDiscoveredImageCandidates(imageCandidates);
 
+        URI genericPrimaryImage = imageCandidates.isEmpty() ? null : imageCandidates.get(0);
         URI primaryImage = supplementalPrimaryImage != null
                 ? supplementalPrimaryImage
-                : imageCandidates.isEmpty() ? null : imageCandidates.get(0);
+                : genericPrimaryImage;
         if (primaryImage == null && openGraphImage != null && structuredImages.isEmpty()) {
             primaryImage = openGraphImage;
         }
@@ -112,14 +112,12 @@ public class ProductPageExtractor {
             throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
         }
 
-        URI selectedPrimaryImage = primaryImage;
-        List<URI> detailImages = supplementalDetailImages.isEmpty()
-                ? selectedPrimaryImage == null
-                        ? imageCandidates
-                        : imageCandidates.stream()
-                                .filter(image -> !image.equals(selectedPrimaryImage))
-                                .toList()
-                : capDiscoveredImageCandidates(supplementalDetailImages);
+        LinkedHashSet<URI> mergedDetailImages = new LinkedHashSet<>();
+        mergedDetailImages.addAll(supplementalDetailImages);
+        mergedDetailImages.addAll(imageCandidates);
+        mergedDetailImages.remove(primaryImage);
+        mergedDetailImages.remove(genericPrimaryImage);
+        List<URI> detailImages = capDiscoveredImageCandidates(List.copyOf(mergedDetailImages));
         return new ProductPageData(
                 resource.finalUri(),
                 name,

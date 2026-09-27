@@ -9,13 +9,10 @@ function load(path, dependencies = {}) {
   const {outputText} = ts.transpileModule(source, {
     compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022},
   });
-  const context = {
-    exports: {},
-    require: name => {
-      assert.ok(name in dependencies, `Unexpected import: ${name}`);
-      return dependencies[name];
-    },
-  };
+  const context = {exports: {}, require: name => {
+    assert.ok(name in dependencies, `Unexpected import: ${name}`);
+    return dependencies[name];
+  }};
   runInNewContext(outputText, context);
   return context.exports;
 }
@@ -56,4 +53,25 @@ test('favorite actions call the clothes favorite endpoints', async () => {
   assert.equal(calls[0].args[0], '/api/clothes/clothes-1/favorite');
   assert.equal(calls[1].method, 'delete');
   assert.equal(calls[1].args[0], '/api/clothes/clothes-1/favorite');
+test('product-link extraction gets a 70-second request timeout', async () => {
+  const calls = [];
+  const expectedResult = {name: '테스트 상품'};
+  const {extractByUrl} = load('src/lib/api/clothes.ts', {
+    './client': {apiClient: {
+      get: (...args) => {
+        calls.push(args);
+        return Promise.resolve(expectedResult);
+      },
+    }},
+  });
+
+  const result = await extractByUrl('https://shop.example/products/1');
+
+  assert.equal(result, expectedResult);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/api/clothes/extractions');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1].params)), {
+    url: 'https://shop.example/products/1',
+  });
+  assert.equal(calls[0][1].timeout, 70_000);
 });

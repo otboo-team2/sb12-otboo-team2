@@ -1,0 +1,7 @@
+otboo:
+  clothes:
+    extraction:
+      c-selector:
+        # 통합 테스트는 DB18 모델 파일 없이 애플리케이션 컨텍스트를 검증한다.
+        # 운영 기본값(C)은 main/resources/application.yml에서 유지한다.
+        mode: B0

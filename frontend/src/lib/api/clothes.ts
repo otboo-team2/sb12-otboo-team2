@@ -76,5 +76,8 @@ export const removeFavorite = async (clothesId: string): Promise<void> => {
  * 구매 링크로 옷 정보 불러오기
  */
 export const extractByUrl = async (url: string): Promise<ClothesExtractionDto> => {
-  return apiClient.get<ClothesExtractionDto>('/api/clothes/extractions', { params: { url } });
+  return apiClient.get<ClothesExtractionDto>('/api/clothes/extractions', {
+    params: { url },
+    timeout: 70_000,
+  });
 };
