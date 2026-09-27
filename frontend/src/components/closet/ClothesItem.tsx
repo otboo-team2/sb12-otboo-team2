@@ -1,4 +1,4 @@
-import { MoreVertical, Edit, Trash2 } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Star } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { ClothesDto } from '@/lib/api/types';
 
@@ -7,9 +7,10 @@ interface ClothesItemProps {
   isOwner?: boolean;
   onEdit?: (clothes: ClothesDto) => void;
   onDelete?: (clothes: ClothesDto) => void;
+  onFavoriteToggle?: (clothes: ClothesDto) => Promise<void>;
 }
 
-export default function ClothesItem({ clothes, isOwner = false, onEdit, onDelete }: ClothesItemProps) {
+export default function ClothesItem({ clothes, isOwner = false, onEdit, onDelete, onFavoriteToggle }: ClothesItemProps) {
   return (
     <div className="content-stretch flex flex-col gap-3 items-start justify-start relative w-full group">
       {/* 이미지 */}
@@ -24,6 +25,23 @@ export default function ClothesItem({ clothes, isOwner = false, onEdit, onDelete
           <div className="w-full h-full flex items-center justify-center bg-gray-300">
             <div className="text-gray-500 text-sm">이미지 없음</div>
           </div>
+        )}
+
+        {isOwner && onFavoriteToggle && (
+          <button
+            type="button"
+            aria-label={clothes.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            title={clothes.favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+            onClick={(event) => {
+              event.stopPropagation();
+              void onFavoriteToggle(clothes);
+            }}
+            className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm hover:bg-white size-8 rounded-full flex items-center justify-center shadow-md transition-colors"
+          >
+            <Star
+              className={`size-4 ${clothes.favorite ? 'fill-yellow-400 text-yellow-400' : 'text-gray-500'}`}
+            />
+          </button>
         )}
 
         {/* 미트볼 메뉴 - 내 옷인 경우에만 표시 */}

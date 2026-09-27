@@ -59,6 +59,20 @@ export const deleteClothes = async (clothesId: string): Promise<void> => {
 };
 
 /**
+ * 옷 즐겨찾기 추가
+ */
+export const addFavorite = async (clothesId: string): Promise<void> => {
+  await apiClient.post<void>(`/api/clothes/${clothesId}/favorite`);
+};
+
+/**
+ * 옷 즐겨찾기 해제
+ */
+export const removeFavorite = async (clothesId: string): Promise<void> => {
+  await apiClient.delete<void>(`/api/clothes/${clothesId}/favorite`);
+};
+
+/**
  * 구매 링크로 옷 정보 불러오기
  */
 export const extractByUrl = async (url: string): Promise<ClothesExtractionDto> => {
