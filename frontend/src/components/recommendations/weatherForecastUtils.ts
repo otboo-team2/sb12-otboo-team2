@@ -52,7 +52,7 @@ export function dailyRepresentativeWeathers(
     byDate.set(key, [...(byDate.get(key) ?? []), weather]);
   }
   const todayKey = seoulDateKey(now);
-  return [...byDate.entries()].slice(0, 5).map(([dateKey, forecasts]) => {
+  return [...byDate.entries()].slice(0, 6).map(([dateKey, forecasts]) => {
     const representative = dateKey === todayKey
       ? closestForecast(forecasts, now.getTime(), true)
       : closestForecast(forecasts, seoulNoonTimestamp(dateKey));

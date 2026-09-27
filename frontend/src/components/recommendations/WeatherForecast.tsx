@@ -93,8 +93,8 @@ export default function WeatherForecast() {
       <div className="backdrop-blur-[15px] backdrop-filter bg-white/70 box-border flex items-start overflow-hidden px-2 py-4 relative rounded-[24px] shrink-0 w-full md:px-4 lg:px-6">
         <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[30px]" />
         
-        {/* Skeleton for 5 weather items */}
-        {Array.from({ length: 5 }).map((_, index) => (
+        {/* Skeleton for 6 weather items */}
+        {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className={`content-stretch flex flex-1 min-w-[118px] flex-col gap-1.5 items-center justify-center relative shrink-0 ${index > 0 ? 'border-l border-gray-200' : ''}`}>
             {/* Date skeleton */}
             <div className="h-4 w-12 bg-gray-200 rounded animate-pulse" />
