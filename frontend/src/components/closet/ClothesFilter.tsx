@@ -3,19 +3,20 @@ import { useClothesStore } from '@/lib/stores/useClothesStore';
 import type { ClothesType } from '@/lib/api/types';
 
 const CLOTHES_CATEGORIES = [
-  { label: '전체', value: undefined },
-  { label: '상의', value: 'TOP' as ClothesType },
-  { label: '하의', value: 'BOTTOM' as ClothesType },
-  { label: '원피스', value: 'DRESS' as ClothesType },
-  { label: '아우터', value: 'OUTER' as ClothesType },
-  { label: '속옷', value: 'UNDERWEAR' as ClothesType },
-  { label: '악세서리', value: 'ACCESSORY' as ClothesType },
-  { label: '신발', value: 'SHOES' as ClothesType },
-  { label: '양말', value: 'SOCKS' as ClothesType },
-  { label: '모자', value: 'HAT' as ClothesType },
-  { label: '가방', value: 'BAG' as ClothesType },
-  { label: '스카프', value: 'SCARF' as ClothesType },
-  { label: '기타', value: 'ETC' as ClothesType },
+  { label: '전체', value: undefined, favorite: undefined },
+  { label: '즐겨찾기', value: undefined, favorite: true },
+  { label: '상의', value: 'TOP' as ClothesType, favorite: undefined },
+  { label: '하의', value: 'BOTTOM' as ClothesType, favorite: undefined },
+  { label: '원피스', value: 'DRESS' as ClothesType, favorite: undefined },
+  { label: '아우터', value: 'OUTER' as ClothesType, favorite: undefined },
+  { label: '속옷', value: 'UNDERWEAR' as ClothesType, favorite: undefined },
+  { label: '악세서리', value: 'ACCESSORY' as ClothesType, favorite: undefined },
+  { label: '신발', value: 'SHOES' as ClothesType, favorite: undefined },
+  { label: '양말', value: 'SOCKS' as ClothesType, favorite: undefined },
+  { label: '모자', value: 'HAT' as ClothesType, favorite: undefined },
+  { label: '가방', value: 'BAG' as ClothesType, favorite: undefined },
+  { label: '스카프', value: 'SCARF' as ClothesType, favorite: undefined },
+  { label: '기타', value: 'ETC' as ClothesType, favorite: undefined },
 ];
 
 interface ClothesFilterProps {
@@ -25,10 +26,12 @@ interface ClothesFilterProps {
 export default function ClothesFilter({ onAddClick }: ClothesFilterProps) {
   const { updateParams } = useClothesStore();
   const [selectedType, setSelectedType] = useState<ClothesType | undefined>(undefined);
+  const [selectedFavorite, setSelectedFavorite] = useState<boolean | undefined>(undefined);
 
-  const handleTypeChange = (type?: ClothesType) => {
+  const handleFilterChange = (type?: ClothesType, favorite?: boolean) => {
     setSelectedType(type);
-    updateParams({ typeEqual: type });
+    setSelectedFavorite(favorite);
+    updateParams({ typeEqual: type, favorite });
   };
 
   return (
@@ -36,11 +39,11 @@ export default function ClothesFilter({ onAddClick }: ClothesFilterProps) {
       {/* 카테고리 필터 탭 */}
       <div className="content-stretch flex gap-[20px] items-center justify-start relative shrink-0">
         {CLOTHES_CATEGORIES.map((category) => {
-          const isSelected = selectedType === category.value;
+          const isSelected = selectedType === category.value && selectedFavorite === category.favorite;
           return (
             <button
               key={category.label}
-              onClick={() => handleTypeChange(category.value)}
+              onClick={() => handleFilterChange(category.value, category.favorite)}
               className={`box-border content-stretch flex gap-1.5 items-center justify-center px-[18px] py-4 relative shrink-0 ${
                 isSelected
                   ? 'border-b-4 border-blue-500 border-solid'

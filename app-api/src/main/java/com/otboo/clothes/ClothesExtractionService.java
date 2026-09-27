@@ -5,9 +5,14 @@ import com.otboo.clothes.dto.ClothesExtractionFailureDto;
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
 import com.otboo.clothes.entity.ClothesAttributeSelectableValue;
 import com.otboo.clothes.extraction.AttributeDefinitionSnapshot;
+import com.otboo.clothes.exception.ClothesErrorCode;
 import com.otboo.clothes.extraction.ClothesExtractionMetrics;
 import com.otboo.clothes.extraction.ClothesExtractionProperties;
 import com.otboo.clothes.extraction.ClothesExtractionValidator;
+import com.otboo.clothes.extraction.CImageAnalysisException;
+import com.otboo.clothes.extraction.CImageSelectionProperties;
+import com.otboo.clothes.extraction.CImageSelectionResult;
+import com.otboo.clothes.extraction.CImageSelectionService;
 import com.otboo.clothes.extraction.GeminiClothesExtractionClient;
 import com.otboo.clothes.extraction.GeminiExtractionCandidate;
 import com.otboo.clothes.extraction.ProductPageData;
@@ -17,8 +22,11 @@ import com.otboo.clothes.extraction.RemoteResource;
 import com.otboo.clothes.extraction.SafeRemoteResourceClient;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
+import com.otboo.common.exception.CommonErrorCode;
+import com.otboo.common.exception.BusinessException;
 import io.micrometer.core.instrument.Timer;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /** 상품 링크를 분석하지만 아직 의상을 저장하지 않는 흐름이다. */
@@ -59,6 +68,8 @@ public class ClothesExtractionService {
     private final ClothesExtractionValidator extractionValidator;
     private final ClothesExtractionProperties properties;
     private final ClothesExtractionMetrics metrics;
+    private final CImageSelectionProperties cSelectionProperties;
+    private final ObjectProvider<CImageSelectionService> cSelectionServiceProvider;
 
     public ClothesExtractionService(
             ProductUrlValidator productUrlValidator,
@@ -69,7 +80,9 @@ public class ClothesExtractionService {
             ClothesAttributeSelectableValueRepository selectableValueRepository,
             ClothesExtractionValidator extractionValidator,
             ClothesExtractionProperties properties,
-            ClothesExtractionMetrics metrics
+            ClothesExtractionMetrics metrics,
+            CImageSelectionProperties cSelectionProperties,
+            ObjectProvider<CImageSelectionService> cSelectionServiceProvider
     ) {
         this.productUrlValidator = productUrlValidator;
         this.productPageExtractor = productPageExtractor;
@@ -80,25 +93,80 @@ public class ClothesExtractionService {
         this.extractionValidator = extractionValidator;
         this.properties = properties;
         this.metrics = metrics;
+        this.cSelectionProperties = cSelectionProperties;
+        this.cSelectionServiceProvider = cSelectionServiceProvider;
     }
 
     public ClothesExtractionDto extract(String rawUrl) {
+        CImageSelectionProperties.Mode mode = cSelectionProperties.mode();
+        String modeTag = mode == CImageSelectionProperties.Mode.C ? "c" : "b0";
         Timer.Sample sample = metrics.startTimer();
         URI productUrl = null;
         ClothesExtractionMetrics.Outcome outcome = ClothesExtractionMetrics.Outcome.ERROR;
         int acceptedAttributeCount = 0;
         try {
             productUrl = productUrlValidator.validate(rawUrl);
-            ProductPageData page = productPageExtractor.extract(productUrl);
+            long collectionStart = System.nanoTime();
+            ProductPageData page;
+            try {
+                page = productPageExtractor.extract(productUrl);
+            } catch (RuntimeException | Error exception) {
+                metrics.recordStage(
+                        productUrl, modeTag, "collection", "error", elapsedSince(collectionStart));
+                throw exception;
+            }
+            metrics.recordStage(
+                    productUrl, modeTag, "collection", "success", elapsedSince(collectionStart));
+            int discoveredImageCount = page.detailImageUrls().size();
+            metrics.recordStageImageCount(
+                    productUrl, modeTag, "collection", discoveredImageCount);
 
             List<ClothesExtractionFailureDto> failures = new ArrayList<>();
             List<RemoteResource> images = new ArrayList<>();
             Set<URI> downloadedUris = new LinkedHashSet<>();
             String validatedImageUrl = downloadPrimaryImage(page, images, downloadedUris, failures);
-            downloadDetailImages(page, images, downloadedUris, failures);
+            if (mode == CImageSelectionProperties.Mode.C) {
+                selectCDetails(page, images, downloadedUris, failures);
+            } else {
+                int failuresBeforeDetails = failures.size();
+                long detailsDownloadStart = System.nanoTime();
+                DetailDownloadStats details = downloadDetailImages(
+                        page, images, downloadedUris, failures);
+                metrics.recordStageImageCount(
+                        productUrl, modeTag, "download", details.downloadedCount());
+                metrics.recordStageImageCount(
+                        productUrl, modeTag, "selector", details.selectedCount());
+                metrics.recordStageImageCount(productUrl, modeTag, "db18", 0);
+                metrics.recordStageImageBytes(
+                        productUrl, modeTag, "download", details.downloadedBytes());
+                metrics.recordStage(
+                        productUrl,
+                        modeTag,
+                        "download",
+                        failures.size() == failuresBeforeDetails ? "success" : "partial",
+                        elapsedSince(detailsDownloadStart));
+            }
 
             List<AttributeDefinitionSnapshot> catalog = loadAttributeCatalog();
-            GeminiExtractionCandidate candidate = geminiClient.extract(page, images, catalog);
+            int geminiImageCount = images.size();
+            long geminiImageBytes = totalImageBytes(images);
+            metrics.recordStageImageCount(
+                    productUrl, modeTag, "gemini", geminiImageCount);
+            metrics.recordStageImageBytes(
+                    productUrl, modeTag, "gemini", geminiImageBytes);
+            long geminiStart = System.nanoTime();
+            GeminiExtractionCandidate candidate;
+            try {
+                candidate = geminiClient.extract(page, images, catalog);
+            } catch (RuntimeException | Error exception) {
+                metrics.recordStage(
+                        productUrl, modeTag, "gemini", "error", elapsedSince(geminiStart));
+                metrics.recordFailureReason(
+                        productUrl, modeTag, "gemini", failureReason(exception));
+                throw exception;
+            }
+            metrics.recordStage(
+                    productUrl, modeTag, "gemini", "success", elapsedSince(geminiStart));
             ClothesExtractionDto validated = extractionValidator.validate(
                     page, candidate, catalog, validatedImageUrl);
 
@@ -120,6 +188,40 @@ public class ClothesExtractionService {
             return result;
         } finally {
             metrics.recordExtraction(sample, productUrl, outcome, acceptedAttributeCount);
+        }
+    }
+
+    private void selectCDetails(
+            ProductPageData page,
+            List<RemoteResource> images,
+            Set<URI> downloadedUris,
+            List<ClothesExtractionFailureDto> failures
+    ) {
+        CImageSelectionService selectionService = cSelectionServiceProvider.getIfAvailable();
+        if (selectionService == null) {
+            throw new BusinessException(ClothesErrorCode.C_IMAGE_ANALYSIS_UNAVAILABLE);
+        }
+
+        long remainingBytes = properties.maxTotalImageBytes()
+                - images.stream().mapToLong(image -> image.body().length).sum();
+        try {
+            CImageSelectionResult selection = selectionService.selectDetails(
+                    page, Set.copyOf(downloadedUris), remainingBytes);
+            images.addAll(selection.images());
+            failures.addAll(selection.downloadFailures());
+            selection.images().stream()
+                    .map(RemoteResource::finalUri)
+                    .filter(java.util.Objects::nonNull)
+                    .forEach(downloadedUris::add);
+        } catch (CImageAnalysisException exception) {
+            throw switch (exception.reason()) {
+                case TIMEOUT -> new BusinessException(
+                        ClothesErrorCode.C_IMAGE_ANALYSIS_TIMEOUT, exception);
+                case SCAN_LIMIT -> new BusinessException(
+                        ClothesErrorCode.REMOTE_RESOURCE_TOO_LARGE, exception);
+                default -> new BusinessException(
+                        ClothesErrorCode.C_IMAGE_ANALYSIS_UNAVAILABLE, exception);
+            };
         }
     }
 
@@ -148,7 +250,7 @@ public class ClothesExtractionService {
         }
     }
 
-    private void downloadDetailImages(
+    private DetailDownloadStats downloadDetailImages(
             ProductPageData page,
             List<RemoteResource> images,
             Set<URI> downloadedUris,
@@ -157,8 +259,10 @@ public class ClothesExtractionService {
         int maxDetailImages = Math.max(0, properties.maxDetailImages());
         int totalBytes = images.stream().mapToInt(image -> image.body().length).sum();
         int detailCount = 0;
+        long downloadedBytes = 0;
+        List<URI> selectedImages = selectDetailImages(page.detailImageUrls(), maxDetailImages);
 
-        for (URI detailUrl : selectDetailImages(page.detailImageUrls(), maxDetailImages)) {
+        for (URI detailUrl : selectedImages) {
             if (detailCount >= maxDetailImages || detailUrl == null || downloadedUris.contains(detailUrl)) {
                 continue;
             }
@@ -175,11 +279,13 @@ public class ClothesExtractionService {
                 downloadedUris.add(detailUrl);
                 downloadedUris.add(detail.finalUri());
                 totalBytes += imageBytes;
+                downloadedBytes += imageBytes;
                 detailCount++;
             } catch (RuntimeException exception) {
                 failures.add(imageFailure(DETAIL_IMAGE_FIELD));
             }
         }
+        return new DetailDownloadStats(selectedImages.size(), detailCount, downloadedBytes);
     }
 
     private List<URI> selectDetailImages(List<URI> detailImageUrls, int limit) {
@@ -283,6 +389,25 @@ public class ClothesExtractionService {
 
     private ClothesExtractionFailureDto imageFailure(String field) {
         return new ClothesExtractionFailureDto(field, "이미지를 자동으로 가져오지 못했습니다.");
+    }
+
+    private long totalImageBytes(List<RemoteResource> images) {
+        return images.stream().mapToLong(image -> image.body().length).sum();
+    }
+
+    private String failureReason(Throwable exception) {
+        if (exception instanceof BusinessException businessException
+                && businessException.getErrorCode() == CommonErrorCode.EXTERNAL_API_TIMEOUT) {
+            return "timeout";
+        }
+        return "model_error";
+    }
+
+    private Duration elapsedSince(long startNanos) {
+        return Duration.ofNanos(Math.max(0, System.nanoTime() - startNanos));
+    }
+
+    private record DetailDownloadStats(int selectedCount, int downloadedCount, long downloadedBytes) {
     }
 
     private record InformationImageKeyword(String value, int weight) {

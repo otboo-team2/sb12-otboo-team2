@@ -1,0 +1,17 @@
+{
+  "purpose": "Hand-checked channel scores for deterministic round-robin union selection.",
+  "candidates": [
+    { "candidateIndex": 3, "textScore": 0.99, "tableScore": 0.70, "densityScore": 0.10, "width": 100, "height": 100 },
+    { "candidateIndex": 12, "textScore": 0.95, "tableScore": 0.99, "densityScore": 0.20, "width": 100, "height": 100 },
+    { "candidateIndex": 1, "textScore": 0.90, "tableScore": 0.10, "densityScore": 0.99, "width": 100, "height": 100 },
+    { "candidateIndex": 11, "textScore": 0.85, "tableScore": 0.10, "densityScore": 0.30, "width": 100, "height": 100 },
+    { "candidateIndex": 10, "textScore": 0.80, "tableScore": 0.95, "densityScore": 0.20, "width": 100, "height": 100 },
+    { "candidateIndex": 4, "textScore": 0.75, "tableScore": 0.10, "densityScore": 0.95, "width": 100, "height": 100 },
+    { "candidateIndex": 9, "textScore": 0.70, "tableScore": 0.10, "densityScore": 0.90, "width": 100, "height": 100 },
+    { "candidateIndex": 8, "textScore": 0.65, "tableScore": 0.90, "densityScore": 0.20, "width": 100, "height": 100 },
+    { "candidateIndex": 2, "textScore": 0.20, "tableScore": 0.10, "densityScore": 0.10, "width": 100, "height": 100 },
+    { "candidateIndex": 5, "textScore": 0.16, "tableScore": 0.20, "densityScore": 0.10, "width": 100, "height": 100 },
+    { "candidateIndex": 6, "textScore": 0.15, "tableScore": 0.15, "densityScore": 0.10, "width": 100, "height": 100 },
+    { "candidateIndex": 7, "textScore": 0.05, "tableScore": 0.10, "densityScore": 0.10, "width": 100, "height": 100 }
+  ]
+}
