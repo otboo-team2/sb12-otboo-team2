@@ -66,7 +66,13 @@ public class OpenWeatherMapClient {
     }
 
     private void logRangeDebug(OpenWeatherMapForecast forecast) {
-        var entries = forecast.list();
+        var entries = forecast.list().stream()
+                .filter(entry -> !invalid(entry))
+                .toList();
+        if (entries.isEmpty()) {
+            log.debug("[WEATHER RANGE DEBUG] OWM has no valid entries");
+            return;
+        }
         var zone = ZoneId.of("Asia/Seoul");
         var formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
         log.debug("[WEATHER RANGE DEBUG] OWM count={}", entries.size());
