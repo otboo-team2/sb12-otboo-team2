@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import type {FormEvent} from 'react';
 import {Send, Sparkles} from 'lucide-react';
 import RecommendationHeader from './RecommendationHeader';
@@ -8,13 +8,16 @@ import RecommendationReason from './RecommendationReason';
 import OutfitReferenceModal from './OutfitReferenceModal';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
 import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
+import {useAuthStore} from "@/lib/stores/useAuthStore.ts";
 
 export default function RecommendationSection() {
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const { selectedWeather } = useWeatherStore();
+  const userId = useAuthStore((state) => state.data?.userDto.id);
+  const previousUserId = useRef(userId);
   const {
     data: recommendations, params, updateParams, fetchAiRecommendation, loading, error,
-    inputPrompt, setInputPrompt,
+    inputPrompt, setInputPrompt, clearData,
   } = useRecommendationStore();
   const examples = [
     '오늘 데이트룩 추천해줘',
@@ -22,6 +25,13 @@ export default function RecommendationSection() {
     '면접인데 단정하게 입고 싶어',
     '오늘은 캐주얼한 스타일로 추천해줘',
   ];
+
+  useEffect(() => {
+    if (previousUserId.current !== undefined && previousUserId.current !== userId) {
+      clearData();
+    }
+    previousUserId.current = userId;
+  }, [userId, clearData]);
 
   useEffect(() => {
     if (selectedWeather?.id && params.weatherId !== selectedWeather.id) {
