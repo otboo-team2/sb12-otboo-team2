@@ -278,7 +278,7 @@ export default function DmConversationPage() {
                                                     <div className="font-['SUIT:SemiBold',_sans-serif] text-[#808089] text-[14px] text-center tracking-[-0.35px] leading-[0] not-italic">
                                                         <p className="leading-[normal]">
                                                             {new Date(msg.createdAt).toLocaleDateString('ko-KR', {
-                                                                year: '2-digit',
+                                                                year: 'numeric',
                                                                 month: 'long',
                                                                 day: 'numeric',
                                                             })}
