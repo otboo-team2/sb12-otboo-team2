@@ -223,7 +223,7 @@ export default function DmConversationPage() {
         <div className="flex flex-col h-full bg-white">
             {/* 헤더 */}
             <div className="flex gap-2 items-center px-5 py-3 border-b border-[#e7e7e9]">
-                <button onClick={() => navigate('/dm')} className="p-2 -ml-2 rounded-full hover:bg-gray-100">
+                <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-gray-100">
                     ←
                 </button>
                 <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
