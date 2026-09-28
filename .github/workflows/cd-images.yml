@@ -166,7 +166,10 @@ jobs:
               .compatibilities, .registeredAt, .registeredBy
             )
             | .containerDefinitions |= map(
-                if .name == "otboo-batch" then .image = $image else . end
+                if .name == "otboo-batch"
+                then (.image = $image | del(.repositoryCredentials))
+                else .
+                end
               )
           ' task-definition.json > task-definition-rendered.json
 
