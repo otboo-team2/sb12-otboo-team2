@@ -26,7 +26,7 @@ const formatTimeAgo = (createdAt: string) => {
 
 export const DmDropdownList = ({ isOpen, onClose, anchorElement }: DmDropdownListProps) => {
     const navigate = useNavigate();
-    const { data: conversations, loading, fetchMore } = useDmConversationStore();
+    const { data: conversations, loading, fetch, fetchMore } = useDmConversationStore();
     const listRef = useRef<HTMLDivElement>(null);
 
     const { ref: infiniteScrollRef } = useInfiniteScroll({ onLoadMore: () => fetchMore() });
@@ -54,6 +54,12 @@ export const DmDropdownList = ({ isOpen, onClose, anchorElement }: DmDropdownLis
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetch();
+        }
+    }, [isOpen, fetch]);
 
     const openConversation = (conv: DmConversationDto) => {
         onClose();
@@ -83,9 +89,11 @@ export const DmDropdownList = ({ isOpen, onClose, anchorElement }: DmDropdownLis
         >
             <div className="flex flex-col h-full overflow-y-auto">
                 {conversations.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-[var(--color-gray-400)]">
-                        아직 나눈 대화가 없어요
-                    </div>
+                    loading ? null : (
+                        <div className="flex items-center justify-center h-full text-[var(--color-gray-400)]">
+                            아직 나눈 대화가 없어요
+                        </div>
+                    )
                 ) : (
                     <>
                         {conversations.map((conv) => (
