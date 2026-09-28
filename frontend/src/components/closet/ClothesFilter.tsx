@@ -8,13 +8,10 @@ const CLOTHES_CATEGORIES = [
   { label: '하의', value: 'BOTTOM' as ClothesType },
   { label: '원피스', value: 'DRESS' as ClothesType },
   { label: '아우터', value: 'OUTER' as ClothesType },
-  { label: '속옷', value: 'UNDERWEAR' as ClothesType },
   { label: '악세서리', value: 'ACCESSORY' as ClothesType },
   { label: '신발', value: 'SHOES' as ClothesType },
-  { label: '양말', value: 'SOCKS' as ClothesType },
   { label: '모자', value: 'HAT' as ClothesType },
   { label: '가방', value: 'BAG' as ClothesType },
-  { label: '스카프', value: 'SCARF' as ClothesType },
   { label: '기타', value: 'ETC' as ClothesType },
 ];
 

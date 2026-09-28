@@ -62,6 +62,21 @@ export interface PaginatedStore<T, P extends CursorParams> {
   cursorState: CursorState;
   hasNext: () => boolean;
 
+  /** 번호형 페이지네이션 현재 페이지 (1부터 시작) */
+  page: number;
+  /** cursorState.totalCount 와 params.limit 기준으로 계산한 전체 페이지 수 */
+  totalPages: () => number;
+  /**
+   * 지정한 페이지로 이동한다. 서버가 offset 이 아닌 커서(keyset) 방식만 지원하므로,
+   * 이미 방문해 커서를 아는 페이지는 바로 이동하고 아직 모르는 먼 페이지는 그 사이 페이지를
+   * 순차적으로 이어서 조회해 커서를 알아낸 뒤 이동한다. 존재하지 않는 페이지를 요청하면
+   * 마지막 페이지로 대체된다.
+   */
+  goToPage: (page: number, options?: {
+    throwError?: boolean;
+    ignoreLoading?: boolean;
+  }) => Promise<void>;
+
   fetch: (options?: {
     throwError?: boolean;
     ignoreLoading?: boolean;

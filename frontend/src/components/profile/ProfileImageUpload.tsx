@@ -51,7 +51,7 @@ export default function ProfileImageUpload({
 
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      <div className="relative w-[140px] flex flex-col items-end pb-[27px]">
+      <div className="relative w-[100px] flex flex-col items-end pb-[27px]">
         {/* 프로필 이미지 */}
         <div className="aspect-square bg-[var(--color-gray-400)] rounded-full w-full overflow-hidden border border-[var(--color-gray-300)] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)] mb-[-27px]">
           {currentImageUrl && !imageError ? (
