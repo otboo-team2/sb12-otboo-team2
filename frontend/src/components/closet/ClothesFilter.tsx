@@ -2,17 +2,24 @@ import { useState } from 'react';
 import { useClothesStore } from '@/lib/stores/useClothesStore';
 import type { ClothesType } from '@/lib/api/types';
 
-const CLOTHES_CATEGORIES = [
+interface ClothesCategory {
+  label: string;
+  value?: ClothesType;
+  favorite?: boolean;
+}
+
+const CLOTHES_CATEGORIES: ClothesCategory[] = [
   { label: '전체', value: undefined },
-  { label: '상의', value: 'TOP' as ClothesType },
-  { label: '하의', value: 'BOTTOM' as ClothesType },
-  { label: '원피스', value: 'DRESS' as ClothesType },
-  { label: '아우터', value: 'OUTER' as ClothesType },
-  { label: '신발', value: 'SHOES' as ClothesType },
-  { label: '악세서리', value: 'ACCESSORY' as ClothesType },
-  { label: '모자', value: 'HAT' as ClothesType },
-  { label: '가방', value: 'BAG' as ClothesType },
-  { label: '기타', value: 'ETC' as ClothesType },
+  { label: '즐겨찾기', value: undefined, favorite: true },
+  { label: '상의', value: 'TOP' },
+  { label: '하의', value: 'BOTTOM' },
+  { label: '원피스', value: 'DRESS' },
+  { label: '아우터', value: 'OUTER' },
+  { label: '신발', value: 'SHOES' },
+  { label: '악세서리', value: 'ACCESSORY' },
+  { label: '모자', value: 'HAT' },
+  { label: '가방', value: 'BAG' },
+  { label: '기타', value: 'ETC' },
 ];
 
 interface ClothesFilterProps {

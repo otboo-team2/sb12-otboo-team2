@@ -1,8 +1,10 @@
 import {useClothesStore} from '@/lib/stores/useClothesStore';
 import type {ClothesDto} from '@/lib/api/types';
+import {addFavorite, removeFavorite} from '@/lib/api/clothes';
 import ClothesItem from './ClothesItem';
 import EmptyCloset from './EmptyCloset';
 import Pagination from '@/components/ui/pagination';
+import {toast} from 'sonner';
 
 interface ClothesGridProps {
   onAddClick?: () => void;
@@ -12,7 +14,7 @@ interface ClothesGridProps {
 }
 
 export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDeleteClothes }: ClothesGridProps) {
-  const { data: clothes, loading, isEmpty, page, totalPages, goToPage } = useClothesStore();
+  const { data: clothes, loading, isEmpty, page, totalPages, goToPage, params, update, delete: remove } = useClothesStore();
 
   if (loading && clothes.length === 0) {
     return (
@@ -74,6 +76,7 @@ export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDele
                 isOwner={isOwner}
                 onEdit={onEditClothes}
                 onDelete={onDeleteClothes}
+                onFavoriteToggle={handleFavoriteToggle}
               />
             ))}
           </div>
