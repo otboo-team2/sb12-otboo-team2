@@ -20,7 +20,6 @@ import DmConversationPage from '@/pages/dm/conversation/page';
 import VirtualFittingPage from '@/pages/virtual-fitting/page';
 import NotFoundPage from '@/pages/404/page';
 import CsrfInitializer from "@/components/auth/CsrfInitializer.tsx";
-import CategoryPreviewPage from '@/pages/__category-preview/page';
 
 const basename = import.meta.env.VITE_PUBLIC_PATH || '/';
 
@@ -32,7 +31,6 @@ function App() {
       <CsrfInitializer/>
       <Routes>
         {/* Public Routes */}
-        <Route path="/__category-preview" element={<CategoryPreviewPage />} />
         <Route path="/auth/*" element={<AuthLayout />}>
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
