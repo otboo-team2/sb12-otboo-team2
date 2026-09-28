@@ -12,13 +12,10 @@ import type { ClothesDto, ClothesType } from '@/lib/api/types';
 const ADDITIONAL_CATEGORIES: { label: string; value: ClothesType | 'ALL' }[] = [
     { label: '전체', value: 'ALL' },
     { label: '아우터', value: 'OUTER' },
-    { label: '속옷', value: 'UNDERWEAR' },
     { label: '액세서리', value: 'ACCESSORY' },
     { label: '신발', value: 'SHOES' },
-    { label: '양말', value: 'SOCKS' },
     { label: '모자', value: 'HAT' },
     { label: '가방', value: 'BAG' },
-    { label: '스카프', value: 'SCARF' },
     { label: '기타', value: 'ETC' },
 ];
 
