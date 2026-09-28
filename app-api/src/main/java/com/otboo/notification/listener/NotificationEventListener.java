@@ -74,6 +74,10 @@ public class NotificationEventListener {
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void on(FeedCommentedEvent event) {
+        if (event.feedOwnerId().equals(event.commenterId())) {
+            return;
+        }
+
         User receiver = userRepository.getReferenceById(event.feedOwnerId());
         User actor = findUser(event.commenterId());
 
