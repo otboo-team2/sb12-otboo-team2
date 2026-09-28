@@ -49,18 +49,15 @@ public class WeatherClothesFilter {
         int sensitivity = temperatureSensitivity == null
                 ? 3 : Math.clamp(temperatureSensitivity, 1, 5);
         double sensitivityOffset = (sensitivity - 3) * 0.5;
-        double hotThreshold = HOT_TEMPERATURE - sensitivityOffset;
+        double hotThreshold = HOT_TEMPERATURE + sensitivityOffset;
         if (currentTemperature >= hotThreshold
                 && (type == ClothesType.OUTER || type == ClothesType.HAT)) {
             return false;
         }
 
         TemperatureRange range = warmth == null ? null : WARMTH_RANGES.get(warmth);
-        if (range != null && !range.includes(perceivedTemperature)) {
-            return false;
-        }
-
-        return true;
+        double perceivedTemperature = currentTemperature - sensitivityOffset;
+        return range == null || range.includes(perceivedTemperature);
     }
 
     double suitabilityDistance(Double currentTemperature, Integer temperatureSensitivity, String warmth) {
