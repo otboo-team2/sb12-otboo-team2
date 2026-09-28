@@ -45,7 +45,7 @@ public class WeatherClothesFilter {
         double sensitivityOffset = (sensitivity - 3) * 0.5;
         double hotThreshold = HOT_TEMPERATURE - sensitivityOffset;
         if (currentTemperature >= hotThreshold
-                && (type == ClothesType.OUTER || type == ClothesType.SCARF)) {
+                && (type == ClothesType.OUTER || type == ClothesType.HAT)) {
             return false;
         }
 
