@@ -4,21 +4,12 @@ import hangerIcon from '@/assets/icons/il_hanger.svg';
 import refreshIcon from '@/assets/icons/ic_refresh.svg';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
 import {useWeatherStore} from "@/lib/stores/useWeatherStore.ts";
-import AddFeedModal from './AddFeedModal';
 import OutfitReferenceModal from './OutfitReferenceModal';
-import FeedDetailModal from "@/components/feeds/FeedDetailModal.tsx";
-import type {FeedDto} from "@/lib/api";
 
 export default function RecommendationHeader() {
   const {loading, fetch} = useRecommendationStore();
   const {selectedWeather} = useWeatherStore();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
-  const [createdFeed, setCreatedFeed] = useState<FeedDto | undefined>();
-
-  const handleRegister = () => {
-    setIsModalOpen(true);
-  }
 
   const handleRefresh = () => {
     fetch();
@@ -72,40 +63,14 @@ export default function RecommendationHeader() {
           </div>
           <img alt="새로고침" className="size-5" src={refreshIcon} />
         </button>
-
-        {/* OOTD 등록 버튼 */}
-        <button
-          className="bg-[#1e89f4] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#1e89f4]/90 transition-colors"
-          onClick={handleRegister}
-        >
-          <div className="font-bold leading-none not-italic relative shrink-0 text-white text-[18px] text-nowrap tracking-[-0.45px]">
-            <p className="leading-normal whitespace-pre">OOTD 등록</p>
-          </div>
-        </button>
       </div>
 
-      {/* 피드 등록 모달 */}
-      <AddFeedModal 
-        open={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
-        onCreated={setCreatedFeed}
-      />
       {/* 스타일 추천(코디 참고 사진) 모달 */}
       <OutfitReferenceModal
         open={isStyleModalOpen}
         onClose={() => setIsStyleModalOpen(false)}
         weatherId={selectedWeather?.id}
       />
-      {/* 피드 상세 모달 */}
-      {
-        createdFeed &&
-          <FeedDetailModal
-              feed={createdFeed}
-              open={true}
-              onOpenChange={() => setCreatedFeed(undefined)}
-          />
-      }
-
     </div>
   );
 }
