@@ -23,4 +23,10 @@ public interface VirtualTryOnJobRepository extends JpaRepository<VirtualTryOnJob
     @Query("update VirtualTryOnJob j set j.status = com.otboo.virtualtryon.entity.VirtualTryOnJobStatus.PROCESSING "
         + "where j.id in :ids")
     void markProcessing(@Param("ids") List<UUID> ids);
+
+    /** PENDING 일 때만 PROCESSING 으로 바꾼다. 바뀐 행 수가 1이면 내가 가져간 것, 0이면 이미 다른 쪽이 가져갔다. */
+    @Modifying
+    @Query("update VirtualTryOnJob j set j.status = com.otboo.virtualtryon.entity.VirtualTryOnJobStatus.PROCESSING "
+        + "where j.id = :id and j.status = com.otboo.virtualtryon.entity.VirtualTryOnJobStatus.PENDING")
+    int claimIfPending(@Param("id") UUID id);
 }

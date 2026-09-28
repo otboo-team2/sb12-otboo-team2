@@ -151,7 +151,7 @@ otboo:
     board-ids: ${PINTEREST_BOARD_IDS:}
     page-size: 100
   virtual-try-on:
-    dispatch-interval: 5000
+    dispatch-interval: 30000
     poll-interval: 5000
     default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
     image:

@@ -8,6 +8,7 @@ import com.otboo.virtualtryon.entity.VirtualTryOnCache;
 import com.otboo.virtualtryon.entity.VirtualTryOnJob;
 import com.otboo.virtualtryon.entity.VirtualTryOnJobStatus;
 import com.otboo.virtualtryon.entity.VirtualTryOnStep;
+import com.otboo.virtualtryon.event.VirtualTryOnJobReadyEvent;
 import com.otboo.virtualtryon.exception.VirtualTryOnErrorCode;
 import com.otboo.virtualtryon.repository.VirtualTryOnCacheRepository;
 import com.otboo.virtualtryon.repository.VirtualTryOnJobRepository;
@@ -53,6 +54,12 @@ public class VirtualTryOnJobTransactionService {
         return jobIds;
     }
 
+    /** 이벤트로 즉시 dispatch 할 job 한 건을 선점한다. 스케줄러와 동시에 잡아도 한쪽만 true 를 받는다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimJob(UUID jobId) {
+        return jobRepository.claimIfPending(jobId) == 1;
+    }
+
     /** 현재 PROCESSING 상태인 job id 목록을 조회한다. poller가 폴링할 대상을 고를 때 쓴다. */
     public List<UUID> findProcessingJobIds() {
         return jobRepository.findAllByStatus(VirtualTryOnJobStatus.PROCESSING).stream()
@@ -67,7 +74,7 @@ public class VirtualTryOnJobTransactionService {
         String modelImage = imageStorage.readAsDataUri(job.getModelImageKey());
         Clothes product = getProductClothes(job, job.getCurrentStep());
         String productImage = imageStorage.readAsDataUri(product.getImageUrl());
-        return new DispatchTarget(modelImage, productImage);
+        return new DispatchTarget(modelImage, productImage, job.getCurrentStep(), job.getUpdatedAt());
     }
 
     /** FASHN에 요청을 보낸 직후, 받은 prediction id를 저장하고 상태를 PROCESSING으로 바꾼다. */
@@ -80,7 +87,8 @@ public class VirtualTryOnJobTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PollTarget loadPollTarget(UUID jobId) {
         VirtualTryOnJob job = jobRepository.getReferenceById(jobId);
-        return new PollTarget(job.getCreatedAt(), job.getFashnPredictionId());
+        return new PollTarget(job.getCreatedAt(), job.getFashnPredictionId(),
+            job.getCurrentStep(), job.getUpdatedAt());
     }
 
     /** FASHN이 완료한 결과를 현재 단계에 맞게 처리한다. 단계별로 다음 동작(캐싱/다음 단계/완료)이 다르다. */
@@ -94,6 +102,10 @@ public class VirtualTryOnJobTransactionService {
             case DONE -> throw new BusinessException(VirtualTryOnErrorCode.INVALID_JOB_STATE)
                 .addDetail("jobId", jobId.toString())
                 .addDetail("reason", "PROCESSING job has step=DONE");
+        }
+        // 다음 단계로 넘어가 다시 PENDING 이 됐으면(TOP→BOTTOM, 루트→ADDITIONAL) 커밋 직후 바로 보낸다
+        if (job.getStatus() == VirtualTryOnJobStatus.PENDING) {
+            eventPublisher.publishEvent(new VirtualTryOnJobReadyEvent(jobId));
         }
     }
 
@@ -154,9 +166,9 @@ public class VirtualTryOnJobTransactionService {
 
     /** job의 최종 상태(성공/실패)에 맞는 완료 이벤트를 발행한다. */
     private void publishCompleted(VirtualTryOnJob job) {
-//        long elapsedMs = Duration.between(job.getCreatedAt(), Instant.now()).toMillis();
-//        log.info("virtual_try_on_completed jobId={} status={} elapsedMs={}",
-//            job.getId(), job.getStatus(), elapsedMs);
+        long elapsedMs = Duration.between(job.getCreatedAt(), Instant.now()).toMillis();
+        log.info("virtual_try_on_completed jobId={} status={} elapsedMs={}",
+            job.getId(), job.getStatus(), elapsedMs);
         VirtualTryOnCompletedEvent event = job.getStatus() == VirtualTryOnJobStatus.SUCCEEDED
             ? VirtualTryOnCompletedEvent.succeeded(job.getRequester().getId(), job.getId())
             : VirtualTryOnCompletedEvent.failed(job.getRequester().getId(), job.getId());
@@ -176,8 +188,10 @@ public class VirtualTryOnJobTransactionService {
     }
 
     /** FASHN 요청에 필요한 모델 이미지 + 상품 이미지 쌍. */
-    public record DispatchTarget(String modelImage, String productImage) {}
+    public record DispatchTarget(String modelImage, String productImage,
+                                 VirtualTryOnStep step, Instant pendingSince) {}
 
     /** 폴링에 필요한 job 생성 시각 + FASHN prediction id. */
-    public record PollTarget(Instant createdAt, String predictionId) {}
+    public record PollTarget(Instant createdAt, String predictionId,
+                             VirtualTryOnStep step, Instant requestedAt) {}
 }
