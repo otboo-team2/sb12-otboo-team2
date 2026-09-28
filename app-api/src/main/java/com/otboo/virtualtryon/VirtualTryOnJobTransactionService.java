@@ -17,6 +17,7 @@ import com.otboo.virtualtryon.util.VirtualTryOnCacheKeyGenerator;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -140,6 +141,18 @@ public class VirtualTryOnJobTransactionService {
         VirtualTryOnCache cache = saveCacheOrGetExisting(job, resultUrl, job.getAdditionalClothes());
         job.succeed(cache);
         publishCompleted(job);
+    }
+
+    /** 웹훅으로 온 prediction id 로 job 을 찾는다. 이미 반영했거나 아직 markRequested 전이면 비어 있다. */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findJobIdByPredictionId(String predictionId) {
+        return jobRepository.findByFashnPredictionId(predictionId).map(VirtualTryOnJob::getId);
+    }
+
+    /** FASHN 결과를 반영할 권한을 가져간다. 웹훅과 폴링이 동시에 오거나 웹훅이 재전송돼도 한쪽만 true 를 받는다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimResult(String predictionId) {
+        return jobRepository.clearPredictionIfProcessing(predictionId) == 1;
     }
 
     /**

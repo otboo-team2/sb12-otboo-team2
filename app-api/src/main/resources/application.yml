@@ -152,7 +152,11 @@ otboo:
     page-size: 100
   virtual-try-on:
     dispatch-interval: 30000
-    poll-interval: 5000
+    poll-interval: 60000        # 웹훅이 주 경로가 되므로 폴링은 놓친 결과를 줍는 용도로만 쓴다
+    # 비어 있으면 웹훅 없이 폴링만 한다. 로컬에서는 터널 주소를 넣는다.
+    webhook-base-url: ${FASHN_WEBHOOK_BASE_URL:}
+    # FASHN 웹훅은 서명이 없어서, URL에 넣은 토큰으로 우리가 보낸 요청의 결과인지 확인한다
+    webhook-token: ${FASHN_WEBHOOK_TOKEN:}
     default-model-image-url: ${DEFAULT_MODEL_IMAGE_URL:}
     image:
       min-width: 200

@@ -47,7 +47,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         // 리프레시 토큰을 쿠키로 쓰므로 CSRF 방어가 필요하다.
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .csrfTokenRequestHandler(csrfHandler))
+                        .csrfTokenRequestHandler(csrfHandler)
+                        // FASHN 이 서버끼리 호출한다. 쿠키를 쓰지 않으므로 CSRF 대상이 아니다.
+                        .ignoringRequestMatchers("/api/fittings/webhook/**"))
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
                 .logout(logout -> logout.disable())
@@ -66,6 +68,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         // 프로필·의상 이미지. <img src> 로 불러가므로 토큰을 실을 수 없다.
                         .requestMatchers(HttpMethod.GET, "/images/**").permitAll()
+                        // FASHN 웹훅. 로그인 토큰 대신 URL 의 토큰으로 확인한다.
+                        .requestMatchers(HttpMethod.POST, "/api/fittings/webhook/*").permitAll()
 
                         // 어드민 전용
                         .requestMatchers(HttpMethod.GET, "/api/users").hasRole("ADMIN")
