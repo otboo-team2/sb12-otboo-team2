@@ -7,13 +7,10 @@ export type ClothesType =
   | 'BOTTOM'
   | 'DRESS'
   | 'OUTER'
-  | 'UNDERWEAR'
   | 'ACCESSORY'
   | 'SHOES'
-  | 'SOCKS'
   | 'HAT'
   | 'BAG'
-  | 'SCARF'
   | 'ETC';
 export type SkyStatus = 'CLEAR' | 'MOSTLY_CLOUDY' | 'CLOUDY';
 export type PrecipitationType = 'NONE' | 'RAIN' | 'RAIN_SNOW' | 'SNOW' | 'SHOWER';
