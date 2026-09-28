@@ -7,6 +7,7 @@ import profileIcon from '@/assets/icons/profile.svg';
 import sendIcon from '@/assets/icons/ic_send.svg';
 import FollowModal from './FollowModal';
 import { createFollow, cancelFollow } from '@/lib/api/follows';
+import { useFeedStore } from '@/lib/stores/useFeedStore';
 
 interface ProfileSummaryProps {
   userId: string;
@@ -19,15 +20,15 @@ export default function ProfileSummary({
   const { data: profile, loading: profileLoading, updateParams: updateProfileParams } = useProfileStore();
   const { data: followSummary, loading: followLoading, updateParams: updateFollowParams, fetch: fetchFollowSummary } = useFollowSummaryStore();
   const currentUser = useAuthStore((state) => state.data);
+  const feedCount = useFeedStore((state) => state.data.length);
   const [followerModalOpen, setFollowerModalOpen] = useState(false);
   const [followingModalOpen, setFollowingModalOpen] = useState(false);
 
   const isOwnProfile = userId === currentUser?.userDto?.id;
 
   const handleMessageClick = () => {
-    if (!profile) return;
-    navigate(`/dm/${profile.userId}`, {
-      state: { partner: { userId: profile.userId, name: profile.name, profileImageUrl: profile.profileImageUrl } },
+    navigate(`/dm/${userId}`, {
+      state: { partner: { userId, name: profile?.name || '사용자', profileImageUrl: profile?.profileImageUrl } },
     });
   };
 
@@ -89,10 +90,10 @@ export default function ProfileSummary({
   }
 
   return (
-    <div className="box-border content-stretch flex items-center justify-between pb-5 pt-0 px-5 relative w-full">
-      <div className="content-stretch flex gap-5 items-center justify-start relative shrink-0">
+    <div className="box-border flex flex-col items-center pb-7 relative w-full">
+      <div className="mt-5 flex flex-col items-center gap-4 text-center relative z-10">
         {/* 프로필 이미지 */}
-        <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[90px] overflow-hidden">
+        <div className="bg-[#a9a9b1] relative rounded-full shrink-0 size-[104px] overflow-hidden border-4 border-white shadow-md">
           {profile?.profileImageUrl ? (
             <img
               src={profile.profileImageUrl}
@@ -110,51 +111,26 @@ export default function ProfileSummary({
         </div>
 
         {/* 프로필 정보 */}
-        <div className="content-stretch flex flex-col gap-2.5 items-start justify-start relative shrink-0">
-          <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#212126] text-[24px] tracking-[-0.6px] w-full">
+        <div className="flex flex-col items-center gap-2.5">
+          <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic text-[#212126] text-[28px] tracking-[-0.7px]">
             <p className="leading-[normal]">{profile?.name || '사용자'}</p>
-          </div>
-          <div className="content-stretch flex gap-5 items-center justify-start relative shrink-0 w-full">
-            {/* 팔로워 */}
-            <button
-              onClick={handleFollowerClick}
-              className="content-stretch flex gap-1 items-center justify-start leading-[0] not-italic relative shrink-0 text-[18px] text-nowrap tracking-[-0.45px] hover:opacity-70 transition-opacity"
-            >
-              <div className="font-['SUIT:SemiBold',_sans-serif] relative shrink-0 text-[#808089]">
-                <p className="leading-[normal] text-nowrap whitespace-pre">팔로워</p>
-              </div>
-              <div className="font-['SUIT:ExtraBold',_sans-serif] relative shrink-0 text-[#34343d]">
-                <p className="leading-[normal] text-nowrap whitespace-pre">
-                  {followLoading ? '-' : followSummary?.followerCount || 0}
-                </p>
-              </div>
-            </button>
-
-            {/* 팔로잉 */}
-            <button
-              onClick={handleFollowingClick}
-              className="content-stretch flex gap-1 items-center justify-start leading-[0] not-italic relative shrink-0 text-[18px] text-nowrap tracking-[-0.45px] hover:opacity-70 transition-opacity"
-            >
-              <div className="font-['SUIT:SemiBold',_sans-serif] relative shrink-0 text-[#808089]">
-                <p className="leading-[normal] text-nowrap whitespace-pre">팔로우</p>
-              </div>
-              <div className="font-['SUIT:ExtraBold',_sans-serif] relative shrink-0 text-[#34343d]">
-                <p className="leading-[normal] text-nowrap whitespace-pre">
-                  {followLoading ? '-' : followSummary?.followingCount || 0}
-                </p>
-              </div>
-            </button>
           </div>
         </div>
       </div>
 
+      <div className="grid grid-cols-3 gap-3 w-[calc(100%-40px)] max-w-[600px] mt-6">
+        <div className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center"><strong className="block text-xl text-[#212126]">{feedCount}</strong><span className="text-sm text-[#808089]">게시물</span></div>
+        <button onClick={handleFollowingClick} className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center hover:bg-[#eeeeef]"><strong className="block text-xl text-[#212126]">{followLoading ? '-' : followSummary?.followingCount || 0}</strong><span className="text-sm text-[#808089]">팔로잉</span></button>
+        <button onClick={handleFollowerClick} className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center hover:bg-[#eeeeef]"><strong className="block text-xl text-[#212126]">{followLoading ? '-' : followSummary?.followerCount || 0}</strong><span className="text-sm text-[#808089]">팔로워</span></button>
+      </div>
+
       {/* 액션 버튼들 - 본인 프로필이 아닌 경우에만 표시 */}
       {!isOwnProfile && (
-        <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+        <div className="flex flex-wrap gap-3 items-center justify-center w-full mt-5 px-5">
           {/* 팔로우 버튼 */}
           <button
             onClick={handleFollowClick}
-            className={`box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 transition-colors ${
+            className={`box-border flex gap-1.5 h-11 min-w-[150px] items-center justify-center px-5 py-2.5 rounded-xl shrink-0 transition-colors ${
               followSummary?.followedByMe
                 ? 'bg-[#f7f7f8] hover:bg-[#eeeeef]'
                 : 'bg-[#1e89f4] hover:bg-[#1a7ae6]'
@@ -170,7 +146,7 @@ export default function ProfileSummary({
           {/* 메시지 보내기 버튼 */}
           <button
             onClick={handleMessageClick}
-            className="bg-[#f7f7f8] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#eeeeef] transition-colors"
+            className="bg-[#f7f7f8] box-border flex gap-1.5 h-11 min-w-[150px] items-center justify-center px-5 py-2.5 rounded-xl shrink-0 hover:bg-[#eeeeef] transition-colors"
           >
             <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#575765] text-[18px] text-nowrap tracking-[-0.45px]">
               <p className="leading-[normal] whitespace-pre">메시지 보내기</p>
@@ -180,6 +156,16 @@ export default function ProfileSummary({
             </div>
           </button>
         </div>
+      )}
+
+      {isOwnProfile && (
+        <button
+          type="button"
+          onClick={() => navigate('/settings')}
+          className="absolute left-5 top-4 h-10 rounded-xl bg-[#f7f7f8] px-5 text-[15px] font-bold text-[#575765] transition-colors hover:bg-[#eeeeef]"
+        >
+          프로필 수정
+        </button>
       )}
 
       {/* 팔로워 모달 */}
