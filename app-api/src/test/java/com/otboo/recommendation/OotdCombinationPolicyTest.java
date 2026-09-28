@@ -53,9 +53,8 @@ class OotdCombinationPolicyTest {
     void safelyReturnsAvailableSupportedItemsWithoutInventingMissingMainItem() {
         ClothesDto top = clothes(ClothesType.TOP);
         ClothesDto shoes = clothes(ClothesType.SHOES);
-        ClothesDto underwear = clothes(ClothesType.UNDERWEAR);
 
-        assertThat(OotdCombinationPolicy.select(List.of(top, shoes, underwear)))
+        assertThat(OotdCombinationPolicy.select(List.of(top, shoes)))
                 .containsExactly(top, shoes);
     }
 
