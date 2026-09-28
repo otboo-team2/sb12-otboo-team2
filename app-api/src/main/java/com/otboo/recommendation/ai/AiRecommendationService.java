@@ -36,6 +36,10 @@ public class AiRecommendationService {
     private final RecommendationClothesVerifier clothesVerifier;
 
     public RecommendationDto find(UUID userId, RecommendationAiRequest request) {
+        return findInternal(userId, request);
+    }
+
+    private RecommendationDto findInternal(UUID userId, RecommendationAiRequest request) {
         if (request == null || request.weatherId() == null
                 || request.prompt() == null || request.prompt().isBlank()
                 || request.prompt().length() > 100) {
@@ -68,17 +72,14 @@ public class AiRecommendationService {
             condition = openAiRecommendationClient.extractCondition(request.prompt());
             var vector = queryEmbeddingService.embed(request.prompt(), condition, candidates.preferredStyles());
             retrievedIds = search.search(userId, candidateIds, vector);
-            if (condition != null) {
-                log.info("recommendation_condition_extracted occasion={} styles_count={} keywords_count={}",
-                        condition.occasion(), condition.styles().size(), condition.keywords().size());
-            }
         } catch (BusinessException e) {
             if (e.getErrorCode() != CommonErrorCode.EXTERNAL_API_ERROR
                     && e.getErrorCode() != CommonErrorCode.EXTERNAL_API_TIMEOUT
                     && e.getErrorCode() != CommonErrorCode.EXTERNAL_API_LIMIT_EXCEEDED) {
                 throw e;
             }
-            log.warn("recommendation_ai_fallback error_code={}", e.getErrorCode().getCode());
+            log.warn("recommendation_ai_fallback error_code={}",
+                    e.getErrorCode().getCode());
         }
         if (retrievedIds.isEmpty()) {
             return basic;
@@ -104,13 +105,20 @@ public class AiRecommendationService {
                     || !Set.copyOf(verifiedIds).containsAll(generated.clothesIds())
                     || generated.clothesIds().stream().anyMatch(excludedIds::contains)
                     || ExcludedOutfits.contains(excludedOutfits, generated.clothesIds())) {
-                log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
+                log.warn("recommendation_ai_fallback error_code={}",
+                        CommonErrorCode.EXTERNAL_API_ERROR.getCode());
                 return basic;
             }
             List<ClothesDto> generatedClothes = generated.clothesIds().stream()
                     .map(candidatesById::get).toList();
             if (!OotdCombinationPolicy.isValid(generatedClothes)) {
-                log.warn("recommendation_ai_fallback error_code={}", CommonErrorCode.EXTERNAL_API_ERROR.getCode());
+                log.warn("recommendation_generation_invalid_outfit clothes_types={} clothes_count={}",
+                        generatedClothes.stream()
+                                .map(item -> item == null ? null : item.type())
+                                .toList(),
+                        generatedClothes.size());
+                log.warn("recommendation_ai_fallback error_code={}",
+                        CommonErrorCode.EXTERNAL_API_ERROR.getCode());
                 return basic;
             }
             List<OotdDto> clothes = generatedClothes.stream().map(AiRecommendationService::toOotd).toList();
@@ -121,7 +129,8 @@ public class AiRecommendationService {
                     && e.getErrorCode() != CommonErrorCode.EXTERNAL_API_LIMIT_EXCEEDED) {
                 throw e;
             }
-            log.warn("recommendation_ai_fallback error_code={}", e.getErrorCode().getCode());
+            log.warn("recommendation_ai_fallback error_code={}",
+                    e.getErrorCode().getCode());
             return basic;
         }
     }
