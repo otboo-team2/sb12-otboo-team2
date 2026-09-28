@@ -11,7 +11,7 @@ public final class OotdCombinationPolicy {
 
     private static final Set<ClothesType> OPTIONAL_TYPES = Set.of(
             ClothesType.OUTER, ClothesType.SHOES, ClothesType.ACCESSORY,
-            ClothesType.HAT, ClothesType.BAG, ClothesType.SCARF);
+            ClothesType.HAT, ClothesType.BAG);
 
     private OotdCombinationPolicy() {
     }

@@ -9,6 +9,7 @@ export default function MainLayout() {
 
   const bgColor = location.pathname.includes("/recommendations") ? 'bg-gray-100' : 'bg-white';
   const isRecommendations = location.pathname.includes("/recommendations");
+  const isProfile = location.pathname.includes("/profiles");
 
   return (
     <div className={`h-full overflow-hidden ${bgColor} flex`}>
@@ -25,7 +26,7 @@ export default function MainLayout() {
         </div>
         
         {/* 페이지 컨텐츠 - 남은 공간 모두 차지 */}
-        <main className={`flex-1 min-h-0 ${isRecommendations ? 'overflow-y-auto' : ''}`}>
+        <main className={`flex-1 min-h-0 ${isRecommendations || isProfile ? 'overflow-y-auto' : ''}`}>
           <Outlet />
         </main>
         <WebSocket/>

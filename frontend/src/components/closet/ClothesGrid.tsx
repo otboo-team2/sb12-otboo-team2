@@ -1,10 +1,10 @@
 import {useClothesStore} from '@/lib/stores/useClothesStore';
 import type {ClothesDto} from '@/lib/api/types';
+import {addFavorite, removeFavorite} from '@/lib/api/clothes';
 import ClothesItem from './ClothesItem';
 import EmptyCloset from './EmptyCloset';
-import {useInfiniteScroll} from "@/lib/hooks/useInfiniteScroll.ts";
-import { addFavorite, removeFavorite } from '@/lib/api/clothes';
-import { toast } from 'sonner';
+import Pagination from '@/components/ui/pagination';
+import {toast} from 'sonner';
 
 interface ClothesGridProps {
   onAddClick?: () => void;
@@ -14,10 +14,25 @@ interface ClothesGridProps {
 }
 
 export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDeleteClothes }: ClothesGridProps) {
-  const { data: clothes, loading, isEmpty, fetchMore, update, delete: remove, params } = useClothesStore();
-  const { ref: scrollRef } = useInfiniteScroll({
-    onLoadMore: () => fetchMore()
-  });
+  const { data: clothes, loading, isEmpty, page, totalPages, goToPage, params, update, delete: remove } = useClothesStore();
+
+  if (loading && clothes.length === 0) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
+        {Array.from({ length: 10 }).map((_, index) => (
+          <div key={index} className="flex flex-col gap-3">
+            <div className="aspect-square bg-gray-200 rounded-[16px] animate-pulse" />
+            <div className="h-5 bg-gray-200 rounded w-3/4 animate-pulse" />
+            <div className="flex gap-1.5">
+              <div className="h-6 bg-gray-200 rounded w-12 animate-pulse" />
+              <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
+              <div className="h-6 bg-gray-200 rounded w-14 animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   const handleFavoriteToggle = async (clothes: ClothesDto) => {
     try {
@@ -52,37 +67,28 @@ export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDele
           </div>
         )
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
-          {clothes.map((item) => (
-            <ClothesItem
-              key={item.id}
-              clothes={item}
-              isOwner={isOwner}
-              onEdit={onEditClothes}
-              onDelete={onDeleteClothes}
-              onFavoriteToggle={isOwner ? handleFavoriteToggle : undefined}
-            />
-          ))}
-          <div ref={scrollRef} className="h-1" />
+        <div className="flex flex-col gap-8 p-4">
+          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-opacity ${loading ? 'opacity-50' : ''}`}>
+            {clothes.map((item) => (
+              <ClothesItem
+                key={item.id}
+                clothes={item}
+                isOwner={isOwner}
+                onEdit={onEditClothes}
+                onDelete={onDeleteClothes}
+                onFavoriteToggle={handleFavoriteToggle}
+              />
+            ))}
+          </div>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages()}
+            onPageChange={goToPage}
+            disabled={loading}
+          />
         </div>
       )}
-      {
-        loading && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 p-4">
-              {Array.from({ length: 10 }).map((_, index) => (
-                  <div key={index} className="flex flex-col gap-3">
-                    <div className="aspect-square bg-gray-200 rounded-[16px] animate-pulse" />
-                    <div className="h-5 bg-gray-200 rounded w-3/4 animate-pulse" />
-                    <div className="flex gap-1.5">
-                      <div className="h-6 bg-gray-200 rounded w-12 animate-pulse" />
-                      <div className="h-6 bg-gray-200 rounded w-16 animate-pulse" />
-                      <div className="h-6 bg-gray-200 rounded w-14 animate-pulse" />
-                    </div>
-                  </div>
-              ))}
-            </div>
-        )
-      }
     </div>
   );
 }

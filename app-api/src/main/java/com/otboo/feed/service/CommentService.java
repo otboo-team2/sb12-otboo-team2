@@ -1,5 +1,6 @@
 package com.otboo.feed.service;
 
+import com.otboo.common.event.FeedCommentedEvent;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
@@ -20,6 +21,7 @@ import com.otboo.user.repository.UserRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,7 @@ public class CommentService {
     private final FeedRepository feedRepository;
     private final UserRepository userRepository;
     private final CommentViewLoader viewLoader;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public CommentDto create(AuthPrincipal me, UUID feedId, CommentCreateRequest request) {
@@ -52,6 +55,8 @@ public class CommentService {
         feedRepository.increaseCommentCount(feedId);
         Comment comment = commentRepository.saveAndFlush(
                 Comment.create(feed, author, request.content()));
+        events.publishEvent(FeedCommentedEvent.of(
+            feed.getAuthor().getId(), me.userId(), feedId, comment.getId()));
 
         // 조회 전용 SQL 로 다시 읽는다. flush -> INSERT 되지 않은 행을 못 찾는 일이 없다.
         CommentDto created = viewLoader.loadOne(comment.getId());
