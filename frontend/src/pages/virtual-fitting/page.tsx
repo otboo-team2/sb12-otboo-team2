@@ -144,7 +144,6 @@ export default function VirtualFittingPage() {
         reset();
         clearImage();
         setModelSource('EXAMPLE');
-        setModelGender('MALE');
         setTopClothesId('');
         setBottomClothesId('');
         setAdditionalClothesId('');
