@@ -43,6 +43,15 @@
         "type": "text",
         "analyzer": "korean"
       },
+      "inferredStyles": {
+        "type": "keyword"
+      },
+      "formality": {
+        "type": "keyword"
+      },
+      "occasions": {
+        "type": "keyword"
+      },
       "embedding": {
         "type": "dense_vector",
         "dims": 1536,

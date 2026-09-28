@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useProfileStore } from '@/lib/stores/useProfileStore';
 import { useFollowSummaryStore } from '@/lib/stores/useFollowSummaryStore';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
 import profileIcon from '@/assets/icons/profile.svg';
 import sendIcon from '@/assets/icons/ic_send.svg';
-import DMModal from './DMModal';
 import FollowModal from './FollowModal';
 import { createFollow, cancelFollow } from '@/lib/api/follows';
 
@@ -12,20 +12,23 @@ interface ProfileSummaryProps {
   userId: string;
 }
 
-export default function ProfileSummary({ 
-  userId, 
+export default function ProfileSummary({
+  userId,
 }: ProfileSummaryProps) {
+  const navigate = useNavigate();
   const { data: profile, loading: profileLoading, updateParams: updateProfileParams } = useProfileStore();
   const { data: followSummary, loading: followLoading, updateParams: updateFollowParams, fetch: fetchFollowSummary } = useFollowSummaryStore();
   const currentUser = useAuthStore((state) => state.data);
-  const [dmModalOpen, setDmModalOpen] = useState(false);
   const [followerModalOpen, setFollowerModalOpen] = useState(false);
   const [followingModalOpen, setFollowingModalOpen] = useState(false);
 
   const isOwnProfile = userId === currentUser?.userDto?.id;
 
   const handleMessageClick = () => {
-    setDmModalOpen(true);
+    if (!profile) return;
+    navigate(`/dm/${profile.userId}`, {
+      state: { partner: { userId: profile.userId, name: profile.name, profileImageUrl: profile.profileImageUrl } },
+    });
   };
 
   const handleFollowerClick = () => {
@@ -38,7 +41,7 @@ export default function ProfileSummary({
 
   const handleFollowClick = async () => {
     if (!currentUser?.userDto || !profile) return;
-    
+
     try {
       if (followSummary?.followedByMe && followSummary.followedByMeId) {
         // 언팔로우
@@ -47,7 +50,7 @@ export default function ProfileSummary({
         // 팔로우
         await createFollow({ followeeId: profile.userId, followerId: currentUser.userDto.id });
       }
-      
+
       // 팔로우 요약 정보 새로고침
       fetchFollowSummary();
     } catch (error) {
@@ -91,21 +94,21 @@ export default function ProfileSummary({
         {/* 프로필 이미지 */}
         <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[90px] overflow-hidden">
           {profile?.profileImageUrl ? (
-            <img 
+            <img
               src={profile.profileImageUrl}
               alt={profile.name || '프로필'}
               className="w-full h-full object-cover rounded-[100px]"
             />
           ) : (
-            <img 
-              src={profileIcon} 
+            <img
+              src={profileIcon}
               alt={profile?.name || '프로필'}
               className="w-full h-full object-cover rounded-[100px]"
             />
           )}
           <div aria-hidden="true" className="absolute border-[#a9a9b1] border-[1.5px] border-solid inset-0 pointer-events-none rounded-[100px] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]" />
         </div>
-        
+
         {/* 프로필 정보 */}
         <div className="content-stretch flex flex-col gap-2.5 items-start justify-start relative shrink-0">
           <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#212126] text-[24px] tracking-[-0.6px] w-full">
@@ -126,7 +129,7 @@ export default function ProfileSummary({
                 </p>
               </div>
             </button>
-            
+
             {/* 팔로잉 */}
             <button
               onClick={handleFollowingClick}
@@ -144,7 +147,7 @@ export default function ProfileSummary({
           </div>
         </div>
       </div>
-      
+
       {/* 액션 버튼들 - 본인 프로필이 아닌 경우에만 표시 */}
       {!isOwnProfile && (
         <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
@@ -152,8 +155,8 @@ export default function ProfileSummary({
           <button
             onClick={handleFollowClick}
             className={`box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 transition-colors ${
-              followSummary?.followedByMe 
-                ? 'bg-[#f7f7f8] hover:bg-[#eeeeef]' 
+              followSummary?.followedByMe
+                ? 'bg-[#f7f7f8] hover:bg-[#eeeeef]'
                 : 'bg-[#1e89f4] hover:bg-[#1a7ae6]'
             }`}
           >
@@ -163,7 +166,7 @@ export default function ProfileSummary({
               <p className="leading-[normal] whitespace-pre">{followSummary?.followedByMe ? '팔로우 취소' : '팔로우'}</p>
             </div>
           </button>
-          
+
           {/* 메시지 보내기 버튼 */}
           <button
             onClick={handleMessageClick}
@@ -179,19 +182,8 @@ export default function ProfileSummary({
         </div>
       )}
 
-      {/* DM 모달 */}
-      <DMModal 
-        open={dmModalOpen}
-        onOpenChange={setDmModalOpen}
-        targetUser={profile ? {
-          id: profile.userId,
-          name: profile.name,
-          profileImageUrl: profile.profileImageUrl
-        } : null}
-      />
-
       {/* 팔로워 모달 */}
-      <FollowModal 
+      <FollowModal
         open={followerModalOpen}
         onOpenChange={setFollowerModalOpen}
         type="follower"
@@ -199,7 +191,7 @@ export default function ProfileSummary({
       />
 
       {/* 팔로잉 모달 */}
-      <FollowModal 
+      <FollowModal
         open={followingModalOpen}
         onOpenChange={setFollowingModalOpen}
         type="following"

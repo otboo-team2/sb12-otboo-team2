@@ -10,6 +10,7 @@ import com.otboo.clothes.entity.ClothesType;
 import com.otboo.clothes.entity.ClothesAttributeSelectableValue;
 import com.otboo.clothes.entity.ClothesAttributeDefinition;
 import com.otboo.clothes.dto.ClothesAttributeWithDefDto;
+import com.otboo.feed.dto.OotdDto;
 import com.otboo.user.entity.Profile;
 import com.otboo.user.preference.UserPreference;
 import com.otboo.user.preference.UserPreferenceRepository;
@@ -20,6 +21,7 @@ import com.otboo.weather.repository.WeatherRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +51,7 @@ class RecommendationServiceTest {
         ClothesDto preferred = clothes(UUID.randomUUID(), "선호 상의", ClothesType.TOP, "캐주얼");
         ClothesDto other = clothes(UUID.randomUUID(), "다른 의상", ClothesType.BOTTOM, "포멀");
         ClothesDto anotherBottom = clothes(UUID.randomUUID(), "두 번째 하의", ClothesType.BOTTOM, "포멀");
+        ClothesDto dress = clothes(UUID.randomUUID(), "원피스", ClothesType.DRESS, "포멀");
         ClothesDto filtered = clothes(UUID.randomUUID(), "더운 날 외투", ClothesType.OUTER, "캐주얼");
 
         given(weatherRepository.findById(weatherId)).willReturn(Optional.of(weather));
@@ -63,13 +66,15 @@ class RecommendationServiceTest {
         given(definition.getName()).willReturn("스타일");
         given(selectableValue.getValue()).willReturn("캐주얼");
         given(clothesService.findAllForRecommendation(userId))
-                .willReturn(List.of(other, anotherBottom, preferred, filtered));
+                .willReturn(List.of(other, anotherBottom, preferred, dress, filtered));
         given(weatherClothesFilter.isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.TOP, null))
                 .willReturn(true);
         given(weatherClothesFilter.isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.BOTTOM, null))
                 .willReturn(true);
         given(weatherClothesFilter.isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.OUTER, null))
                 .willReturn(false);
+        given(weatherClothesFilter.isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.DRESS, null))
+                .willReturn(true);
 
 
         RecommendationService service = new RecommendationService(
@@ -82,8 +87,89 @@ class RecommendationServiceTest {
         assertThat(result.clothes()).extracting(item -> item.type())
                 .doesNotHaveDuplicates();
         assertThat(result.clothes()).noneMatch(item -> item.clothesId().equals(filtered.id()));
+        assertThat(result.clothes()).noneMatch(item -> item.clothesId().equals(dress.id()));
         verify(clothesService).findAllForRecommendation(userId);
         verify(weatherClothesFilter).isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.OUTER, null);
+    }
+
+    @Test
+    void excludesCurrentBasicRecommendationAndSafelyReturnsEmptyWhenExhausted() {
+        UUID userId = UUID.randomUUID();
+        UUID weatherId = UUID.randomUUID();
+        ClothesDto top = clothes(UUID.randomUUID(), "상의", ClothesType.TOP, "캐주얼");
+        ClothesDto bottom = clothes(UUID.randomUUID(), "하의", ClothesType.BOTTOM, "캐주얼");
+        ClothesDto dress = clothes(UUID.randomUUID(), "원피스", ClothesType.DRESS, "캐주얼");
+        given(weatherRepository.findById(weatherId)).willReturn(Optional.of(weather));
+        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(20));
+        given(weather.getPrecipitationType()).willReturn(PrecipitationType.NONE);
+        given(profileRepository.findByUserId(userId)).willReturn(Optional.empty());
+        given(preferenceRepository.findAllByUserIdOrderByCreatedAtAscIdAsc(userId)).willReturn(List.of());
+        given(clothesService.findAllForRecommendation(userId)).willReturn(List.of(top, bottom, dress));
+        given(weatherClothesFilter.isSuitable(20.0, PrecipitationType.NONE, null,
+                ClothesType.TOP, null)).willReturn(true);
+        given(weatherClothesFilter.isSuitable(20.0, PrecipitationType.NONE, null,
+                ClothesType.BOTTOM, null)).willReturn(true);
+        given(weatherClothesFilter.isSuitable(20.0, PrecipitationType.NONE, null,
+                ClothesType.DRESS, null)).willReturn(true);
+        RecommendationService service = new RecommendationService(
+                weatherRepository, profileRepository, preferenceRepository,
+                clothesService, weatherClothesFilter);
+
+        RecommendationDto alternative = service.find(
+                userId, weatherId, List.of(bottom.id(), UUID.randomUUID()));
+        RecommendationDto exhausted = service.find(
+                userId, weatherId, List.of(top.id(), bottom.id(), dress.id()));
+
+        assertThat(alternative.clothes()).extracting("clothesId").containsExactly(dress.id());
+        assertThat(exhausted.clothes()).isEmpty();
+    }
+
+    @Test
+    void prioritizesLowUsageThenLowOverlapWhileKeepingDeterministicOutfitSelection() {
+        ClothesDto topA = clothes(UUID.randomUUID(), "상의 A", ClothesType.TOP, "캐주얼");
+        ClothesDto topF = clothes(UUID.randomUUID(), "상의 F", ClothesType.TOP, "캐주얼");
+        ClothesDto bottomB = clothes(UUID.randomUUID(), "하의 B", ClothesType.BOTTOM, "캐주얼");
+        ClothesDto bottomE = clothes(UUID.randomUUID(), "하의 E", ClothesType.BOTTOM, "캐주얼");
+        ClothesDto shoesC = clothes(UUID.randomUUID(), "신발 C", ClothesType.SHOES, "캐주얼");
+        ClothesDto shoesD = clothes(UUID.randomUUID(), "신발 D", ClothesType.SHOES, "캐주얼");
+        var candidates = new RecommendationCandidates(UUID.randomUUID(), UUID.randomUUID(), 20.0,
+                PrecipitationType.NONE, 3, Set.of(),
+                List.of(topA, topF, bottomB, bottomE, shoesC, shoesD));
+        RecommendationService service = new RecommendationService(
+                weatherRepository, profileRepository, preferenceRepository,
+                clothesService, weatherClothesFilter);
+
+        RecommendationDto unusedAlternative = service.recommend(candidates,
+                List.of(List.of(shoesC.id(), bottomB.id(), topA.id())));
+        List<List<UUID>> allItemsUsed = List.of(
+                List.of(topA.id(), bottomB.id(), shoesC.id()),
+                List.of(topF.id(), bottomE.id(), shoesD.id()));
+        RecommendationDto reusedAlternative = service.recommend(candidates, allItemsUsed);
+        List<List<UUID>> equalUsageWithLastOutfit = List.of(
+                List.of(topF.id(), bottomE.id(), shoesC.id()),
+                List.of(topF.id(), bottomB.id(), shoesD.id()),
+                List.of(topA.id(), bottomE.id(), shoesD.id()),
+                List.of(topA.id(), bottomB.id(), shoesC.id()));
+        RecommendationDto lowOverlapAlternative = service.recommend(candidates, equalUsageWithLastOutfit);
+        RecommendationDto sameInputAgain = service.recommend(candidates, equalUsageWithLastOutfit);
+        List<List<UUID>> everyCombination = List.of(
+                List.of(topA.id(), bottomB.id(), shoesC.id()),
+                List.of(topA.id(), bottomB.id(), shoesD.id()),
+                List.of(topA.id(), bottomE.id(), shoesC.id()),
+                List.of(topA.id(), bottomE.id(), shoesD.id()),
+                List.of(topF.id(), bottomB.id(), shoesC.id()),
+                List.of(topF.id(), bottomB.id(), shoesD.id()),
+                List.of(topF.id(), bottomE.id(), shoesC.id()),
+                List.of(topF.id(), bottomE.id(), shoesD.id()));
+
+        assertThat(unusedAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topF.id(), bottomE.id(), shoesD.id());
+        assertThat(reusedAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topA.id(), bottomB.id(), shoesD.id());
+        assertThat(lowOverlapAlternative.clothes()).extracting(OotdDto::clothesId)
+                .containsExactly(topF.id(), bottomE.id(), shoesD.id());
+        assertThat(sameInputAgain).isEqualTo(lowOverlapAlternative);
+        assertThat(service.recommend(candidates, everyCombination).clothes()).isEmpty();
     }
 
     private ClothesDto clothes(UUID id, String name, ClothesType type, String style) {
@@ -107,7 +193,7 @@ class RecommendationServiceTest {
                         UUID.randomUUID(), "보온성", List.of("매우 두꺼움"), "매우 두꺼움")));
 
         given(weatherRepository.findById(weatherId)).willReturn(Optional.of(weather));
-        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(23));
+        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(15));
         given(weather.getPrecipitationType()).willReturn(PrecipitationType.NONE);
         given(profileRepository.findByUserId(userId)).willReturn(Optional.of(profile));
         given(profile.getTemperatureSensitivity()).willReturn(sensitivity);
@@ -123,8 +209,8 @@ class RecommendationServiceTest {
 
         assertThat(candidates.clothes())
                 .containsExactlyElementsOf(sensitivity == 1
-                        ? List.of(first, second, thick) : List.of(first, second));
-        assertThat(candidates.temperature()).isEqualTo(23.0);
+                        ? List.of(first, second) : List.of(first, second, thick));
+        assertThat(candidates.temperature()).isEqualTo(15.0);
         assertThat(candidates.temperatureSensitivity()).isEqualTo(sensitivity);
         assertThat(candidates.userId()).isEqualTo(userId);
         assertThat(candidates.weatherId()).isEqualTo(weatherId);

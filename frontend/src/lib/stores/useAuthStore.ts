@@ -4,6 +4,7 @@ import {getCsrfToken, refreshToken, signIn, signOut} from '@/lib/api/auth';
 import type { BaseStore } from './types';
 import {execute} from "@/lib/stores/utils";
 import {createBaseStoreActions} from "@/lib/stores/actions.ts";
+import {useFittingStore} from "@/lib/stores/useFittingStore";
 
 interface AuthStore extends BaseStore<JwtDto, unknown> {
   signIn: (username: string, password: string) => Promise<void>;
@@ -34,6 +35,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         {
           onSuccess: (_result, _set, get) => {
             get().clear();
+            useFittingStore.getState().reset();
             getCsrfToken();
           },
         }

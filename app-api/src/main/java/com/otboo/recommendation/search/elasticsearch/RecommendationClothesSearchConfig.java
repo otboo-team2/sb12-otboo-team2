@@ -3,6 +3,7 @@ package com.otboo.recommendation.search.elasticsearch;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.otboo.clothes.ClothesService;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
+import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,14 +25,23 @@ public class RecommendationClothesSearchConfig {
     }
 
     @Bean
+    RecommendationClothesVectorSearch recommendationClothesVectorSearch(
+            ElasticsearchClient client,
+            RecommendationClothesIndexManager indexManager
+    ) {
+        return new RecommendationClothesVectorSearch(client, indexManager);
+    }
+
+    @Bean
     RecommendationClothesIndexer recommendationClothesIndexer(
             ElasticsearchClient client,
             ClothesService clothesService,
+            RecommendationClothesMetadataAnalyzer metadataAnalyzer,
             RecommendationClothesEmbeddingService embeddingService,
             RecommendationClothesIndexManager indexManager
     ) {
         return new RecommendationClothesIndexer(
-                client, clothesService, embeddingService, indexManager);
+                client, clothesService, metadataAnalyzer, embeddingService, indexManager);
     }
 
     @Bean

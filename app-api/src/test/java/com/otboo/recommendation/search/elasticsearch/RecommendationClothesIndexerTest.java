@@ -8,6 +8,10 @@ import com.otboo.clothes.ClothesService;
 import com.otboo.clothes.dto.ClothesDto;
 import com.otboo.clothes.entity.ClothesType;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
+import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
+import com.otboo.recommendation.ai.RecommendationFormality;
+import com.otboo.recommendation.ai.RecommendationOccasion;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,10 +23,12 @@ class RecommendationClothesIndexerTest {
     private final ClothesService clothesService = mock(ClothesService.class);
     private final RecommendationClothesEmbeddingService embeddingService =
             mock(RecommendationClothesEmbeddingService.class);
+    private final RecommendationClothesMetadataAnalyzer metadataAnalyzer =
+            mock(RecommendationClothesMetadataAnalyzer.class);
     private final RecommendationClothesIndexManager indexManager =
             mock(RecommendationClothesIndexManager.class);
     private final RecommendationClothesIndexer indexer = new RecommendationClothesIndexer(
-            client, clothesService, embeddingService, indexManager);
+            client, clothesService, metadataAnalyzer, embeddingService, indexManager);
     private final UUID clothesId = UUID.randomUUID();
 
     @BeforeEach
@@ -32,14 +38,22 @@ class RecommendationClothesIndexerTest {
                 new ClothesDto(clothesId, UUID.randomUUID(), "티셔츠", null,
                         ClothesType.TOP, false, List.of())));
         when(embeddingService.embed(any())).thenReturn(List.of(0.1f, 0.2f));
+        when(metadataAnalyzer.analyze(any())).thenReturn(RecommendationClothesMetadata.EMPTY);
     }
 
     @Test
     void indexReadsLatestDataEmbedsAndUpsertsByClothesId() throws Exception {
+        when(metadataAnalyzer.analyze(any())).thenReturn(new RecommendationClothesMetadata(
+                List.of("캐주얼"), RecommendationFormality.LOW,
+                List.of(RecommendationOccasion.DAILY)));
+
         indexer.index(clothesId);
 
         verify(indexManager).createIndexIfMissing();
-        verify(embeddingService).embed(any(RecommendationClothesDocument.class));
+        var document = org.mockito.ArgumentCaptor.forClass(RecommendationClothesDocument.class);
+        verify(embeddingService).embed(document.capture());
+        org.assertj.core.api.Assertions.assertThat(document.getValue().content())
+                .contains("추론스타일:캐주얼", "격식도:LOW", "적합상황:DAILY");
         verify(client).index(any(co.elastic.clients.elasticsearch.core.IndexRequest.class));
     }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNotificationStore } from '@/lib/stores/useNotificationStore.ts';
+import { useDmConversationStore } from '@/lib/stores/useDmConversationStore';
 import { useActiveDmStore } from '@/lib/stores/useActiveDmStore';
 import { readNotification } from '@/lib/api/notifications.ts';
 import { NotificationList } from './NotificationList.tsx';
@@ -30,13 +31,16 @@ export default function NotificationIcon() {
     useEffect(() => {
         if (isConnected) {
             subscribe('notifications', (notification: NotificationDto) => {
+                if (notification.type === 'DM_RECEIVED') {
+                    useDmConversationStore.getState().fetch();
+                }
+
                 const isCurrentlyViewingThisChat =
                     notification.type === 'DM_RECEIVED' &&
                     notification.actorId != null &&
                     notification.actorId === activePartnerIdRef.current;
 
                 if (isCurrentlyViewingThisChat) {
-                    // 이미 보고 있는 대화는 알림 목록에 띄우지 않고 서버에서 바로 삭제
                     readNotification(notification.id).catch(() => {});
                     return;
                 }

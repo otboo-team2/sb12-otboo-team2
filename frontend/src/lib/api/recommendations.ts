@@ -9,8 +9,20 @@ import type {
 /**
  * 추천 조회
  */
-export const getRecommendation = async (params: RecommendationParams): Promise<RecommendationDto> => {
-  return apiClient.get<RecommendationDto>('/api/recommendations', { params });
+export const getRecommendation = async (
+  params: RecommendationParams,
+  excludeClothesIds: string[] = [],
+  excludedOutfits: string[][] = [],
+): Promise<RecommendationDto> => {
+  return apiClient.get<RecommendationDto>('/api/recommendations', {
+    params: {
+      ...params,
+      excludeClothesIds: excludeClothesIds.length > 0 ? excludeClothesIds.join(',') : undefined,
+      excludedOutfits: excludedOutfits.length > 0
+        ? excludedOutfits.map(outfit => outfit.join(',')).join(';')
+        : undefined,
+    },
+  });
 };
 
 /**
@@ -19,10 +31,14 @@ export const getRecommendation = async (params: RecommendationParams): Promise<R
 export const getAiRecommendation = async (
   weatherId: string,
   prompt: string,
+  excludeClothesIds: string[] = [],
+  excludedOutfits: string[][] = [],
 ): Promise<RecommendationDto> => {
   return apiClient.post<RecommendationDto>('/api/recommendations/ai', {
     weatherId,
     prompt,
+    excludeClothesIds,
+    excludedOutfits,
   }, { timeout: 70000 });
 };
 

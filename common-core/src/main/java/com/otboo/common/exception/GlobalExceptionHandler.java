@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -79,6 +80,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException e) {
         return build(CommonErrorCode.RESOURCE_NOT_FOUND, Map.of("path", e.getResourcePath()));
+    }
+
+    /**
+     * SSE 등 스트리밍 연결에서 클라이언트가 이미 끊은 뒤 서버가 거기에 쓰려고 할 때 발생.
+     * 이미 못 쓰는 연결이라 무엇을 반환해도 실패하므로, 응답 시도 자체를 하지 않고 조용히 넘어간다.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleAsyncRequestNotUsable(AsyncRequestNotUsableException e) {
+        // 이미 끊긴 연결이라 응답을 시도하지 않고 그냥 넘어간다
     }
 
     /**

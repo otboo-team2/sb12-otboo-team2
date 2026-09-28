@@ -2,6 +2,9 @@ package com.otboo.recommendation.search.elasticsearch;
 
 import com.otboo.clothes.dto.ClothesAttributeWithDefDto;
 import com.otboo.clothes.dto.ClothesDto;
+import com.otboo.recommendation.ai.RecommendationClothesMetadata;
+import com.otboo.recommendation.ai.RecommendationFormality;
+import com.otboo.recommendation.ai.RecommendationOccasion;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -19,19 +22,36 @@ public record RecommendationClothesDocument(
         String ownerId,
         String type,
         String content,
+        List<String> inferredStyles,
+        RecommendationFormality formality,
+        List<RecommendationOccasion> occasions,
         List<Float> embedding
 ) {
 
     public RecommendationClothesDocument {
+        inferredStyles = inferredStyles == null ? List.of() : List.copyOf(inferredStyles);
+        occasions = occasions == null ? List.of() : List.copyOf(occasions);
         embedding = embedding == null ? null : List.copyOf(embedding);
     }
 
     public static RecommendationClothesDocument of(ClothesDto clothes) {
+        return of(clothes, RecommendationClothesMetadata.EMPTY);
+    }
+
+    public static RecommendationClothesDocument of(
+            ClothesDto clothes,
+            RecommendationClothesMetadata metadata
+    ) {
+        RecommendationClothesMetadata safeMetadata = metadata == null
+                ? RecommendationClothesMetadata.EMPTY : metadata;
         return new RecommendationClothesDocument(
                 clothes.id().toString(),
                 clothes.ownerId().toString(),
                 clothes.type().name(),
-                contentOf(clothes),
+                contentOf(clothes, safeMetadata),
+                safeMetadata.inferredStyles(),
+                safeMetadata.formality(),
+                safeMetadata.occasions(),
                 null);
     }
 
@@ -40,6 +60,10 @@ public record RecommendationClothesDocument(
      * 속성 순서를 정렬해 DB 조회 순서가 달라도 같은 Embedding 입력을 만든다.
      */
     public static String contentOf(ClothesDto clothes) {
+        return contentOf(clothes, RecommendationClothesMetadata.EMPTY);
+    }
+
+    public static String contentOf(ClothesDto clothes, RecommendationClothesMetadata metadata) {
         String attributes = clothes.attributes().stream()
                 .sorted(Comparator
                         .comparing(ClothesAttributeWithDefDto::definitionName,
@@ -48,7 +72,24 @@ public record RecommendationClothesDocument(
                                 Comparator.nullsFirst(String::compareTo)))
                 .map(attribute -> attribute.definitionName() + "=" + attribute.value())
                 .collect(Collectors.joining(" "));
-        return clothes.name() + " 타입:" + clothes.type().name()
-                + (attributes.isBlank() ? "" : " 속성:" + attributes);
+        StringBuilder content = new StringBuilder(clothes.name())
+                .append(" 타입:").append(clothes.type().name());
+        if (!attributes.isBlank()) {
+            content.append(" 속성:").append(attributes);
+        }
+        String styles = metadata.inferredStyles().stream().distinct().sorted()
+                .collect(Collectors.joining(","));
+        if (!styles.isBlank()) {
+            content.append(" 추론스타일:").append(styles);
+        }
+        if (metadata.formality() != null) {
+            content.append(" 격식도:").append(metadata.formality().name());
+        }
+        String occasions = metadata.occasions().stream().distinct().sorted()
+                .map(Enum::name).collect(Collectors.joining(","));
+        if (!occasions.isBlank()) {
+            content.append(" 적합상황:").append(occasions);
+        }
+        return content.toString();
     }
 }

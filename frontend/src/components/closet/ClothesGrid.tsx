@@ -32,6 +32,25 @@ export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDele
     );
   }
 
+  const handleFavoriteToggle = async (clothes: ClothesDto) => {
+    try {
+      if (clothes.favorite) {
+        await removeFavorite(clothes.id);
+        if (params.favorite === true) {
+          remove(clothes.id);
+        } else {
+          update(clothes.id, { favorite: false });
+        }
+      } else {
+        await addFavorite(clothes.id);
+        update(clothes.id, { favorite: true });
+      }
+    } catch (error) {
+      console.error('옷 즐겨찾기 변경 실패:', error);
+      toast.error('즐겨찾기 변경에 실패했습니다.');
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       {clothes.length === 0 ? (

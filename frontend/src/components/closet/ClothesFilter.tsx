@@ -22,10 +22,12 @@ interface ClothesFilterProps {
 export default function ClothesFilter({ onAddClick }: ClothesFilterProps) {
   const { updateParams } = useClothesStore();
   const [selectedType, setSelectedType] = useState<ClothesType | undefined>(undefined);
+  const [selectedFavorite, setSelectedFavorite] = useState<boolean | undefined>(undefined);
 
-  const handleTypeChange = (type?: ClothesType) => {
+  const handleFilterChange = (type?: ClothesType, favorite?: boolean) => {
     setSelectedType(type);
-    updateParams({ typeEqual: type });
+    setSelectedFavorite(favorite);
+    updateParams({ typeEqual: type, favorite });
   };
 
   return (
@@ -33,11 +35,11 @@ export default function ClothesFilter({ onAddClick }: ClothesFilterProps) {
       {/* 카테고리 필터 탭 */}
       <div className="content-stretch flex gap-[20px] items-center justify-start relative shrink-0">
         {CLOTHES_CATEGORIES.map((category) => {
-          const isSelected = selectedType === category.value;
+          const isSelected = selectedType === category.value && selectedFavorite === category.favorite;
           return (
             <button
               key={category.label}
-              onClick={() => handleTypeChange(category.value)}
+              onClick={() => handleFilterChange(category.value, category.favorite)}
               className={`box-border content-stretch flex gap-1.5 items-center justify-center px-[18px] py-4 relative shrink-0 ${
                 isSelected
                   ? 'border-b-4 border-blue-500 border-solid'

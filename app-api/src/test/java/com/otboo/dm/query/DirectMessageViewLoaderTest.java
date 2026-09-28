@@ -6,6 +6,7 @@ import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.SortDirection;
 import com.otboo.common.test.IntegrationTestSupport;
 import com.otboo.dm.dto.DirectMessageDto;
+import com.otboo.dm.dto.DmConversationDto;
 import com.otboo.dm.entity.DirectMessage;
 import com.otboo.dm.repository.DirectMessageRepository;
 import com.otboo.dm.util.DmKeyGenerator;
@@ -149,6 +150,95 @@ class DirectMessageViewLoaderTest extends IntegrationTestSupport {
 
             assertThat(dto.sender().name()).isEqualTo("사용자1");
             assertThat(dto.receiver().name()).isEqualTo("사용자2");
+        }
+    }
+
+    @Nested
+    @DisplayName("loadConversations")
+    class LoadConversations {
+
+        @Test
+        @DisplayName("userId가 보내거나 받은 대화만 조회한다")
+        void filtersByParticipant() {
+            save(user1, user2, "user1-user2 대화");
+            save(other, user2, "other-user2 대화"); // user1은 관여 안 함
+
+            List<DmConversationDto> result = viewLoader.loadConversations(user1.getId(), firstPage(10));
+
+            assertThat(result).hasSize(1);
+            assertThat(result.getFirst().lastMessageContent()).isEqualTo("user1-user2 대화");
+        }
+
+        @Test
+        @DisplayName("내가 보냈든 받았든 상대방 정보가 partner로 채워진다")
+        void resolvesPartnerRegardlessOfDirection() {
+            save(user1, user2, "내가 보낸 메시지");
+
+            DmConversationDto asSender = viewLoader.loadConversations(user1.getId(), firstPage(10)).getFirst();
+            assertThat(asSender.partner().userId()).isEqualTo(user2.getId());
+            assertThat(asSender.partner().name()).isEqualTo("사용자2");
+
+            DmConversationDto asReceiver = viewLoader.loadConversations(user2.getId(), firstPage(10)).getFirst();
+            assertThat(asReceiver.partner().userId()).isEqualTo(user1.getId());
+            assertThat(asReceiver.partner().name()).isEqualTo("사용자1");
+        }
+
+        @Test
+        @DisplayName("같은 상대와의 대화가 여러 건이어도 최신 메시지 1건만 나온다")
+        void collapsesToLatestMessagePerConversation() throws InterruptedException {
+            save(user1, user2, "첫번째");
+            Thread.sleep(1);
+            DirectMessage latest = save(user2, user1, "두번째");
+
+            List<DmConversationDto> result = viewLoader.loadConversations(user1.getId(), firstPage(10));
+
+            assertThat(result).hasSize(1);
+            assertThat(result.getFirst().messageId()).isEqualTo(latest.getId());
+            assertThat(result.getFirst().lastMessageContent()).isEqualTo("두번째");
+        }
+
+        @Test
+        @DisplayName("커서 없이 첫 페이지를 요청하면 최근 대화 순으로 온다")
+        void firstPageOrderedByLatestActivity() throws InterruptedException {
+            save(user1, user2, "user2와 대화");
+            Thread.sleep(1);
+            save(user1, other, "other와 대화");
+
+            List<DmConversationDto> result = viewLoader.loadConversations(user1.getId(), firstPage(10));
+
+            assertThat(result).extracting(dto -> dto.partner().userId())
+                .containsExactly(other.getId(), user2.getId());
+        }
+
+        @Test
+        @DisplayName("cursor + idAfter를 넘기면 그 이전 대화만 온다")
+        void nextPageWithIdAfter() throws InterruptedException {
+            save(user1, user2, "user2와 대화");
+            Thread.sleep(1);
+            save(user1, other, "other와 대화");
+
+            List<DmConversationDto> firstPageResult = viewLoader.loadConversations(user1.getId(), firstPage(1));
+            DmConversationDto last = firstPageResult.getFirst();
+
+            CursorRequest nextPage = new CursorRequest(
+                last.lastMessageAt().toString(), last.messageId(), 10, null, SortDirection.DESCENDING);
+            List<DmConversationDto> result = viewLoader.loadConversations(user1.getId(), nextPage);
+
+            assertThat(result).extracting(dto -> dto.partner().userId()).containsExactly(user2.getId());
+        }
+
+        @Test
+        @DisplayName("idAfter 없이 cursor만 오면 같은 시각 데이터를 포기하고 시각만으로 비교한다")
+        void nextPageWithoutIdAfter() throws InterruptedException {
+            save(user1, user2, "user2와 대화");
+            Thread.sleep(1);
+            DirectMessage latest = save(user1, other, "other와 대화");
+
+            CursorRequest cursorOnly = new CursorRequest(
+                latest.getCreatedAt().toString(), null, 10, null, SortDirection.DESCENDING);
+            List<DmConversationDto> result = viewLoader.loadConversations(user1.getId(), cursorOnly);
+
+            assertThat(result).extracting(dto -> dto.partner().userId()).containsExactly(user2.getId());
         }
     }
 }

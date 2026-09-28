@@ -141,6 +141,7 @@ export interface ClothesDto {
   name: string;
   imageUrl?: string;
   type: ClothesType;
+  favorite: boolean;
   attributes: ClothesAttributeWithDefDto[];
 }
 
@@ -218,6 +219,7 @@ export interface RecommendationDto {
   weatherId: string;
   userId: string;
   clothes: OotdDto[];
+  reason?: string;
 }
 
 // Pinterest 코디 참고 사진. 서버의 pinterest.tag enum 이름과 같아야 한다.
@@ -409,6 +411,7 @@ export interface FeedListParams extends CursorParams, SortParams {
 export interface ClothesListParams extends CursorParams {
   typeEqual?: ClothesType;
   ownerId: string;
+  favorite?: boolean;
 }
 
 export interface ClothesAttributeDefListParams extends CursorParams, SortParams {

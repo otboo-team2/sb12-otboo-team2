@@ -21,22 +21,22 @@ class WeatherClothesFilterTest {
     }
 
     @Test
-    void heatSensitiveUserGetsLowerHotThreshold() {
+    void coldSensitiveUserKeepsOuterLongerWhileLessSensitiveUserExcludesItEarlier() {
         assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 5, ClothesType.OUTER))
-                .isFalse();
-        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 1, ClothesType.OUTER))
                 .isTrue();
+        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 1, ClothesType.OUTER))
+                .isFalse();
     }
 
     @Test
     void hotThresholdIncludesBoundaryAndSensitivityIsClamped() {
-        assertThat(filter.isSuitable(29.0, PrecipitationType.NONE, 1, ClothesType.OUTER))
+        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 1, ClothesType.OUTER))
                 .isFalse();
-        assertThat(filter.isSuitable(28.99, PrecipitationType.NONE, 1, ClothesType.OUTER))
+        assertThat(filter.isSuitable(26.99, PrecipitationType.NONE, 1, ClothesType.OUTER))
                 .isTrue();
-        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 99, ClothesType.OUTER))
+        assertThat(filter.isSuitable(29.0, PrecipitationType.NONE, 99, ClothesType.OUTER))
                 .isFalse();
-        assertThat(filter.isSuitable(29.0, PrecipitationType.NONE, -99, ClothesType.OUTER))
+        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, -99, ClothesType.OUTER))
                 .isFalse();
     }
 
@@ -56,34 +56,69 @@ class WeatherClothesFilterTest {
     }
 
     @Test
-    void warmthExcludesThickClothesInWarmWeather() {
-        assertThat(filter.isSuitable(23.0, PrecipitationType.NONE, 3, ClothesType.OUTER, "매우 두꺼움"))
-                .isFalse();
-        assertThat(filter.isSuitable(23.0, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음"))
+    void missingOrUnknownWarmthDoesNotGuessAnUnsupportedTemperatureRange() {
+        assertThat(filter.isSuitable(-20.0, PrecipitationType.NONE, 3, ClothesType.TOP, null))
+                .isTrue();
+        assertThat(filter.isSuitable(-20.0, PrecipitationType.NONE, 3, ClothesType.TOP, "알 수 없음"))
                 .isTrue();
     }
 
     @Test
-    void warmthThresholdFollowsTemperatureSensitivity() {
-        assertThat(filter.isSuitable(23.0, PrecipitationType.NONE, 1, ClothesType.TOP, "두꺼움"))
-                .isTrue();
-        assertThat(filter.isSuitable(23.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움"))
+    void thinClothesRequireMildWeatherAndRespectBothBoundaries() {
+        assertThat(filter.isSuitable(17.99, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음"))
                 .isFalse();
-        assertThat(filter.isSuitable(21.0, PrecipitationType.NONE, 5, ClothesType.TOP, "두꺼움"))
+        assertThat(filter.isSuitable(18.0, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음"))
                 .isTrue();
-        assertThat(filter.isSuitable(21.1, PrecipitationType.NONE, 5, ClothesType.TOP, "두꺼움"))
+        assertThat(filter.isSuitable(35.0, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음"))
+                .isTrue();
+        assertThat(filter.isSuitable(35.01, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음"))
                 .isFalse();
     }
 
     @Test
-    void warmthThresholdAllowsExactBoundary() {
-        assertThat(filter.isSuitable(22.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움"))
-                .isTrue();
-        assertThat(filter.isSuitable(22.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움"))
+    void normalWarmthCoversCoolToWarmWeatherIncludingBoundaries() {
+        assertThat(filter.isSuitable(9.99, PrecipitationType.NONE, 3, ClothesType.TOP, "보통")).isFalse();
+        assertThat(filter.isSuitable(10.0, PrecipitationType.NONE, 3, ClothesType.TOP, "보통")).isTrue();
+        assertThat(filter.isSuitable(27.0, PrecipitationType.NONE, 3, ClothesType.TOP, "보통")).isTrue();
+        assertThat(filter.isSuitable(27.01, PrecipitationType.NONE, 3, ClothesType.TOP, "보통")).isFalse();
+    }
+
+    @Test
+    void thickWarmthCoversColdWeatherButNotSeventeenDegreesForColdSensitiveUser() {
+        assertThat(filter.isSuitable(-5.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isFalse();
+        assertThat(filter.isSuitable(-5.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(15.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(15.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isFalse();
+        assertThat(filter.isSuitable(17.0, PrecipitationType.NONE, 5, ClothesType.OUTER, "두꺼움"))
                 .isFalse();
-        assertThat(filter.isSuitable(17.0, PrecipitationType.NONE, 1, ClothesType.TOP, "매우 두꺼움"))
+    }
+
+    @Test
+    void veryThickWarmthHasNoArtificialColdMinimumAndExcludesAboveUpperBoundary() {
+        assertThat(filter.isSuitable(-30.0, PrecipitationType.NONE, 3, ClothesType.OUTER, "매우 두꺼움"))
                 .isTrue();
-        assertThat(filter.isSuitable(17.01, PrecipitationType.NONE, 1, ClothesType.TOP, "매우 두꺼움"))
+        assertThat(filter.isSuitable(5.0, PrecipitationType.NONE, 3, ClothesType.OUTER, "매우 두꺼움"))
+                .isTrue();
+        assertThat(filter.isSuitable(5.01, PrecipitationType.NONE, 3, ClothesType.OUTER, "매우 두꺼움"))
                 .isFalse();
+    }
+
+    @Test
+    void sensitivityOneThreeAndFiveShiftTheSameRangeByPerceivedTemperature() {
+        assertThat(filter.isSuitable(17.0, PrecipitationType.NONE, 1, ClothesType.TOP, "얇음")).isTrue();
+        assertThat(filter.isSuitable(17.0, PrecipitationType.NONE, 3, ClothesType.TOP, "얇음")).isFalse();
+        assertThat(filter.isSuitable(18.0, PrecipitationType.NONE, 5, ClothesType.TOP, "얇음")).isFalse();
+
+        assertThat(filter.isSuitable(16.0, PrecipitationType.NONE, 1, ClothesType.TOP, "두꺼움")).isFalse();
+        assertThat(filter.isSuitable(15.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(16.0, PrecipitationType.NONE, 5, ClothesType.TOP, "두꺼움")).isTrue();
+    }
+
+    @Test
+    void missingTemperatureOrTypeKeepsCandidateWhenSuitabilityCannotBeJudged() {
+        assertThat(filter.isSuitable(null, PrecipitationType.NONE, 3, ClothesType.OUTER, "두꺼움"))
+                .isTrue();
+        assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, null, "두꺼움"))
+                .isTrue();
     }
 }
