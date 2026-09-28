@@ -1,5 +1,6 @@
 package com.otboo.feed.service;
 
+import com.otboo.common.event.FollowedUserPostedEvent;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorResponse;
 import com.otboo.common.security.AuthPrincipal;
@@ -65,6 +66,7 @@ public class FeedService {
                 Feed.create(author, request.weatherId(), request.content(), clothesIds));
 
         events.publishEvent(FeedIndexEvent.upsert(feed.getId()));
+        events.publishEvent(FollowedUserPostedEvent.of(me.userId(), feed.getId()));
         return viewLoader.loadOne(feed.getId(), me.userId());
     }
 

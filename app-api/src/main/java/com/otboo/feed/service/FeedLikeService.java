@@ -1,5 +1,6 @@
 package com.otboo.feed.service;
 
+import com.otboo.common.event.FeedLikedEvent;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.security.AuthPrincipal;
 import com.otboo.feed.dto.FeedDto;
@@ -73,6 +74,7 @@ public class FeedLikeService {
 
         // likeCount 는 정렬 키. 색인이 밀리면 "좋아요순" 목록의 순서가 옛 값으로 남는다.
         events.publishEvent(FeedIndexEvent.upsert(feedId));
+        events.publishEvent(FeedLikedEvent.of(feed.getAuthor().getId(), me.userId(), feedId));
         return viewLoader.loadOne(feedId, me.userId());
     }
 

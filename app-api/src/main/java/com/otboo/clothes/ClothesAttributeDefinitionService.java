@@ -8,6 +8,7 @@ import com.otboo.clothes.entity.ClothesAttributeSelectableValue;
 import com.otboo.clothes.exception.ClothesErrorCode;
 import com.otboo.clothes.repository.ClothesAttributeDefinitionRepository;
 import com.otboo.clothes.repository.ClothesAttributeSelectableValueRepository;
+import com.otboo.common.event.ClothesAttributeAddedEvent;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.common.pagination.CursorCodec;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class ClothesAttributeDefinitionService {
 
     private final ClothesAttributeDefinitionRepository definitionRepository;
     private final ClothesAttributeSelectableValueRepository selectableValueRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final String SORT_BY_NAME = "name";
     private static final String SORT_BY_CREATED_AT = "createdAt";
@@ -56,6 +59,8 @@ public class ClothesAttributeDefinitionService {
                     ClothesErrorCode.DUPLICATE_ATTRIBUTE_DEFINITION_NAME, exception);
         }
 
+        eventPublisher.publishEvent(
+            ClothesAttributeAddedEvent.of(definition.getId(), definition.getName()));
         return ClothesAttributeDefDto.from(definition);
     }
 
