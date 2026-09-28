@@ -18,13 +18,10 @@ const CLOTHES_TYPES = [
   { label: '하의', value: 'BOTTOM' as ClothesType },
   { label: '원피스', value: 'DRESS' as ClothesType },
   { label: '아우터', value: 'OUTER' as ClothesType },
-  { label: '속옷', value: 'UNDERWEAR' as ClothesType },
   { label: '신발', value: 'SHOES' as ClothesType },
   { label: '악세서리', value: 'ACCESSORY' as ClothesType },
-  { label: '양말', value: 'SOCKS' as ClothesType },
   { label: '모자', value: 'HAT' as ClothesType },
   { label: '가방', value: 'BAG' as ClothesType },
-  { label: '스카프', value: 'SCARF' as ClothesType },
   { label: '기타', value: 'ETC' as ClothesType },
 ];
 
@@ -42,7 +39,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
   const [mode, setMode] = useState<ModalMode>('form');
   const [loading, setLoading] = useState(false);
   const { selectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     type: '' as ClothesType,
@@ -63,7 +60,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.type) return;
-    
+
     if (!auth?.userDto.id) {
       toast.error('로그인이 필요합니다.');
       return;
@@ -79,7 +76,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
         attributes,
         sourceImageUrl: selectedImage ? undefined : extractedImageUrl ?? undefined,
       }, selectedImage || undefined);
-      
+
       add(newClothes);
       toast.success('옷장에 성공적으로 등록되었습니다.');
       handleClose();
@@ -94,7 +91,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) return;
-    
+
     setLoading(true);
     setExtractedImageUrl(null);
     try {
@@ -188,7 +185,7 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
                   </div>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="bg-blue-500 hover:bg-blue-600 box-border content-stretch flex flex-col gap-2 items-center justify-center mb-[-26px] overflow-clip px-3 py-1.5 relative rounded-[100px] shrink-0 transition-colors"
               >
@@ -248,9 +245,9 @@ export default function AddClothesModal({ open, onClose }: AddClothesModalProps)
                       <div className="font-bold leading-none not-italic relative shrink-0 text-gray-500 text-[14px] tracking-[-0.35px] w-full">
                         <p className="leading-normal truncate">{attrDef.name}</p>
                       </div>
-                      <Select 
-                        value={selectedAttributes[attrDef.id] || ""} 
-                        onValueChange={(value) => 
+                      <Select
+                        value={selectedAttributes[attrDef.id] || ""}
+                        onValueChange={(value) =>
                           setSelectedAttributes(prev => ({ ...prev, [attrDef.id]: value }))
                         }
                       >

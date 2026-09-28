@@ -28,7 +28,7 @@ export default function ProfilePage() {
   }
   
   return (
-    <div className="relative flex h-screen bg-white overflow-hidden">
+    <div className="relative flex min-h-full bg-white">
       {/* 메인 콘텐츠 영역 - 고정 너비와 중앙 정렬 */}
       <div className="flex-1 flex justify-center">
         <div 
@@ -36,7 +36,7 @@ export default function ProfilePage() {
             isClosetOpen ? 'mr-[228px]' : 'mr-0'
           }`}
         >
-          <div className="flex flex-col h-full px-8 py-6 gap-6">
+          <div className="flex flex-col px-8 py-6 gap-6">
             {/* ProfileSummary 컴포넌트 - 고정 */}
             <div className="bg-white overflow-hidden rounded-lg shadow-sm flex-shrink-0">
               <div className="border-b border-gray-100 py-5">
@@ -45,8 +45,8 @@ export default function ProfilePage() {
             </div>
             
             {/* 사용자 피드 목록 - 스크롤 가능 */}
-            <div className="bg-white overflow-hidden rounded-lg shadow-sm flex-1 min-h-0">
-              <div className="p-6 h-full">
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6">
                 <UserFeedList userId={targetUserId} />
               </div>
             </div>

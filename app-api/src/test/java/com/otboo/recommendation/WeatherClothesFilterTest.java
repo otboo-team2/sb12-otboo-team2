@@ -11,10 +11,10 @@ class WeatherClothesFilterTest {
     private final WeatherClothesFilter filter = new WeatherClothesFilter();
 
     @Test
-    void hotWeatherExcludesOuterAndScarf() {
+    void hotWeatherExcludesOuterAndHat() {
         assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.OUTER))
                 .isFalse();
-        assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.SCARF))
+        assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.HAT))
                 .isFalse();
         assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.TOP))
                 .isTrue();

@@ -247,17 +247,15 @@ class OpenAiRecommendationClientTest {
                     assertThat(metadata.path("formality").asText()).isEqualTo("HIGH");
                     assertThat(metadata.path("occasions").get(0).asText()).isEqualTo("WORK");
                     assertThat(body.path("instructions").asText())
-                            .contains("requestCondition은 이번 요청에서 확인된 조건")
-                            .contains("preferredStyles는 저장된 사용자 선호")
-                            .contains("명시적 요청 조건과 preferredStyles가 충돌하면 명시적 요청 조건을 우선한다")
-                            .contains("후보는 제공된 name, type, attributes, recommendationMetadata만 근거로 비교한다")
-                            .contains("명확히 충돌하면 우선 선택하지 않되")
+                            .contains("requestCondition은 이번 요청 조건이고 preferredStyles는 저장된 선호다")
+                            .contains("요청 조건과 선호가 충돌하면 요청 조건을 우선한다")
+                            .contains("후보의 name, type, attributes, recommendationMetadata만 근거로 판단한다")
+                            .contains("metadata가 요청과 명확히 충돌하면 우선하지 않되")
                             .contains("metadata가 없다는 이유만으로 부적합하다고 단정하지 않는다")
-                            .contains("제공되지 않은 소재·디자인·실루엣·상황 적합성을 만들어내지 않는다")
-                            .contains("reason은 일반 사용자가 자연스럽게 이해할 수 있는 한국어 1~3문장")
-                            .contains("enum 값이나")
-                            .contains("내부 용어를 노출하지 않는다")
-                            .contains("사용자의 실제 요청에 맞는 자연스러운 표현으로 설명한다");
+                            .contains("제공되지 않은 소재·디자인·실루엣·상황 적합성을 추측하지 않는다")
+                            .contains("reason은 요청, 날씨, 선택 의상의 제공된 정보만 근거로 한 자연스러운 한국어 1~3문장")
+                            .contains("reason에 enum 값")
+                            .contains("내부 용어를 노출하지 않는다");
                     assertThat(body.path("tools").get(0).path("parameters").path("properties")
                             .path("clothesIds").path("items").path("enum").get(0).asText()).isEqualTo(id);
                     assertThat(body.path("store").asBoolean()).isFalse();

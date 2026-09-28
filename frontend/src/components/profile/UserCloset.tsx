@@ -15,7 +15,7 @@ export default function UserCloset({ userId }: UserClosetProps) {
   const { data: clothes, loading, fetch, fetchMore, params, updateParams } = useClothesStore();
   const { data: profileData, fetch: fetchProfile, updateParams: updateProfileParams } = useProfileStore();
   const currentUser = useAuthStore((state) => state.data);
-  
+
   const isOwnProfile = userId === currentUser?.userDto?.id;
   const displayName = isOwnProfile ? currentUser?.userDto?.name : profileData?.name;
 
@@ -28,7 +28,7 @@ export default function UserCloset({ userId }: UserClosetProps) {
     // 옷장 데이터 가져오기
     updateParams({ ownerId: userId });
     fetch();
-    
+
     // 프로필 데이터 가져오기 (사용자 이름을 위해)
     if (!isOwnProfile && userId) {
       updateProfileParams({ userId });
@@ -43,13 +43,10 @@ export default function UserCloset({ userId }: UserClosetProps) {
     '하의': 'BOTTOM',
     '원피스': 'DRESS',
     '아우터': 'OUTER',
-    '속옷': 'UNDERWEAR',
-    '액세서리': 'ACCESSORY',
     '신발': 'SHOES',
-    '양말': 'SOCKS',
+    '악세서리': 'ACCESSORY',
     '모자': 'HAT',
     '가방': 'BAG',
-    '스카프': 'SCARF',
     '기타': 'ETC'
   };
 
@@ -59,13 +56,10 @@ export default function UserCloset({ userId }: UserClosetProps) {
     'BOTTOM': '하의',
     'DRESS': '원피스',
     'OUTER': '아우터',
-    'UNDERWEAR': '속옷',
-    'ACCESSORY': '액세서리',
     'SHOES': '신발',
-    'SOCKS': '양말',
+    'ACCESSORY': '악세서리',
     'HAT': '모자',
     'BAG': '가방',
-    'SCARF': '스카프',
     'ETC': '기타'
   };
 
@@ -84,7 +78,7 @@ export default function UserCloset({ userId }: UserClosetProps) {
             <div className="h-6 bg-gray-200 rounded w-32 animate-pulse"></div>
             <div className="h-[46px] bg-gray-200 rounded-[100px] w-[102px] animate-pulse"></div>
           </div>
-          
+
           {/* 옷 그리드 스켈레톤 */}
           <div className="flex flex-col gap-10">
             {Array.from({ length: 3 }).map((_, rowIndex) => (
@@ -115,10 +109,10 @@ export default function UserCloset({ userId }: UserClosetProps) {
           <h2 className="font-['SUIT:Bold',_sans-serif] text-[20px] text-[#212126] tracking-[-0.5px] leading-[0] not-italic">
             {displayName || '사용자'} 님의 옷장
           </h2>
-          
+
           {/* 카테고리 필터 */}
           <Select
-            value={params.typeEqual ? reverseCategoryMap[params.typeEqual] : '전체'}
+            value={params.typeEqual ? reverseCategoryMap[params["typeEqual"]] : '전체'}
             onValueChange={handleCategoryChange}
           >
             <SelectTrigger className="bg-white h-[46px] w-[140px] rounded-[100px] border border-[#d4d4d9] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)] px-[22px] py-3.5 font-['SUIT:SemiBold',_sans-serif] text-[16px] text-[#575765] tracking-[-0.4px]">
@@ -130,13 +124,10 @@ export default function UserCloset({ userId }: UserClosetProps) {
               <SelectItem value="하의">하의</SelectItem>
               <SelectItem value="원피스">원피스</SelectItem>
               <SelectItem value="아우터">아우터</SelectItem>
-              <SelectItem value="속옷">속옷</SelectItem>
-              <SelectItem value="액세서리">액세서리</SelectItem>
               <SelectItem value="신발">신발</SelectItem>
-              <SelectItem value="양말">양말</SelectItem>
+              <SelectItem value="악세서리">악세서리</SelectItem>
               <SelectItem value="모자">모자</SelectItem>
               <SelectItem value="가방">가방</SelectItem>
-              <SelectItem value="스카프">스카프</SelectItem>
               <SelectItem value="기타">기타</SelectItem>
             </SelectContent>
           </Select>
@@ -188,7 +179,7 @@ export default function UserCloset({ userId }: UserClosetProps) {
               )}
             </div>
           )}
-          
+
           {/* 무한 스크롤 트리거 영역 */}
           <div ref={ref} className="w-full h-1 mt-8" />
         </div>

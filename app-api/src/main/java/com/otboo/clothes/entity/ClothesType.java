@@ -5,12 +5,9 @@ public enum ClothesType {
     BOTTOM,
     DRESS,
     OUTER,
-    UNDERWEAR,
     ACCESSORY,
     SHOES,
-    SOCKS,
     HAT,
     BAG,
-    SCARF,
     ETC
 }
