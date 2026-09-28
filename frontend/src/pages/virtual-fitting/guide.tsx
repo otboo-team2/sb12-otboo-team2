@@ -1,5 +1,6 @@
+import { useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useFittingStore, hasStoredFittingJob } from '@/lib/stores/useFittingStore';
 import fittingArrow from '@/assets/guide/fitting-arrow.png';
 import modelSelection from '@/assets/guide/model-selection.png';
 import fittingComplete from '@/assets/guide/fitting-complete.png';
@@ -14,6 +15,12 @@ import { Info } from 'lucide-react';
 export default function VirtualFittingGuidePage() {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (useFittingStore.getState().job || hasStoredFittingJob()) {
+      navigate('/virtual-fitting/start', { replace: true });
+    }
+  }, [navigate]);
+
   return (
     <div className="h-full overflow-hidden bg-white px-8 py-6">
       <section className="mx-auto flex w-full max-w-[1280px] flex-col items-center text-center">
@@ -27,7 +34,7 @@ export default function VirtualFittingGuidePage() {
             <img src={modelSelection} alt="모델 선택" className="h-56 w-full object-contain" />
           </GuideCard>
           <img src={fittingArrow} alt="다음 단계" className="hidden h-12 w-12 object-contain lg:block" />
-          <GuideCard step="STEP 02" title="의상 선택" description={<>내 옷장에서 상의와 하의를 선택해 주세요.<br />추가 의상은 선택할 수 있어요.</>}>
+          <GuideCard step="STEP 02" title="의상 선택" description={<>내 옷장에서 상의와 하의를 선택해 주세요.<br />추가 의상을 선택할 수 있어요.</>}>
             <div className="grid h-64 grid-cols-3 grid-rows-2 gap-2 p-2">
               {[['니트', knit], ['바지', pants], ['모자', cap], ['셔츠', shirt], ['후드티', hoodie], ['신발', shoes]].map(([label, image], index) => (
                 <div key={label} className={`relative flex items-center justify-center rounded-xl border-2 bg-white p-1 ${index === 0 ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-gray-100'}`}>

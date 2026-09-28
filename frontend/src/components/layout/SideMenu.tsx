@@ -6,6 +6,7 @@ import feedIcon from '@/assets/illust_logos/il_feed.svg';
 import settingIcon from '@/assets/illust_logos/il_setting.svg';
 import setting2Icon from '@/assets/illust_logos/il_setting-2.svg';
 import closetIcon from '@/assets/illust_logos/il_closet.svg';
+import fittingIcon from '@/assets/icons/il_fitting.png';
 import profileIcon from '@/assets/icons/profile.svg';
 import LogoSvg from "@/assets/illust_logos/Logo.svg";
 import {useAuthStore} from "@/lib/stores/useAuthStore.ts";
@@ -67,10 +68,7 @@ function ClosetIcon() {
 function FittingIcon() {
     return (
         <div className="overflow-clip relative shrink-0 size-6">
-            <svg viewBox="0 0 24 24" fill="none" className="size-full">
-                <path d="M8 4L4 7v4h2v9h12v-9h2V7l-4-3-2 2h-4L8 4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M12 11l1.5 1.5L16 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <img alt="가상피팅" className="block max-w-none size-full" src={fittingIcon} />
         </div>
     );
 }
