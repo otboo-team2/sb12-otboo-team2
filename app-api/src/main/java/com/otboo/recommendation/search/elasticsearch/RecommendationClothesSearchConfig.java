@@ -9,7 +9,9 @@ import com.otboo.recommendation.ai.RecommendationAiProperties;
 import com.otboo.common.http.ExternalApiClientFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,10 +23,18 @@ import org.springframework.context.annotation.Configuration;
 public class RecommendationClothesSearchConfig {
 
     @Bean("recommendationIndexEmbeddingClient")
+    @ConditionalOnMissingBean(RecommendationClothesEmbeddingService.class)
     OpenAiEmbeddingClient recommendationIndexEmbeddingClient(
             ExternalApiClientFactory factory, RecommendationAiProperties properties,
             ObjectMapper objectMapper) {
         return new OpenAiEmbeddingClient(factory, properties, objectMapper, "llm-reindex");
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(RecommendationClothesEmbeddingService.class)
+    RecommendationClothesEmbeddingService recommendationClothesEmbeddingService(
+            @Qualifier("recommendationIndexEmbeddingClient") OpenAiEmbeddingClient embeddingClient) {
+        return new RecommendationClothesEmbeddingService(embeddingClient);
     }
 
     @Bean
