@@ -184,16 +184,15 @@ class PinterestSyncServiceTest {
     }
 
     @Test
-    @DisplayName("보드 description 조회가 실패해도 배치는 멈추지 않고, 핀 자체 태그로만 시도한다")
-    void fallsBackToPinOnlyTaggingWhenBoardFetchFails() {
+    @DisplayName("보드 description 조회가 실패하면 배치는 멈추지 않되, 이 보드는 이번 실행에서 건너뛰고 기존 핀을 건드리지 않는다")
+    void skipsBoardForThisRunWhenBoardFetchFails() {
         when(client.getBoard(BOARD_ID)).thenThrow(new BusinessException(PinterestErrorCode.INVALID_BOARD_ID));
-        when(client.listBoardPins(BOARD_ID, null))
-                .thenReturn(new PinterestPageResponse<>(List.of(pin("53", TAGGED)), null));
 
         SyncResult result = service.syncBoard(BOARD_ID, NOW);
 
-        assertThat(result.upserted()).isEqualTo(1);
-        assertThat(savedPins().getFirst().getTagStatus()).isEqualTo(TagStatus.TAGGED);
+        assertThat(result).isEqualTo(SyncResult.EMPTY);
+        verify(client, never()).listBoardPins(any(), any());
+        verify(repository, never()).saveAll(any());
     }
 
     @Test

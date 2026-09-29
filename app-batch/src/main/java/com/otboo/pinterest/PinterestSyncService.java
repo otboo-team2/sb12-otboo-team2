@@ -65,7 +65,19 @@ public class PinterestSyncService {
      *                 핀들이 같은 값을 가져야 "이번에 안 들어온 핀"을 나중에 골라낼 수 있다
      */
     public SyncResult syncBoard(String boardId, Instant syncedAt) {
-        String boardDescription = fetchBoardDescription(boardId);
+        String boardDescription;
+        try {
+            boardDescription = client.getBoard(boardId).description();
+        } catch (BusinessException e) {
+            // 여기서 null 로 폴백해 핀만으로 계속 동기화.
+            // 이번 실행에서 MALFORMED 로 재판정되어 DB 에 그대로 덮어써짐.
+            // 일시 장애 한 번에 이미 정상이던 핀들이 추천에서 빠지는 상황 방지.
+            // 이번 실행을 통째로 건너뛰어 기존 값을 건드리지 않는다. 새 핀은 다음 정상 실행 때 들어온다.
+            log.warn("Pinterest board description fetch failed; skipping this board for this run. "
+                            + "board_id={}, error_code={}",
+                    boardId, e.getErrorCode().getCode());
+            return SyncResult.EMPTY;
+        }
         SyncResult result = SyncResult.EMPTY;
         String bookmark = null;
         for (int page = 1; page <= MAX_PAGES_PER_BOARD; page++) {
@@ -79,22 +91,6 @@ public class PinterestSyncService {
         log.warn("Pinterest board sync stopped at page limit. board_id={}, max_pages={}, fetched={}",
                 boardId, MAX_PAGES_PER_BOARD, result.fetched());
         return result;
-    }
-
-    /**
-     * 보드 description 을 한 번만 읽어 핀 전체에 상속시킨다({@code style·temp} 를 보드에,
-     * {@code sky·gender} 를 핀에 나눠 다는 큐레이션 방식). 못 읽어도 배치를 멈추지 않는다 —
-     * 이 보드의 핀들은 핀 자체 description 만으로(기존 방식) 태깅을 시도한다.
-     */
-    private String fetchBoardDescription(String boardId) {
-        try {
-            return client.getBoard(boardId).description();
-        } catch (BusinessException e) {
-            log.warn("Pinterest board description fetch failed; falling back to pin-only tagging. "
-                            + "board_id={}, error_code={}",
-                    boardId, e.getErrorCode().getCode());
-            return null;
-        }
     }
 
     private SyncResult upsertPage(
