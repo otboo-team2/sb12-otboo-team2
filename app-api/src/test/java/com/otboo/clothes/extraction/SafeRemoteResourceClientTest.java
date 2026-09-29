@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.otboo.clothes.exception.ClothesErrorCode;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.http.ExternalApiClientFactory;
@@ -20,12 +23,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class SafeRemoteResourceClientTest {
 
     private HttpServer server;
     private ProductUrlValidator urlValidator;
     private SafeRemoteResourceClient client;
+    private ListAppender<ILoggingEvent> logAppender;
+    private Logger logger;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -42,10 +48,16 @@ class SafeRemoteResourceClientTest {
                 factory,
                 urlValidator,
                 properties(8, 8));
+        logger = (Logger) LoggerFactory.getLogger(SafeRemoteResourceClient.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        logger.addAppender(logAppender);
     }
 
     @AfterEach
     void tearDown() {
+        logger.detachAppender(logAppender);
+        logAppender.stop();
         server.stop(0);
     }
 
@@ -131,6 +143,31 @@ class SafeRemoteResourceClientTest {
                 .isInstanceOfSatisfying(BusinessException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(ClothesErrorCode.REMOTE_RESOURCE_TOO_LARGE));
+    }
+
+    @Test
+    void logsRejectedHtmlStatusAndContentTypeWithoutRemoteUrl() {
+        server.createContext("/forbidden", exchange -> respond(
+                exchange,
+                403,
+                "text/html; charset=UTF-8",
+                "blocked".getBytes(StandardCharsets.UTF_8)));
+
+        URI uri = uri("/forbidden?token=secret");
+
+        assertThatThrownBy(() -> client.getHtml(uri))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND));
+
+        String message = logAppender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .filter(value -> value.startsWith("remote_resource_rejected"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(message)
+                .contains("resource_type=html", "status=403", "content_type=text/html")
+                .doesNotContain("/forbidden", "token=secret", "blocked");
     }
 
     @Test
