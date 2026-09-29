@@ -9,7 +9,7 @@ import {createFeed} from '@/lib/api/feeds';
 import {getClothes} from '@/lib/api/clothes';
 import {getWeather} from '@/lib/api/weather';
 import {toast} from 'sonner';
-import type {ClothesDto, FeedDto, SkyStatus, WeatherDto} from "@/lib/api";
+import type {ClothesDto, ClothesType, FeedDto, SkyStatus, WeatherDto} from "@/lib/api";
 
 // Figma assets
 import closeIcon from '@/assets/icons/ic_X.svg';
@@ -18,10 +18,20 @@ interface AddFeedModalProps {
   open: boolean;
   onClose: () => void;
   onCreated: (feed: FeedDto) => void;
+  fixedClothesIds?: string[];
 }
 
 // 백엔드 목록 조회 상한(CursorRequest.MAX_LIMIT)
 const CLOTHES_LIMIT = 100;
+const CLOTHES_CATEGORIES: { label: string; value: ClothesType | 'ALL' }[] = [
+  { label: '전체', value: 'ALL' },
+  { label: '상의', value: 'TOP' },
+  { label: '하의', value: 'BOTTOM' },
+  { label: '원피스', value: 'DRESS' },
+  { label: '아우터', value: 'OUTER' },
+  { label: '신발', value: 'SHOES' },
+  { label: '소품', value: 'ACCESSORY' },
+];
 
 const SKY_STATUS_TEXT: Record<SkyStatus, string> = {
   CLEAR: '맑음',
@@ -43,7 +53,7 @@ function findNearestWeather(weathers: WeatherDto[]): WeatherDto | undefined {
   );
 }
 
-export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalProps) {
+export default function AddFeedModal({ open, onClose, onCreated, fixedClothesIds }: AddFeedModalProps) {
   const { data: auth } = useAuthStore();
   const { data: profile } = useMyProfileStore();
   const { selectedWeather } = useWeatherStore();
@@ -53,6 +63,7 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
   const [clothes, setClothes] = useState<ClothesDto[]>([]);
   const [clothesLoading, setClothesLoading] = useState(false);
   const [selectedClothesIds, setSelectedClothesIds] = useState<string[]>([]);
+  const [clothesCategory, setClothesCategory] = useState<ClothesType | 'ALL'>('ALL');
   const [weather, setWeather] = useState<WeatherDto>();
   const [weatherLoading, setWeatherLoading] = useState(false);
 
@@ -65,10 +76,16 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
     if (!open || !ownerId) return;
     setClothesLoading(true);
     getClothes({ ownerId, limit: CLOTHES_LIMIT })
-      .then(response => setClothes(response.data))
+      .then(response => {
+        const available = fixedClothesIds?.length
+          ? response.data.filter(item => fixedClothesIds.includes(item.id))
+          : response.data;
+        setClothes(available);
+        setSelectedClothesIds(fixedClothesIds?.length ? fixedClothesIds : []);
+      })
       .catch(() => toast.error('옷장을 불러오지 못했습니다.'))
       .finally(() => setClothesLoading(false));
-  }, [open, ownerId]);
+  }, [open, ownerId, fixedClothesIds]);
 
   // 날씨: 추천 페이지에서 고른 날씨가 있으면 그대로 쓰고, 없으면 프로필 위치로 가장 가까운 예보를 쓴다
   useEffect(() => {
@@ -97,6 +114,7 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
   const reset = () => {
     setContent('');
     setSelectedClothesIds([]);
+    setClothesCategory('ALL');
   };
 
   const handleSubmit = async () => {
@@ -178,9 +196,36 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
     if (clothes.length === 0) {
       return <p className="py-10 text-center text-[14px] font-semibold text-[#a9a9b1]">옷장에 등록된 옷이 없습니다.</p>;
     }
+    const visibleClothes = clothesCategory === 'ALL'
+      ? clothes
+      : clothes.filter(item => item.type === clothesCategory);
+
     return (
-      <div className="grid grid-cols-5 gap-3 max-h-[300px] overflow-y-auto pr-1">
-        {clothes.map(item => {
+      <>
+        {!fixedClothesIds?.length && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {CLOTHES_CATEGORIES.map(category => (
+              <button
+                key={category.value}
+                type="button"
+                onClick={() => setClothesCategory(category.value)}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+                  clothesCategory === category.value
+                    ? 'bg-[#1e89f4] text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="h-[300px] overflow-y-auto pr-1">
+          {visibleClothes.length === 0 ? (
+            <p className="flex h-full items-center justify-center text-[14px] font-semibold text-[#a9a9b1]">해당 카테고리의 옷이 없습니다.</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-4">
+            {visibleClothes.map(item => {
           const selected = selectedClothesIds.includes(item.id);
           return (
             <button
@@ -202,11 +247,14 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
                   </div>
                 )}
               </div>
-              <p className="w-full truncate text-[13px] font-semibold text-[#212126]">{item.name}</p>
+              <p className="w-full truncate text-[14px] font-semibold text-[#212126]">{item.name}</p>
             </button>
           );
-        })}
-      </div>
+            })}
+            </div>
+          )}
+        </div>
+      </>
     );
   };
 
@@ -218,7 +266,7 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
         <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
           <div className="content-stretch flex gap-2 items-center justify-start shrink-0" />
           <div className="font-bold leading-[0] not-italic relative shrink-0 text-[#212126] text-[22px] text-nowrap tracking-[-0.55px]">
-            <p className="leading-[normal] whitespace-pre">피드 등록하기</p>
+            <p className="leading-[normal] whitespace-pre">{fixedClothesIds?.length ? '추천 OOTD 등록하기' : '피드 등록하기'}</p>
           </div>
           <button
             onClick={handleCancel}
@@ -237,7 +285,7 @@ export default function AddFeedModal({ open, onClose, onCreated }: AddFeedModalP
         {/* 옷 선택 */}
         <div className="flex w-full flex-col gap-3">
           <p className="text-[14px] font-bold text-[#808089]">
-            옷 선택 <span className="text-[#1e89f4]">{selectedClothesIds.length}</span>
+            {fixedClothesIds?.length ? '추천된 옷' : '옷 선택'} <span className="text-[#1e89f4]">{selectedClothesIds.length}</span>
           </p>
           {renderClothes()}
         </div>

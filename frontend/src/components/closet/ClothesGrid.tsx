@@ -68,7 +68,7 @@ export default function ClothesGrid({ onAddClick, isOwner, onEditClothes, onDele
         )
       ) : (
         <div className="flex flex-col gap-8 p-4">
-          <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 transition-opacity ${loading ? 'opacity-50' : ''}`}>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {clothes.map((item) => (
               <ClothesItem
                 key={item.id}
