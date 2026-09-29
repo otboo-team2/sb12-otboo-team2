@@ -8,6 +8,7 @@ import com.otboo.virtualtryon.entity.VirtualTryOnCache;
 import com.otboo.virtualtryon.entity.VirtualTryOnJob;
 import com.otboo.virtualtryon.entity.VirtualTryOnJobStatus;
 import com.otboo.virtualtryon.entity.VirtualTryOnStep;
+import com.otboo.virtualtryon.event.VirtualTryOnJobReadyEvent;
 import com.otboo.virtualtryon.exception.VirtualTryOnErrorCode;
 import com.otboo.virtualtryon.repository.VirtualTryOnCacheRepository;
 import com.otboo.virtualtryon.repository.VirtualTryOnJobRepository;
@@ -16,6 +17,7 @@ import com.otboo.virtualtryon.util.VirtualTryOnCacheKeyGenerator;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +53,12 @@ public class VirtualTryOnJobTransactionService {
             jobRepository.markProcessing(jobIds);
         }
         return jobIds;
+    }
+
+    /** 이벤트로 즉시 dispatch 할 job 한 건을 선점한다. 스케줄러와 동시에 잡아도 한쪽만 true 를 받는다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimJob(UUID jobId) {
+        return jobRepository.claimIfPending(jobId) == 1;
     }
 
     /** 현재 PROCESSING 상태인 job id 목록을 조회한다. poller가 폴링할 대상을 고를 때 쓴다. */
@@ -95,6 +103,10 @@ public class VirtualTryOnJobTransactionService {
                 .addDetail("jobId", jobId.toString())
                 .addDetail("reason", "PROCESSING job has step=DONE");
         }
+        // 다음 단계로 넘어가 다시 PENDING 이 됐으면(TOP→BOTTOM, 루트→ADDITIONAL) 커밋 직후 바로 보낸다
+        if (job.getStatus() == VirtualTryOnJobStatus.PENDING) {
+            eventPublisher.publishEvent(new VirtualTryOnJobReadyEvent(jobId));
+        }
     }
 
     /** job을 실패 처리하고 완료(실패) 이벤트를 발행한다. */
@@ -128,6 +140,18 @@ public class VirtualTryOnJobTransactionService {
         VirtualTryOnCache cache = saveCacheOrGetExisting(job, resultUrl, job.getAdditionalClothes());
         job.succeed(cache);
         publishCompleted(job);
+    }
+
+    /** 웹훅으로 온 prediction id 로 job 을 찾는다. 이미 반영했거나 아직 markRequested 전이면 비어 있다. */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findJobIdByPredictionId(String predictionId) {
+        return jobRepository.findByFashnPredictionId(predictionId).map(VirtualTryOnJob::getId);
+    }
+
+    /** FASHN 결과를 반영할 권한을 가져간다. 웹훅과 폴링이 동시에 오거나 웹훅이 재전송돼도 한쪽만 true 를 받는다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean claimResult(String predictionId) {
+        return jobRepository.clearPredictionIfProcessing(predictionId) == 1;
     }
 
     /**

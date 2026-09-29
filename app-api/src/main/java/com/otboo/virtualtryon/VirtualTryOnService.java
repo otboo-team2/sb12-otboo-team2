@@ -12,6 +12,7 @@ import com.otboo.virtualtryon.dto.VirtualTryOnRequest;
 import com.otboo.virtualtryon.entity.VirtualTryOnCache;
 import com.otboo.virtualtryon.entity.VirtualTryOnJob;
 import com.otboo.virtualtryon.entity.VirtualTryOnStep;
+import com.otboo.virtualtryon.event.VirtualTryOnJobReadyEvent;
 import com.otboo.virtualtryon.exception.VirtualTryOnErrorCode;
 import com.otboo.virtualtryon.repository.VirtualTryOnCacheRepository;
 import com.otboo.virtualtryon.repository.VirtualTryOnJobRepository;
@@ -30,6 +31,7 @@ import com.otboo.virtualtryon.validation.VirtualTryOnImageValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,6 +55,7 @@ public class VirtualTryOnService {
     private final ClothesRepository clothesRepository;
     private final ImageStorage imageStorage;
     private final VirtualTryOnImageValidator imageValidator;
+    private final ApplicationEventPublisher eventPublisher;
     private final Map<String, String> modelImageKeyCache = new ConcurrentHashMap<>();
 
     /**
@@ -93,7 +96,7 @@ public class VirtualTryOnService {
             var exactRoot = cacheRepository.findExactMatch(requesterId, rootCacheKey);
             if (exactRoot.isPresent()) {
                 job.startFrom(VirtualTryOnStep.ADDITIONAL, exactRoot.get());
-                VirtualTryOnJob saved = jobRepository.save(job);
+                VirtualTryOnJob saved = saveAndPublishReady(job);
 //                log.info("virtual_try_on_cache_hit jobId={} type=ROOT", saved.getId());
                 return saved;
             }
@@ -110,7 +113,7 @@ public class VirtualTryOnService {
             VirtualTryOnStep differingStep = base.getTopClothes().getId().equals(top.getId())
                 ? VirtualTryOnStep.BOTTOM : VirtualTryOnStep.TOP;
             job.startFrom(differingStep, base);
-            VirtualTryOnJob saved = jobRepository.save(job);
+            VirtualTryOnJob saved = saveAndPublishReady(job);
 //            log.info("virtual_try_on_cache_hit jobId={} type=PARTIAL startStep={}", saved.getId(), differingStep);
             return saved;
         }
@@ -119,7 +122,7 @@ public class VirtualTryOnService {
         job.assignModelImage(hasModelImage
             ? resolveModelImageKey(requesterId, modelHash, modelImage)
             : defaultModelImageUrl);
-        VirtualTryOnJob saved = jobRepository.save(job);
+        VirtualTryOnJob saved = saveAndPublishReady(job);
 //        log.info("virtual_try_on_cache_hit jobId={} type=MISS", saved.getId());
         return saved;
     }
@@ -147,6 +150,13 @@ public class VirtualTryOnService {
     public VirtualTryOnJobResponse submitAndRespond(UUID requesterId, VirtualTryOnRequest request, MultipartFile modelImage) {
         VirtualTryOnJob job = submit(requesterId, request, modelImage);
         return toResponse(job);
+    }
+
+    /** PENDING job 을 저장하고, 커밋되면 바로 dispatch 되도록 이벤트를 남긴다. */
+    private VirtualTryOnJob saveAndPublishReady(VirtualTryOnJob job) {
+        VirtualTryOnJob saved = jobRepository.save(job);
+        eventPublisher.publishEvent(new VirtualTryOnJobReadyEvent(saved.getId()));
+        return saved;
     }
 
     /** 본인 소유이면서 타입이 예상(TOP/BOTTOM)과 맞는 옷을 찾는다. 소유자가 다르거나 타입이 다르면 예외. */
