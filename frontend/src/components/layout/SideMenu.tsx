@@ -7,7 +7,7 @@ import settingIcon from '@/assets/illust_logos/il_setting.svg';
 import setting2Icon from '@/assets/illust_logos/il_setting-2.svg';
 import closetIcon from '@/assets/illust_logos/il_closet.svg';
 import fittingIcon from '@/assets/icons/il_fitting.png';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import LogoSvg from "@/assets/illust_logos/Logo.svg";
 import {useAuthStore} from "@/lib/stores/useAuthStore.ts";
 

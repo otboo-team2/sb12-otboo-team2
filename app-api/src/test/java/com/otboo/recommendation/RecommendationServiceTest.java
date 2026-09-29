@@ -193,7 +193,7 @@ class RecommendationServiceTest {
                         UUID.randomUUID(), "보온성", List.of("매우 두꺼움"), "매우 두꺼움")));
 
         given(weatherRepository.findById(weatherId)).willReturn(Optional.of(weather));
-        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(15));
+        given(weather.getTemperatureCurrent()).willReturn(BigDecimal.valueOf(12));
         given(weather.getPrecipitationType()).willReturn(PrecipitationType.NONE);
         given(profileRepository.findByUserId(userId)).willReturn(Optional.of(profile));
         given(profile.getTemperatureSensitivity()).willReturn(sensitivity);
@@ -210,7 +210,7 @@ class RecommendationServiceTest {
         assertThat(candidates.clothes())
                 .containsExactlyElementsOf(sensitivity == 1
                         ? List.of(first, second) : List.of(first, second, thick));
-        assertThat(candidates.temperature()).isEqualTo(15.0);
+        assertThat(candidates.temperature()).isEqualTo(12.0);
         assertThat(candidates.temperatureSensitivity()).isEqualTo(sensitivity);
         assertThat(candidates.userId()).isEqualTo(userId);
         assertThat(candidates.weatherId()).isEqualTo(weatherId);

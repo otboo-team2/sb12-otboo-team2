@@ -9,22 +9,33 @@ import ClothesGrid from '@/components/closet/ClothesGrid';
 import AddClothesModal from '@/components/closet/AddClothesModal';
 import EditClothesModal from '@/components/closet/EditClothesModal';
 import type { ClothesDto } from '@/lib/api/types';
+import {Input} from '@/components/ui/input';
+import searchIcon from '@/assets/icons/ic_search.svg';
 
 export default function ClosetPage() {
   const { data: auth } = useAuthStore();
-  const { updateParams, isEmpty, delete: remove } = useClothesStore();
+  const { updateParams, isEmpty, delete: remove, clear } = useClothesStore();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedClothes, setSelectedClothes] = useState<ClothesDto | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     const userId = auth?.userDto.id;
     if (userId) {
+      clear();
       updateParams({ ownerId: userId });
     }
-  }, [auth?.userDto.id, updateParams]);
+  }, [auth?.userDto.id, updateParams, clear]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      updateParams({nameLike: search.trim() || undefined});
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search, updateParams]);
 
   // 수정 핸들러
   const handleEditClothes = (clothes: ClothesDto) => {
@@ -61,8 +72,19 @@ export default function ClosetPage() {
     <div className="flex flex-col h-full px-10 py-2.5">
       {/* 카테고리 필터 */}
       {!isEmpty() && (
-        <div className="flex-shrink-0 mb-6">
-          <ClothesFilter onAddClick={() => setIsAddModalOpen(true)} />
+        <div className="flex-shrink-0 mb-6 flex items-center gap-5">
+          <div className="relative w-[280px] shrink-0">
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="옷장 내 검색하기"
+              icon={<img src={searchIcon} alt="검색" className="absolute left-[22px] top-1/2 size-5 -translate-y-1/2" />}
+              className="h-[36px] w-full rounded-[100px] border border-[#d4d4d9] bg-white pl-[54px] pr-[22px] py-3.5 text-[16px] font-['SUIT:SemiBold',_sans-serif] text-[#575765] placeholder:text-[#a9a9b1] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)] focus:border-[#d4d4d9] focus:ring-0"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <ClothesFilter onAddClick={() => setIsAddModalOpen(true)} />
+          </div>
         </div>
       )}
       
