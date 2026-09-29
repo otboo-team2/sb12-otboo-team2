@@ -9,17 +9,31 @@ import org.springframework.stereotype.Component;
 public class FashnClient {
 
     private final ExternalApiClient api;
+    private final String webhookUrl;
 
     public FashnClient(ExternalApiClientFactory factory,
-                       @Value("${otboo.fashn.api-key}") String apiKey) {
+                       @Value("${otboo.fashn.api-key}") String apiKey,
+                       @Value("${otboo.virtual-try-on.webhook-base-url:}") String webhookBaseUrl,
+                       @Value("${otboo.virtual-try-on.webhook-token:}") String webhookToken) {
         this.api = factory.create("virtual-try-on", builder -> builder
             .baseUrl("https://api.fashn.ai")
             .defaultHeader("Authorization", "Bearer " + apiKey));
+        this.webhookUrl = webhookBaseUrl.isBlank() || webhookToken.isBlank()
+            ? null
+            : webhookBaseUrl + "/api/fittings/webhook/" + webhookToken;
     }
 
     public String predict(String modelImage, String productImage) {
-        FashnRunResponse response = api.post("/v1/run",
-            FashnRunRequest.of(modelImage, productImage), FashnRunResponse.class);
+        FashnRunRequest body = FashnRunRequest.of(modelImage, productImage);
+        if (webhookUrl == null) {
+            return api.post("/v1/run", body, FashnRunResponse.class).id();
+        }
+        // 웹훅 URL 에 토큰이 들어 있어서 로그에는 경로만 남긴다
+        FashnRunResponse response = api.exchange("POST /v1/run", client -> client.post()
+            .uri(uri -> uri.path("/v1/run").queryParam("webhook_url", "{url}").build(webhookUrl))
+            .body(body)
+            .retrieve()
+            .body(FashnRunResponse.class));
         return response.id();
     }
 

@@ -80,6 +80,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         return false;
     }
 
+    /** 웹훅 경로에는 인증 토큰이 들어 있어서, 로그에는 토큰 자리를 가려서 남긴다. */
+    static String maskedPath(String path) {
+        return path.replaceFirst("(/api/fittings/webhook/)[^/]+", "$1***");
+    }
+
     private void logCompletion(HttpServletRequest request, HttpServletResponse response,
             long startedAt) {
         if (isSkipped(request.getRequestURI())) {
@@ -89,15 +94,17 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         int status = response.getStatus();
         String userId = MDC.get(LogKeys.USER_ID);
 
+        String path = maskedPath(request.getRequestURI());
+
         // 5xx 는 우리 문제라 WARN 이상으로 올린다. 4xx 는 클라이언트 문제라 INFO 로 둔다.
         if (status >= 500) {
             log.warn("{} method={} path={} status={} elapsed_ms={} user={}",
-                    LogKeys.EVENT_HTTP, request.getMethod(), request.getRequestURI(),
-                    status, elapsedMs, userId);
+                LogKeys.EVENT_HTTP, request.getMethod(), path,
+                status, elapsedMs, userId);
         } else {
             log.info("{} method={} path={} status={} elapsed_ms={} user={}",
-                    LogKeys.EVENT_HTTP, request.getMethod(), request.getRequestURI(),
-                    status, elapsedMs, userId);
+                LogKeys.EVENT_HTTP, request.getMethod(), path,
+                status, elapsedMs, userId);
         }
     }
 

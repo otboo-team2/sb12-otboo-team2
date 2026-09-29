@@ -142,4 +142,25 @@ class RequestLoggingFilterTest {
             assertThat(MDC.get(LogKeys.USER_ID)).isNull();
         }
     }
+
+    @Nested
+    @DisplayName("경로 가리기")
+    class MaskedPath {
+
+        @Test
+        @DisplayName("웹훅 토큰은 로그에 남기지 않는다 — 로그를 보는 사람이 가짜 웹훅을 보낼 수 있다")
+        void 웹훅_토큰을_가린다() {
+            assertThat(RequestLoggingFilter.maskedPath("/api/fittings/webhook/0e391774d6a94c4788bb452d2d621288"))
+                .isEqualTo("/api/fittings/webhook/***");
+        }
+
+        @Test
+        @DisplayName("다른 경로는 그대로 남긴다")
+        void 다른_경로는_그대로() {
+            assertThat(RequestLoggingFilter.maskedPath("/api/fittings/3f2a"))
+                .isEqualTo("/api/fittings/3f2a");
+            assertThat(RequestLoggingFilter.maskedPath("/api/feeds"))
+                .isEqualTo("/api/feeds");
+        }
+    }
 }
