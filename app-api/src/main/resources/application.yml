@@ -245,6 +245,13 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    mail:
+      # 메일 호스트가 설정되면 부트가 health 에 SMTP 접속 검사를 자동으로 넣는다.
+      # 그러면 ALB 헬스체크(15초마다)가 매번 Gmail 에 로그인하고, SMTP 가 5초를 넘기면
+      # 비밀번호 초기화 메일 하나 때문에 api 전체가 대상 그룹에서 빠진다.
+      # 부하테스트에서 이 검사가 503 을 내 대상이 Unhealthy 로 찍혔다. 발송 실패는 발송하는 쪽에서 다룬다.
+      enabled: false
   metrics:
     tags:
       # 지표마다 붙는 라벨. 나중에 앱이 여러 개가 되면 이걸로 구분한다.
