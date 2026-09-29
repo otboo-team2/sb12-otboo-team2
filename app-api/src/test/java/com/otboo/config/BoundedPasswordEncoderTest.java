@@ -63,6 +63,25 @@ class BoundedPasswordEncoderTest {
     }
 
     @Test
+    @DisplayName("대기 줄이 한도만큼 차 있으면 기다리지 않고 즉시 돌려준다")
+    void rejectsImmediatelyWhenQueueIsFull() throws Exception {
+        SlowEncoder slow = new SlowEncoder(500);
+        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(slow, 1, Duration.ofSeconds(10), 1);
+        Thread holder = new Thread(() -> encoder.matches("pw", "pw"));
+        Thread waiter = new Thread(() -> encoder.matches("pw", "pw"));
+        holder.start();
+        Thread.sleep(100);
+        waiter.start();
+        Thread.sleep(100); // waiter 가 줄에 선다
+
+        long started = System.nanoTime();
+        assertThatThrownBy(() -> encoder.matches("pw", "pw")).isInstanceOf(BusinessException.class);
+        assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofMillis(100));
+        holder.join();
+        waiter.join();
+    }
+
+    @Test
     @DisplayName("상한은 1 이상이어야 한다")
     void rejectsZero() {
         assertThatThrownBy(() -> new BoundedPasswordEncoder(new SlowEncoder(), 0, Duration.ofSeconds(1)))

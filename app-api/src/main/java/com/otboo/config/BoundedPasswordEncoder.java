@@ -19,21 +19,31 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * <p>상한을 넘는 호출은 {@code maxWait} 까지 기다린다(기다리는 스레드는 CPU 를 쓰지 않는다).
  * 그래도 차례가 안 오면 503 으로 바로 돌려준다. 끝없이 줄 세우면 과부하 때 로그인이 수십 초 걸리고,
  * 사용자는 이미 떠난 요청을 서버가 계속 처리한다.
+ *
+ * <p>{@code maxQueue} 가 있으면 줄이 그만큼 차 있을 때 기다리지 않고 즉시 돌려준다. 어차피 거절될 요청이
+ * 3초 동안 스레드를 쥐고 있을 이유가 없다.
  */
 public class BoundedPasswordEncoder implements PasswordEncoder {
 
     private final PasswordEncoder delegate;
     private final Semaphore permits;
     private final Duration maxWait;
+    private final int maxQueue;
     private final AtomicLong rejected = new AtomicLong();
 
     public BoundedPasswordEncoder(PasswordEncoder delegate, int maxConcurrency, Duration maxWait) {
+        this(delegate, maxConcurrency, maxWait, Integer.MAX_VALUE);
+    }
+
+    /** @param maxQueue 이만큼 줄이 차 있으면 기다리지 않고 즉시 503 */
+    public BoundedPasswordEncoder(PasswordEncoder delegate, int maxConcurrency, Duration maxWait, int maxQueue) {
         if (maxConcurrency < 1) {
             throw new IllegalArgumentException("maxConcurrency must be >= 1: " + maxConcurrency);
         }
         this.delegate = delegate;
         this.permits = new Semaphore(maxConcurrency, true); // 먼저 온 요청부터. 꼬리 지연을 막는다
         this.maxWait = maxWait;
+        this.maxQueue = maxQueue;
     }
 
     @Override
@@ -62,10 +72,12 @@ public class BoundedPasswordEncoder implements PasswordEncoder {
     }
 
     private <T> T bounded(Supplier<T> task) {
+        if (permits.getQueueLength() >= maxQueue) {
+            throw reject();
+        }
         try {
             if (!permits.tryAcquire(maxWait.toMillis(), TimeUnit.MILLISECONDS)) {
-                rejected.incrementAndGet();
-                throw new BusinessException(AuthErrorCode.PASSWORD_HASH_BUSY);
+                throw reject();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -76,5 +88,10 @@ public class BoundedPasswordEncoder implements PasswordEncoder {
         } finally {
             permits.release();
         }
+    }
+
+    private BusinessException reject() {
+        rejected.incrementAndGet();
+        return new BusinessException(AuthErrorCode.PASSWORD_HASH_BUSY);
     }
 }

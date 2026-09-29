@@ -29,15 +29,18 @@ public class PasswordEncoderConfig {
      * @param maxConcurrency 0 이면 JVM 이 보는 코어 수. ⚠️ Fargate 1 vCPU 에서도 JVM 은 2 로 본다 —
      *                       배포 환경에서는 vCPU 수를 명시한다
      * @param maxWait        해싱 차례를 기다리는 최대 시간. 넘으면 503
+     * @param maxQueue       대기 줄이 이만큼 차 있으면 기다리지 않고 즉시 503. 0 이면 끈다
      */
     @Bean
     public PasswordEncoder passwordEncoder(
             @Value("${otboo.auth.password-hash-concurrency:0}") int maxConcurrency,
             @Value("${otboo.auth.password-hash-max-wait:3s}") Duration maxWait,
+            @Value("${otboo.auth.password-hash-max-queue:0}") int maxQueue,
             MeterRegistry registry
     ) {
         int limit = maxConcurrency > 0 ? maxConcurrency : Runtime.getRuntime().availableProcessors();
-        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(new BCryptPasswordEncoder(), limit, maxWait);
+        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(
+                new BCryptPasswordEncoder(), limit, maxWait, maxQueue > 0 ? maxQueue : Integer.MAX_VALUE);
         Gauge.builder(WAITING_METRIC, encoder, BoundedPasswordEncoder::waiting)
                 .description("비밀번호 해싱 차례를 기다리는 스레드 수")
                 .register(registry);
