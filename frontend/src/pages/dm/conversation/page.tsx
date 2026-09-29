@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import sendIcon from '@/assets/icons/ic_send.svg';
 import { useWebSocketStore } from '@/lib/stores/websocketStore.ts';
 import { useAuthStore } from '@/lib/stores/useAuthStore.ts';
@@ -226,16 +226,16 @@ export default function DmConversationPage() {
                 <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-gray-100">
                     ←
                 </button>
-                <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
+                <button type="button" onClick={() => navigate(`/profiles?userId=${targetUser.id}`)} className="bg-[#f1f4f8] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
                     <img
                         src={targetUser.profileImageUrl || profileIcon}
                         alt={targetUser.name}
-                        className="w-full h-full object-cover rounded-[100px]"
+                        className="w-full h-full object-contain rounded-[100px]"
                     />
-                </div>
-                <div className="font-['SUIT:SemiBold',_sans-serif] text-[#34343d] text-[18px] tracking-[-0.45px] leading-[0] not-italic">
+                </button>
+                <button type="button" onClick={() => navigate(`/profiles?userId=${targetUser.id}`)} className="font-['SUIT:SemiBold',_sans-serif] text-[#34343d] text-[18px] tracking-[-0.45px] leading-[0] not-italic hover:text-blue-500">
                     <p className="leading-[normal] whitespace-pre">{targetUser.name}</p>
-                </div>
+                </button>
             </div>
 
             {/* 메시지 영역 */}
@@ -302,11 +302,11 @@ export default function DmConversationPage() {
                                                     ) : (
                                                         <div className="flex gap-3 items-start">
                                                             <div className="flex gap-2 items-center px-0 py-1">
-                                                                <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
+                                                                <div className="bg-[#f1f4f8] relative rounded-[100px] shrink-0 size-[30px] overflow-hidden">
                                                                     <img
                                                                         src={targetUser.profileImageUrl || profileIcon}
                                                                         alt={targetUser.name}
-                                                                        className="w-full h-full object-cover rounded-[100px]"
+                                                                        className="w-full h-full object-contain rounded-[100px]"
                                                                     />
                                                                 </div>
                                                             </div>

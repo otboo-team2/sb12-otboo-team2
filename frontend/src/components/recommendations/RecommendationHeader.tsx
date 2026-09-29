@@ -7,7 +7,7 @@ import FeedDetailModal from '@/components/feeds/FeedDetailModal';
 import type {FeedDto} from '@/lib/api';
 
 export default function RecommendationHeader() {
-  const {loading, fetch} = useRecommendationStore();
+  const {loading, fetch, data: recommendations} = useRecommendationStore();
   const [isAddFeedModalOpen, setIsAddFeedModalOpen] = useState(false);
   const [createdFeed, setCreatedFeed] = useState<FeedDto | undefined>();
 
@@ -41,8 +41,9 @@ export default function RecommendationHeader() {
         {/* OOTD 등록 버튼 */}
         <button
           type="button"
-          className="bg-[#1e89f4] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#1e89f4]/90 transition-colors"
+          className="bg-[#1e89f4] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#1e89f4]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleOotdRegister}
+          disabled={!recommendations?.clothes.length}
         >
           <div className="font-bold leading-none not-italic relative shrink-0 text-white text-[16px] text-nowrap tracking-[-0.4px]">
             <p className="leading-normal whitespace-pre">OOTD 등록</p>
@@ -69,6 +70,7 @@ export default function RecommendationHeader() {
         open={isAddFeedModalOpen}
         onClose={() => setIsAddFeedModalOpen(false)}
         onCreated={setCreatedFeed}
+        fixedClothesIds={recommendations?.clothes.map(clothes => clothes.clothesId)}
       />
       {/* 등록한 OOTD 상세 모달 */}
       {createdFeed && (

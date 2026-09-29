@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import ProfileMenu from './ProfileMenu.tsx';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import {useMyProfileStore} from "@/lib/stores/useMyProfileStore.ts";
 import {useAuthStore} from "@/lib/stores/useAuthStore.ts";
 
@@ -49,7 +49,7 @@ export default function ProfileIcon() {
           <img 
             src={imageUrl} 
             alt={name || '프로필'}
-            className="w-full h-full rounded-full object-cover border border-gray-300 shadow-sm"
+            className="w-full h-full rounded-full object-contain border border-gray-300 shadow-sm"
             onError={handleImageError}
           />
         ) : (

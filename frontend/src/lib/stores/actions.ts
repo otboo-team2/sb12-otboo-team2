@@ -33,7 +33,7 @@ export function createBaseStoreActions<T, P>(
         params: { ...state.params, ...newParams },
       }))
       if (_options.autoFetch) {
-        get().fetch();
+        get().fetch({ignoreLoading: true});
       }
     },
 
@@ -273,7 +273,10 @@ export function createPaginatedStoreActions<T, P extends CursorParams>(
       set((state) => ({
         data: state.data.filter((item) => keyExtractor(item) !== id),
         cursorState: {...state.cursorState, totalCount: state.cursorState.totalCount-1}
-      }))
+      }));
+      // 삭제 전 커서는 더 이상 같은 목록을 가리킨다는 보장이 없으므로 처음부터 재조회한다.
+      pageCursors = {1: {cursor: undefined, idAfter: undefined}};
+      void get().fetch({ignoreLoading: true});
     },
     count: () => get().cursorState.totalCount,
 
@@ -284,7 +287,7 @@ export function createPaginatedStoreActions<T, P extends CursorParams>(
         params: { ...state.params, ...newParams },
       }))
       if (_options.autoFetch) {
-        get().fetch();
+        get().fetch({ignoreLoading: true});
       }
     },
     cursorState: _initialData.cursorState,
@@ -308,9 +311,6 @@ export function createPaginatedStoreActions<T, P extends CursorParams>(
         set({
           loading: true,
           error: undefined,
-          data: [],
-          page: 1,
-          cursorState: {hasNext: false, totalCount: 0},
         });
         pageCursors = {1: {cursor: undefined, idAfter: undefined}};
 
@@ -321,6 +321,7 @@ export function createPaginatedStoreActions<T, P extends CursorParams>(
 
         set({
           data: result.data,
+          page: 1,
           cursorState: {
             nextCursor: result.nextCursor,
             nextIdAfter: result.nextIdAfter,

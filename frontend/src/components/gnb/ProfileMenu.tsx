@@ -64,7 +64,7 @@ export default function ProfileMenu({ isOpen, onClose, anchorElement }: ProfileM
   const handleMenuClick = (action: string) => {
     switch (action) {
       case 'feeds':
-        navigate(`/feeds?authorIdEqual=${auth?.userDto.id}`);
+        navigate(`/profiles?userId=${auth?.userDto.id}#posts`);
         break;
       case 'profile':
         navigate('/settings');
