@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.otboo.common.http.ExternalApiClientFactory;
+import com.otboo.recommendation.ai.RecommendationAiProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -23,6 +26,10 @@ class RecommendationClothesSearchConfigTest {
     void enabledSearchUsesConfiguredAliasWithoutCallingElasticsearchAtStartup() {
         var client = mock(ElasticsearchClient.class);
         context.withBean(ElasticsearchClient.class, () -> client)
+                .withBean(ExternalApiClientFactory.class, () -> mock(ExternalApiClientFactory.class))
+                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean(RecommendationAiProperties.class, () -> new RecommendationAiProperties(
+                        "key", "model", "https://example.com", "embedding", 1536))
                 .withBean(com.otboo.clothes.ClothesService.class, () -> mock(com.otboo.clothes.ClothesService.class))
                 .withBean(com.otboo.clothes.repository.ClothesRepository.class, () -> mock(com.otboo.clothes.repository.ClothesRepository.class))
                 .withBean(com.otboo.recommendation.ai.RecommendationClothesEmbeddingService.class,

@@ -4,9 +4,13 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.otboo.clothes.ClothesService;
 import com.otboo.recommendation.ai.RecommendationClothesEmbeddingService;
 import com.otboo.recommendation.ai.RecommendationClothesMetadataAnalyzer;
+import com.otboo.recommendation.ai.OpenAiEmbeddingClient;
+import com.otboo.recommendation.ai.RecommendationAiProperties;
+import com.otboo.common.http.ExternalApiClientFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.Bean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /** 추천 검색 인프라는 명시적으로 켠 환경에서만 등록한다. */
@@ -15,6 +19,13 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(prefix = "otboo.recommendation.search", name = "enabled",
         havingValue = "true")
 public class RecommendationClothesSearchConfig {
+
+    @Bean("recommendationIndexEmbeddingClient")
+    OpenAiEmbeddingClient recommendationIndexEmbeddingClient(
+            ExternalApiClientFactory factory, RecommendationAiProperties properties,
+            ObjectMapper objectMapper) {
+        return new OpenAiEmbeddingClient(factory, properties, objectMapper, "llm-reindex");
+    }
 
     @Bean
     RecommendationClothesIndexManager recommendationClothesIndexManager(
