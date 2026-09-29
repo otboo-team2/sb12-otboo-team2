@@ -1,37 +1,49 @@
 #!/usr/bin/env bash
 #
-# 보드 안 핀 전체의 description 끝에 @otboo 태그 줄을 한 번에 붙인다.
+# 보드 description 또는 보드 안 핀 전체의 description 끝에 @otboo 태그 줄을 붙인다.
 #
-# 핀 하나하나 Pinterest 앱에서 열어 태그를 적는 대신, 보드 하나에 적용할 태그를
-# 한 번만 정해서 이 스크립트로 일괄 반영한다. OutfitTagParser 가 읽는 문법(@otboo
-# temp:.. sky:.. style:.. item:.. gender:..)을 그대로 쓰므로 백엔드는 안 건드린다.
+# --target board (보드 하나) 로 style·temp 를 보드에 한 번만 달아두면, PinterestSyncService 가
+# 그 보드의 핀 전체에 상속시킨다(OutfitTagParser.parseMerged). 핀에는 사진마다 다른
+# sky·gender 만 남기면 되므로, --target pins(기본값)로 핀들에 그 나머지를 붙인다.
 #
-# 이미 @otboo 줄이 있는 핀은 건드리지 않는다 — 수동으로 예외 태그를 준 핀일 수 있다.
-# 그래서 재실행해도 안전하다(이미 태그된 핀은 매번 건너뛴다).
+# 두 모드 다 OutfitTagParser 가 읽는 문법(@otboo temp:.. sky:.. style:.. item:.. gender:..)을
+# 그대로 쓰므로 백엔드는 안 건드린다.
+#
+# 이미 @otboo 줄이 있는 대상(보드 또는 핀)은 건드리지 않는다 — 수동으로 예외 태그를 준
+# 것일 수 있다. 그래서 재실행해도 안전하다(이미 태그된 것은 매번 건너뛴다).
 #
 # 사용법 (기본은 미리보기만, 실제로 바꾸려면 --apply)
 #   read -rs "PINTEREST_ACCESS_TOKEN?Pinterest 토큰 붙여넣기: " && export PINTEREST_ACCESS_TOKEN
-#   ./scripts/pinterest-bulk-tag.sh <board_id> "temp:5-8 sky:cloudy style:minimal item:knit,coat gender:unisex"
-#   ./scripts/pinterest-bulk-tag.sh <board_id> "..." --apply
+#
+#   # 보드 자체에 style·temp 를 한 번만 달기
+#   ./scripts/pinterest-bulk-tag.sh 123456789 "style:minimal temp:5-8" --target board --apply
+#
+#   # 그 보드 안 핀들에 sky·gender 를 일괄로 붙이기
+#   ./scripts/pinterest-bulk-tag.sh 123456789 "sky:cloudy gender:unisex" --apply
 #
 # 옵션
-#   --apply          실제로 PATCH 한다 (기본은 dry-run — 무엇을 바꿀지만 보여준다)
-#   --base-url URL   기본 https://api.pinterest.com (sandbox 는 https://api-sandbox.pinterest.com)
+#   --target board|pins   무엇에 태그를 붙일지 (기본 pins — 기존 동작과 같다)
+#   --apply               실제로 PATCH 한다 (기본은 dry-run — 무엇을 바꿀지만 보여준다)
+#   --base-url URL        기본 https://api.pinterest.com (sandbox 는 https://api-sandbox.pinterest.com)
 #
-# 종료 코드: 0 = 정상 종료, 1 = 인자·토큰 오류, 2 = 하나 이상의 핀에서 실패
+# 종료 코드: 0 = 정상 종료, 1 = 인자·토큰 오류, 2 = 하나 이상의 대상에서 실패
 #
 set -uo pipefail
 
 BASE_URL="https://api.pinterest.com"
 APPLY=0
+TARGET="pins"
 
 usage() {
     cat >&2 <<'MSG'
-사용법: ./scripts/pinterest-bulk-tag.sh <board_id> "<@otboo 뒤에 올 태그 본문>" [--apply] [--base-url URL]
+사용법: ./scripts/pinterest-bulk-tag.sh <board_id> "<@otboo 뒤에 올 태그 본문>" [--target board|pins] [--apply] [--base-url URL]
 
 예)
-  ./scripts/pinterest-bulk-tag.sh 123456789 "temp:5-8 sky:cloudy style:minimal item:knit,coat gender:unisex"
-  ./scripts/pinterest-bulk-tag.sh 123456789 "temp:5-8 sky:cloudy style:minimal item:knit,coat gender:unisex" --apply
+  # 보드 자체에 style·temp 태깅
+  ./scripts/pinterest-bulk-tag.sh 123456789 "style:minimal temp:5-8" --target board --apply
+
+  # 그 보드의 핀들에 sky·gender 일괄 태깅 (--target 생략 시 기본값)
+  ./scripts/pinterest-bulk-tag.sh 123456789 "sky:cloudy gender:unisex" --apply
 MSG
 }
 
@@ -39,6 +51,7 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --apply) APPLY=1; shift ;;
+        --target) TARGET="$2"; shift 2 ;;
         --base-url) BASE_URL="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) POSITIONAL+=("$1"); shift ;;
@@ -52,6 +65,11 @@ if [[ $# -lt 2 ]]; then
 fi
 BOARD_ID="$1"
 TAG_BODY="$2"
+
+if [[ "$TARGET" != "board" && "$TARGET" != "pins" ]]; then
+    echo "--target 은 board 또는 pins 여야 합니다: $TARGET" >&2
+    exit 1
+fi
 
 if [[ -z "${PINTEREST_ACCESS_TOKEN:-}" ]]; then
     cat >&2 <<'MSG'
@@ -76,35 +94,87 @@ chmod 600 "$CURL_CONFIG"
 printf 'header = "Authorization: Bearer %s"\n' "$PINTEREST_ACCESS_TOKEN" > "$CURL_CONFIG"
 
 if [[ "$APPLY" -eq 1 ]]; then
-    echo "⚠️  --apply 모드: 실제로 핀 description 을 수정합니다."
+    echo "⚠️  --apply 모드: 실제로 description 을 수정합니다. (대상: $TARGET)"
 else
-    echo "🔍 dry-run 모드: 아무것도 바꾸지 않습니다. 실제로 반영하려면 --apply 를 붙이세요."
+    echo "🔍 dry-run 모드: 아무것도 바꾸지 않습니다. 실제로 반영하려면 --apply 를 붙이세요. (대상: $TARGET)"
 fi
 echo "board_id = $BOARD_ID"
 echo "태그       = @otboo $TAG_BODY"
 echo "─────────────────────────────────────────────"
 
-failed=0
-tagged=0
-skipped=0
-bookmark=""
-
-while :; do
-    url="${BASE_URL}/v5/boards/${BOARD_ID}/pins?page_size=100"
-    if [[ -n "$bookmark" ]]; then
-        url="${url}&bookmark=${bookmark}"
-    fi
-
-    response="$(curl -sS -K "$CURL_CONFIG" --max-time 30 "$url")"
-
-    if ! python3 -c 'import json,sys; json.loads(sys.stdin.read())' <<< "$response" 2>/dev/null; then
+check_json_or_die() {
+    local response="$1"
+    if ! python3 -c 'import json,sys; json.loads(sys.stdin.read())' <<< "$response" >/dev/null 2>&1; then
         echo "❌ Pinterest 응답이 JSON 이 아닙니다(네트워크 오류이거나 인증 실패일 수 있습니다):" >&2
         echo "$response" >&2
         exit 1
     fi
+}
 
-    # description 에 개행·탭이 섞여 있을 수 있어 base64 로 감싸 한 줄씩("id\tbase64") 뽑는다.
-    pins="$(python3 -c '
+already_tagged() {
+    grep -qiE '^@otboo(\s|$)' <<< "$1"
+}
+
+build_new_description() {
+    local description="$1"
+    if [[ -z "$description" ]]; then
+        echo "@otboo ${TAG_BODY}"
+    else
+        printf '%s\n\n@otboo %s' "$description" "$TAG_BODY"
+    fi
+}
+
+failed=0
+tagged=0
+skipped=0
+
+if [[ "$TARGET" == "board" ]]; then
+    response="$(curl -sS -K "$CURL_CONFIG" --max-time 30 "${BASE_URL}/v5/boards/${BOARD_ID}")"
+    check_json_or_die "$response"
+
+    description="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("description") or "")' <<< "$response")"
+
+    if already_tagged "$description"; then
+        echo "건너뜀: 보드에 이미 @otboo 줄이 있습니다. board_id=$BOARD_ID"
+        skipped=1
+    else
+        new_description="$(build_new_description "$description")"
+
+        if [[ "$APPLY" -ne 1 ]]; then
+            echo "would tag board: board_id=$BOARD_ID"
+            tagged=1
+        else
+            payload_file="$(mktemp)"
+            python3 -c "import json,sys; print(json.dumps({'description': sys.argv[1]}))" "$new_description" > "$payload_file"
+
+            patch_code="$(curl -sS -K "$CURL_CONFIG" -o /dev/null -w '%{http_code}' --max-time 20 \
+                -X PATCH "${BASE_URL}/v5/boards/${BOARD_ID}" \
+                -H "Content-Type: application/json" \
+                --data @"$payload_file")"
+            rm -f "$payload_file"
+
+            if [[ "$patch_code" == "200" ]]; then
+                echo "tagged board: board_id=$BOARD_ID"
+                tagged=1
+            else
+                echo "❌ failed board: board_id=$BOARD_ID (HTTP $patch_code)" >&2
+                failed=1
+            fi
+        fi
+    fi
+else
+    bookmark=""
+    while :; do
+        url="${BASE_URL}/v5/boards/${BOARD_ID}/pins?page_size=100"
+        if [[ -n "$bookmark" ]]; then
+            url="${url}&bookmark=${bookmark}"
+        fi
+
+        response="$(curl -sS -K "$CURL_CONFIG" --max-time 30 "$url")"
+        check_json_or_die "$response"
+
+        # description 에 개행·탭이 섞여 있을 수 있어 base64 로 감싸 한 줄씩("id\tbase64") 뽑는다.
+        pins="$(python3 -c '
 import json, sys, base64
 data = json.loads(sys.stdin.read())
 for item in data.get("items", []):
@@ -113,53 +183,50 @@ for item in data.get("items", []):
     print(pin_id + "\t" + base64.b64encode(desc.encode()).decode())
 ' <<< "$response")"
 
-    if [[ -n "$pins" ]]; then
-        while IFS=$'\t' read -r pin_id desc_b64; do
-            [[ -z "$pin_id" ]] && continue
-            description="$(python3 -c "import base64,sys; sys.stdout.write(base64.b64decode(sys.argv[1]).decode())" "$desc_b64")"
+        if [[ -n "$pins" ]]; then
+            while IFS=$'\t' read -r pin_id desc_b64; do
+                [[ -z "$pin_id" ]] && continue
+                description="$(python3 -c "import base64,sys; sys.stdout.write(base64.b64decode(sys.argv[1]).decode())" "$desc_b64")"
 
-            if grep -qiE '^@otboo(\s|$)' <<< "$description"; then
-                skipped=$((skipped + 1))
-                continue
-            fi
+                if already_tagged "$description"; then
+                    skipped=$((skipped + 1))
+                    continue
+                fi
 
-            if [[ -z "$description" ]]; then
-                new_description="@otboo ${TAG_BODY}"
-            else
-                new_description="${description}"$'\n\n'"@otboo ${TAG_BODY}"
-            fi
+                new_description="$(build_new_description "$description")"
 
-            if [[ "$APPLY" -ne 1 ]]; then
-                echo "would tag: pin_id=$pin_id"
-                tagged=$((tagged + 1))
-                continue
-            fi
+                if [[ "$APPLY" -ne 1 ]]; then
+                    echo "would tag: pin_id=$pin_id"
+                    tagged=$((tagged + 1))
+                    continue
+                fi
 
-            payload_file="$(mktemp)"
-            python3 -c "import json,sys; print(json.dumps({'description': sys.argv[1]}))" "$new_description" > "$payload_file"
+                payload_file="$(mktemp)"
+                python3 -c "import json,sys; print(json.dumps({'description': sys.argv[1]}))" "$new_description" > "$payload_file"
 
-            patch_code="$(curl -sS -K "$CURL_CONFIG" -o /dev/null -w '%{http_code}' --max-time 20 \
-                -X PATCH "${BASE_URL}/v5/pins/${pin_id}" \
-                -H "Content-Type: application/json" \
-                --data @"$payload_file")"
-            rm -f "$payload_file"
+                patch_code="$(curl -sS -K "$CURL_CONFIG" -o /dev/null -w '%{http_code}' --max-time 20 \
+                    -X PATCH "${BASE_URL}/v5/pins/${pin_id}" \
+                    -H "Content-Type: application/json" \
+                    --data @"$payload_file")"
+                rm -f "$payload_file"
 
-            if [[ "$patch_code" == "200" ]]; then
-                echo "tagged:    pin_id=$pin_id"
-                tagged=$((tagged + 1))
-            else
-                echo "❌ failed: pin_id=$pin_id (HTTP $patch_code)" >&2
-                failed=$((failed + 1))
-            fi
+                if [[ "$patch_code" == "200" ]]; then
+                    echo "tagged:    pin_id=$pin_id"
+                    tagged=$((tagged + 1))
+                else
+                    echo "❌ failed: pin_id=$pin_id (HTTP $patch_code)" >&2
+                    failed=$((failed + 1))
+                fi
 
-            # Trial 등급은 하루 호출 상한이 앱 단위다. 한도를 급하게 태우지 않게 쉬어 간다.
-            sleep 0.3
-        done <<< "$pins"
-    fi
+                # Trial 등급은 하루 호출 상한이 앱 단위다. 한도를 급하게 태우지 않게 쉬어 간다.
+                sleep 0.3
+            done <<< "$pins"
+        fi
 
-    bookmark="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("bookmark") or "")' <<< "$response")"
-    [[ -z "$bookmark" ]] && break
-done
+        bookmark="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("bookmark") or "")' <<< "$response")"
+        [[ -z "$bookmark" ]] && break
+    done
+fi
 
 echo "─────────────────────────────────────────────"
 echo "완료: 태그됨=$tagged 건너뜀(이미 태그됨)=$skipped 실패=$failed"

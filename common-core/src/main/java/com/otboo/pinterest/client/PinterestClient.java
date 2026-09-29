@@ -49,6 +49,10 @@ public class PinterestClient {
             new ParameterizedTypeReference<>() {
             };
 
+    private static final ParameterizedTypeReference<PinterestBoardResponse> BOARD =
+            new ParameterizedTypeReference<>() {
+            };
+
     private final ExternalApiClient api;
     private final PinterestProperties properties;
 
@@ -72,6 +76,35 @@ public class PinterestClient {
         variables.put("boardId", boardId);
         variables.put("pageSize", properties.pageSize());
         return getPage("/v5/boards/{boardId}/pins?page_size={pageSize}", variables, bookmark);
+    }
+
+    /**
+     * 보드 상세(이름·description). 보드 description 에 {@code @otboo style:.. temp:..} 를
+     * 한 번만 달아두고 그 보드의 핀 전체에 상속시키는 큐레이션 방식을 지원하기 위해 쓴다.
+     */
+    public PinterestBoardResponse getBoard(String boardId) {
+        if (boardId == null || !NUMERIC_ID.matcher(boardId).matches()) {
+            throw new BusinessException(PinterestErrorCode.INVALID_BOARD_ID)
+                    .addDetail("boardId", String.valueOf(boardId));
+        }
+        if (!properties.hasAccessToken()) {
+            throw new BusinessException(PinterestErrorCode.ACCESS_TOKEN_NOT_CONFIGURED);
+        }
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("boardId", boardId);
+        String uri = "/v5/boards/{boardId}";
+        PinterestBoardResponse board = api.exchange("GET " + uri,
+                client -> client.get()
+                        .uri(uri, variables)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + properties.accessToken())
+                        .retrieve()
+                        .body(BOARD));
+        if (board == null) {
+            throw new BusinessException(CommonErrorCode.EXTERNAL_API_ERROR)
+                    .addDetail("api", API_NAME)
+                    .addDetail("reason", "빈 응답");
+        }
+        return board;
     }
 
     /** 토큰 계정의 핀을 description 키워드로 검색한다. 폴백 용도다 — 클래스 설명 참고. */
