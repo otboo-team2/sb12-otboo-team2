@@ -1,5 +1,8 @@
 package com.otboo.config;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -17,8 +20,22 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class PasswordEncoderConfig {
 
+    static final String WAITING_METRIC = "otboo_password_hash_waiting";
+
+    /**
+     * @param maxConcurrency 0 이면 JVM 이 보는 코어 수. ⚠️ Fargate 1 vCPU 에서도 JVM 은 2 로 본다 —
+     *                       배포 환경에서는 vCPU 수를 명시한다
+     */
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+    public PasswordEncoder passwordEncoder(
+            @Value("${otboo.auth.password-hash-concurrency:0}") int maxConcurrency,
+            MeterRegistry registry
+    ) {
+        int limit = maxConcurrency > 0 ? maxConcurrency : Runtime.getRuntime().availableProcessors();
+        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(new BCryptPasswordEncoder(), limit);
+        Gauge.builder(WAITING_METRIC, encoder, BoundedPasswordEncoder::waiting)
+                .description("비밀번호 해싱 차례를 기다리는 스레드 수")
+                .register(registry);
+        return encoder;
     }
 }
