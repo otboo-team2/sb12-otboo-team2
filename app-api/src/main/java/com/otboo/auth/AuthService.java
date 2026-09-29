@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -28,9 +29,18 @@ public class AuthService {
     private final UserOAuthAccountRepository oauthAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final TransactionTemplate transactionTemplate;
 
-    /** @return 응답 본문과 쿠키에 실을 리프레시 토큰 원문 */
-    @Transactional
+    /**
+     * 비밀번호 검사(BCrypt)는 트랜잭션 밖에서 한다.
+     *
+     * <p>BCrypt 는 코어 하나를 약 0.1초 쓰는 CPU 작업이다. 트랜잭션 안에 두면 그동안 DB 커넥션을
+     * 쥐고 있는데, CPU 가 포화되면 이 시간이 수 초로 늘어나 커넥션 풀이 먼저 바닥난다.
+     * 부하테스트(1 vCPU, 풀 20)에서 15 RPS 부터 풀 대기 30초 타임아웃 → 500 이 났다.
+     * 조회와 발급만 짧게 트랜잭션으로 감싼다.
+     *
+     * @return 응답 본문과 쿠키에 실을 리프레시 토큰 원문
+     */
     public SignInResult signIn(String email, String rawPassword) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
@@ -42,7 +52,7 @@ public class AuthService {
         if (user.isLocked()) {
             throw new BusinessException(AuthErrorCode.ACCOUNT_LOCKED);
         }
-        return issue(user);
+        return transactionTemplate.execute(status -> issue(user));
     }
 
     /**
