@@ -9,10 +9,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 안전하게 다운로드된 상세 이미지를 C selector와 DB18로 선별한다. */
 public class CImageSelectionService {
 
+    private static final Logger log = LoggerFactory.getLogger(CImageSelectionService.class);
     private static final String DETAIL_IMAGE_FIELD = "detailImage";
     private static final int MAX_DB18_CANDIDATES = 8;
 
@@ -195,9 +198,6 @@ public class CImageSelectionService {
             try {
                 CFilterResult filterResult = filter.filter(topCandidates);
                 selected = filterResult.selected();
-                if (selected.isEmpty()) {
-                    throw new CImageAnalysisException(CImageAnalysisException.Reason.ANALYSIS_ERROR);
-                }
             } catch (RuntimeException exception) {
                 metrics.recordStageImageCount(productUrl, "c", "db18", 0);
                 recordCFailure(
@@ -205,7 +205,22 @@ public class CImageSelectionService {
                 throw exception;
             }
             metrics.recordStageImageCount(productUrl, "c", "db18", selected.size());
-            metrics.recordStage(productUrl, "c", "db18", "success", elapsedSince(db18Start));
+            metrics.recordStage(
+                    productUrl,
+                    "c",
+                    "db18",
+                    selected.isEmpty() ? "partial" : "success",
+                    elapsedSince(db18Start));
+            log.info(
+                    "c_image_selection_completed discovered_count={} downloaded_count={} "
+                            + "selector_count={} db18_count={} failed_download_count={} "
+                            + "selected_candidate_indexes={}",
+                    detailImageUrls.size(),
+                    candidates.size(),
+                    topCandidates.size(),
+                    selected.size(),
+                    failedDownloads,
+                    selected.stream().map(CImageCandidate::candidateIndex).toList());
             List<RemoteResource> images = spool.toRemoteResources(selected, remainingGeminiBytes);
             Duration analysisDuration = elapsedSince(analysisStart);
             return new CImageSelectionResult(

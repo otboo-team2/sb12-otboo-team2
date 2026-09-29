@@ -70,7 +70,7 @@ class ProductPageExtractorTest {
         assertThat(result.detailImageUrls()).containsExactly(
                 URI.create("https://cdn.example.com/detail-front.jpg"),
                 URI.create("https://cdn.example.com/detail-back.jpg"),
-                URI.create("https://cdn.example.com/srcset-first.jpg"));
+                URI.create("https://cdn.example.com/srcset-second.jpg"));
         assertThat(result.detailImageUrls())
                 .noneMatch(uri -> uri.toString().contains("logo"))
                 .noneMatch(uri -> uri.toString().contains("review"))
@@ -92,7 +92,7 @@ class ProductPageExtractorTest {
                 URI.create("https://cdn.example.com/detail-front.jpg"),
                 URI.create("https://cdn.example.com/material-table.jpg"),
                 URI.create("https://cdn.example.com/detail-back.jpg"),
-                URI.create("https://cdn.example.com/srcset-first.jpg"));
+                URI.create("https://cdn.example.com/srcset-second.jpg"));
         assertThat(result.detailImageUrls())
                 .doesNotContain(URI.create("https://cdn.example.com/product-main.jpg"))
                 .doesNotHaveDuplicates();
@@ -116,6 +116,21 @@ class ProductPageExtractorTest {
     }
 
     @Test
+    void dropsGenericThumbnailWhenSupplementalDetailImageExists() throws IOException {
+        URI productUri = URI.create("https://www.musinsa.com/products/6880014");
+        givenHtml(productUri, "musinsa-generic-thumbnail.html");
+
+        ProductPageData result = createExtractor(200).extract(productUri);
+
+        assertThat(result.detailImageUrls())
+                .containsExactly(
+                        URI.create("https://image.msscdn.net/images/detail/full.jpg"),
+                        URI.create("https://image.msscdn.net/gallery/unique.jpg"))
+                .doesNotContain(URI.create(
+                        "https://image.msscdn.net/thumbnails/images/detail/full.jpg?w=192"));
+    }
+
+    @Test
     void supplementsMusinsaPageWithEmbeddedProductData() throws IOException {
         URI musinsaProductUri = URI.create("https://www.musinsa.com/products/4189920");
         givenHtml(musinsaProductUri, "musinsa-next-data.html");
@@ -131,6 +146,18 @@ class ProductPageExtractorTest {
                 URI.create("https://image.msscdn.net/detail/middle.jpg"),
                 URI.create("https://image.msscdn.net/detail/material-table.jpg"),
                 URI.create("https://image.msscdn.net/gallery.jpg"));
+    }
+
+    @Test
+    void supplementsMusinsaPageWithDehydratedProductData() throws IOException {
+        URI musinsaProductUri = URI.create("https://www.musinsa.com/products/6880014");
+        givenHtml(musinsaProductUri, "musinsa-dehydrated-state.html");
+
+        ProductPageData result = createExtractor(200).extract(musinsaProductUri);
+
+        assertThat(result.description()).contains("면 100%");
+        assertThat(result.detailImageUrls()).containsExactly(
+                URI.create("https://image.msscdn.net/detail/long-material.jpg"));
     }
 
     @Test
@@ -176,6 +203,20 @@ class ProductPageExtractorTest {
         assertThat(result.detailImageUrls()).containsExactly(
                 URI.create("https://img.29cm.co.kr/item/detail-01.jpg"),
                 URI.create("https://img.29cm.co.kr/item/detail-02.jpg"));
+    }
+
+    @Test
+    void collectsImageUrlsEmbeddedInTwentyNineCmFlightStringFragments() throws IOException {
+        URI productUri = URI.create("https://www.29cm.co.kr/products/1923495");
+        givenHtml(productUri, "twentyninecm-flight-imageurl-fragments.html");
+
+        ProductPageData result = createExtractor(200).extract(productUri);
+
+        assertThat(result.detailImageUrls()).containsExactly(
+                URI.create("https://img.29cm.co.kr/next-product/primary.jpg"),
+                URI.create("https://img.29cm.co.kr/next-product/detail-01.jpg"),
+                URI.create("https://img.29cm.co.kr/next-product/detail-02.jpg"),
+                URI.create("https://img.29cm.co.kr/item/detail-03.jpg"));
     }
 
     @Test
