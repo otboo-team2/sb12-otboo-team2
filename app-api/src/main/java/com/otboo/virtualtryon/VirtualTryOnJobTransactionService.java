@@ -75,7 +75,7 @@ public class VirtualTryOnJobTransactionService {
         String modelImage = imageStorage.readAsDataUri(job.getModelImageKey());
         Clothes product = getProductClothes(job, job.getCurrentStep());
         String productImage = imageStorage.readAsDataUri(product.getImageUrl());
-        return new DispatchTarget(modelImage, productImage, job.getCurrentStep(), job.getUpdatedAt());
+        return new DispatchTarget(modelImage, productImage);
     }
 
     /** FASHN에 요청을 보낸 직후, 받은 prediction id를 저장하고 상태를 PROCESSING으로 바꾼다. */
@@ -88,8 +88,7 @@ public class VirtualTryOnJobTransactionService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PollTarget loadPollTarget(UUID jobId) {
         VirtualTryOnJob job = jobRepository.getReferenceById(jobId);
-        return new PollTarget(job.getCreatedAt(), job.getFashnPredictionId(),
-            job.getCurrentStep(), job.getUpdatedAt());
+        return new PollTarget(job.getCreatedAt(), job.getFashnPredictionId());
     }
 
     /** FASHN이 완료한 결과를 현재 단계에 맞게 처리한다. 단계별로 다음 동작(캐싱/다음 단계/완료)이 다르다. */
@@ -179,9 +178,9 @@ public class VirtualTryOnJobTransactionService {
 
     /** job의 최종 상태(성공/실패)에 맞는 완료 이벤트를 발행한다. */
     private void publishCompleted(VirtualTryOnJob job) {
-        long elapsedMs = Duration.between(job.getCreatedAt(), Instant.now()).toMillis();
-        log.info("virtual_try_on_completed jobId={} status={} elapsedMs={}",
-            job.getId(), job.getStatus(), elapsedMs);
+//        long elapsedMs = Duration.between(job.getCreatedAt(), Instant.now()).toMillis();
+//        log.info("virtual_try_on_completed jobId={} status={} elapsedMs={}",
+//            job.getId(), job.getStatus(), elapsedMs);
         VirtualTryOnCompletedEvent event = job.getStatus() == VirtualTryOnJobStatus.SUCCEEDED
             ? VirtualTryOnCompletedEvent.succeeded(job.getRequester().getId(), job.getId())
             : VirtualTryOnCompletedEvent.failed(job.getRequester().getId(), job.getId());
@@ -201,10 +200,8 @@ public class VirtualTryOnJobTransactionService {
     }
 
     /** FASHN 요청에 필요한 모델 이미지 + 상품 이미지 쌍. */
-    public record DispatchTarget(String modelImage, String productImage,
-                                 VirtualTryOnStep step, Instant pendingSince) {}
+    public record DispatchTarget(String modelImage, String productImage) {}
 
     /** 폴링에 필요한 job 생성 시각 + FASHN prediction id. */
-    public record PollTarget(Instant createdAt, String predictionId,
-                             VirtualTryOnStep step, Instant requestedAt) {}
+    public record PollTarget(Instant createdAt, String predictionId) {}
 }

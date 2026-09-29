@@ -30,35 +30,26 @@ public class VirtualTryOnPoller {
         transactionService.claimPendingJobs(BATCH_SIZE).forEach(this::dispatchSafely);
     }
 
+    /** 이벤트로 들어온 job 을 바로 보낸다. 스케줄러가 먼저 가져갔으면 아무것도 안 한다. */
+    public void dispatchNow(UUID jobId) {
+        if (transactionService.claimJob(jobId)) {
+            dispatchSafely(jobId);
+        }
+    }
+
     private void dispatchSafely(UUID jobId) {
         try {
             dispatch(jobId);
         } catch (Exception e) {
-             log.error("virtual_try_on_dispatch_failed jobId={}", jobId, e);
+            log.error("virtual_try_on_dispatch_failed jobId={}", jobId, e);
             transactionService.failJob(jobId);
         }
     }
 
     private void dispatch(UUID jobId) {
         DispatchTarget target = transactionService.loadDispatchTarget(jobId);
-        long waitedMs = Duration.between(target.pendingSince(), Instant.now()).toMillis();
-
-        long requestStartedAt = System.nanoTime();
         String predictionId = fashnClient.predict(target.modelImage(), target.productImage());
-        long requestMs = (System.nanoTime() - requestStartedAt) / 1_000_000;
-
         transactionService.markRequested(jobId, predictionId);
-        log.info("virtual_try_on_dispatched jobId={} step={} dispatchWaitMs={} fashnRequestMs={} modelImageKb={} productImageKb={}",
-            jobId, target.step(), waitedMs, requestMs,
-            target.modelImage().length() / 1024, target.productImage().length() / 1024);
-    }
-
-    /** 이벤트로 들어온 job 을 바로 보낸다. 스케줄러가 먼저 가져갔으면 아무것도 안 한다. */
-    public void dispatchNow(UUID jobId) {
-        if (!transactionService.claimJob(jobId)) {
-            return;
-        }
-        dispatchSafely(jobId);
     }
 
     @Scheduled(fixedRateString = "${otboo.virtual-try-on.poll-interval:5000}")
@@ -70,7 +61,7 @@ public class VirtualTryOnPoller {
         try {
             poll(jobId);
         } catch (Exception e) {
-             log.error("virtual_try_on_poll_failed jobId={}", jobId, e);
+            log.error("virtual_try_on_poll_failed jobId={}", jobId, e);
             transactionService.failJob(jobId);
         }
     }
@@ -93,11 +84,10 @@ public class VirtualTryOnPoller {
         if (status.isInProgress()) {
             return;
         }
-        // 그 사이 웹훅이 먼저 가져갔으면 아무것도 안 한다
-        if (!transactionService.claimResult(target.predictionId())) {
-            return;
+        // 그 사이 웹훅이 먼저 가져갔으면 claim 이 false 라 아무것도 안 한다
+        if (transactionService.claimResult(target.predictionId())) {
+            applyStatus(jobId, status);
         }
-        finish(jobId, target, status, "poll");
     }
 
     /** FASHN 이 결과를 보내주면 바로 반영한다. 모르는 prediction 이거나 이미 반영한 결과면 무시한다. */
@@ -107,29 +97,21 @@ public class VirtualTryOnPoller {
             return;
         }
         Optional<UUID> found = transactionService.findJobIdByPredictionId(payload.id());
-        if (found.isEmpty()) {
-            log.info("virtual_try_on_webhook_ignored predictionId={}", payload.id());
+        if (found.isEmpty() || !transactionService.claimResult(payload.id())) {
             return;
         }
         UUID jobId = found.get();
-        PollTarget target = transactionService.loadPollTarget(jobId);
-        if (!transactionService.claimResult(payload.id())) {
-            return;
-        }
         try {
-            finish(jobId, target, payload, "webhook");
+            applyStatus(jobId, payload);
         } catch (Exception e) {
             log.error("virtual_try_on_webhook_failed jobId={}", jobId, e);
             transactionService.failJob(jobId);
         }
     }
 
-    private void finish(UUID jobId, PollTarget target, FashnStatusResponse status, String via) {
-        long fashnPlusPollMs = Duration.between(target.requestedAt(), Instant.now()).toMillis();
-
+    private void applyStatus(UUID jobId, FashnStatusResponse status) {
         if (status.isFailed()) {
-            log.warn("virtual_try_on_fashn_done jobId={} step={} via={} result=FAILED fashnPlusPollMs={} error={}",
-                jobId, target.step(), via, fashnPlusPollMs, status.error());
+            log.warn("virtual_try_on_fashn_failed jobId={} error={}", jobId, status.error());
             transactionService.failJob(jobId);
             return;
         }
@@ -138,12 +120,6 @@ public class VirtualTryOnPoller {
             transactionService.failJob(jobId);
             return;
         }
-
-        long applyStartedAt = System.nanoTime();
         transactionService.applyResult(jobId, status.output().get(0));
-        long applyMs = (System.nanoTime() - applyStartedAt) / 1_000_000;
-
-        log.info("virtual_try_on_fashn_done jobId={} step={} via={} result=COMPLETED fashnPlusPollMs={} applyMs={}",
-            jobId, target.step(), via, fashnPlusPollMs, applyMs);
     }
 }
