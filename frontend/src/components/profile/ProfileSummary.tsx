@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useProfileStore } from '@/lib/stores/useProfileStore';
 import { useFollowSummaryStore } from '@/lib/stores/useFollowSummaryStore';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import sendIcon from '@/assets/icons/ic_send.svg';
 import FollowModal from './FollowModal';
 import { createFollow, cancelFollow } from '@/lib/api/follows';
@@ -20,7 +20,7 @@ export default function ProfileSummary({
   const { data: profile, loading: profileLoading, updateParams: updateProfileParams } = useProfileStore();
   const { data: followSummary, loading: followLoading, updateParams: updateFollowParams, fetch: fetchFollowSummary } = useFollowSummaryStore();
   const currentUser = useAuthStore((state) => state.data);
-  const feedCount = useFeedStore((state) => state.data.length);
+  const feedCount = useFeedStore((state) => state.cursorState.totalCount);
   const [followerModalOpen, setFollowerModalOpen] = useState(false);
   const [followingModalOpen, setFollowingModalOpen] = useState(false);
 
@@ -90,49 +90,49 @@ export default function ProfileSummary({
   }
 
   return (
-    <div className="box-border flex flex-col items-center pb-7 relative w-full">
-      <div className="mt-5 flex flex-col items-center gap-4 text-center relative z-10">
+    <div className="box-border flex items-center justify-between gap-8 px-8 py-7 relative w-full">
+      <div className="flex min-w-0 items-center gap-10 relative z-10">
         {/* 프로필 이미지 */}
-        <div className="bg-[#a9a9b1] relative rounded-full shrink-0 size-[104px] overflow-hidden border-4 border-white shadow-md">
+        <div className="bg-[#e2e5e9] relative rounded-full shrink-0 size-[150px] overflow-hidden border border-[#cbd0d6] shadow-md">
           {profile?.profileImageUrl ? (
             <img
               src={profile.profileImageUrl}
               alt={profile.name || '프로필'}
-              className="w-full h-full object-cover rounded-[100px]"
+              className="w-full h-full object-contain rounded-[100px]"
             />
           ) : (
             <img
               src={profileIcon}
               alt={profile?.name || '프로필'}
-              className="w-full h-full object-cover rounded-[100px]"
+              className="w-full h-full object-contain rounded-[100px]"
             />
           )}
-          <div aria-hidden="true" className="absolute border-[#a9a9b1] border-[1.5px] border-solid inset-0 pointer-events-none rounded-[100px] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]" />
         </div>
 
         {/* 프로필 정보 */}
-        <div className="flex flex-col items-center gap-2.5">
+        <div className="flex flex-col items-start gap-8">
           <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic text-[#212126] text-[28px] tracking-[-0.7px]">
             <p className="leading-[normal]">{profile?.name || '사용자'}</p>
+          </div>
+          <div className="flex items-center gap-14">
+            <div className="text-center"><strong className="block text-[28px] text-[#212126]">{feedCount}</strong><span className="text-[15px] text-[#808089]">게시물</span></div>
+            <div className="h-10 w-px bg-[#d4d4d9]" />
+            <button onClick={handleFollowingClick} className="text-center"><strong className="block text-[28px] text-[#212126]">{followLoading ? '-' : followSummary?.followingCount || 0}</strong><span className="text-[15px] text-[#808089]">팔로잉</span></button>
+            <div className="h-10 w-px bg-[#d4d4d9]" />
+            <button onClick={handleFollowerClick} className="text-center"><strong className="block text-[28px] text-[#212126]">{followLoading ? '-' : followSummary?.followerCount || 0}</strong><span className="text-[15px] text-[#808089]">팔로워</span></button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 w-[calc(100%-40px)] max-w-[600px] mt-6">
-        <div className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center"><strong className="block text-xl text-[#212126]">{feedCount}</strong><span className="text-sm text-[#808089]">게시물</span></div>
-        <button onClick={handleFollowingClick} className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center hover:bg-[#eeeeef]"><strong className="block text-xl text-[#212126]">{followLoading ? '-' : followSummary?.followingCount || 0}</strong><span className="text-sm text-[#808089]">팔로잉</span></button>
-        <button onClick={handleFollowerClick} className="rounded-2xl bg-[#f7f7f8] px-3 py-3 text-center hover:bg-[#eeeeef]"><strong className="block text-xl text-[#212126]">{followLoading ? '-' : followSummary?.followerCount || 0}</strong><span className="text-sm text-[#808089]">팔로워</span></button>
-      </div>
-
       {/* 액션 버튼들 - 본인 프로필이 아닌 경우에만 표시 */}
       {!isOwnProfile && (
-        <div className="flex flex-wrap gap-3 items-center justify-center w-full mt-5 px-5">
+        <div className="ml-auto flex flex-wrap gap-3 items-center justify-center w-auto px-0">
           {/* 팔로우 버튼 */}
           <button
             onClick={handleFollowClick}
             className={`box-border flex gap-1.5 h-11 min-w-[150px] items-center justify-center px-5 py-2.5 rounded-xl shrink-0 transition-colors ${
               followSummary?.followedByMe
-                ? 'bg-[#f7f7f8] hover:bg-[#eeeeef]'
+                ? 'border border-[#dfe3ec] bg-[#f7f7f8] hover:bg-[#eeeeef]'
                 : 'bg-[#1e89f4] hover:bg-[#1a7ae6]'
             }`}
           >
@@ -146,13 +146,13 @@ export default function ProfileSummary({
           {/* 메시지 보내기 버튼 */}
           <button
             onClick={handleMessageClick}
-            className="bg-[#f7f7f8] box-border flex gap-1.5 h-11 min-w-[150px] items-center justify-center px-5 py-2.5 rounded-xl shrink-0 hover:bg-[#eeeeef] transition-colors"
+            className="bg-[#202d45] box-border flex gap-1.5 h-11 min-w-[150px] items-center justify-center px-5 py-2.5 rounded-xl shrink-0 hover:bg-[#172238] transition-colors"
           >
-            <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#575765] text-[18px] text-nowrap tracking-[-0.45px]">
+            <div className="font-['SUIT:Bold',_sans-serif] leading-[0] not-italic relative shrink-0 text-white text-[18px] text-nowrap tracking-[-0.45px]">
               <p className="leading-[normal] whitespace-pre">메시지 보내기</p>
             </div>
             <div className="overflow-clip relative shrink-0 size-5">
-              <img src={sendIcon} alt="메시지 보내기" className="block max-w-none size-full" />
+              <img src={sendIcon} alt="메시지 보내기" className="block max-w-none size-full brightness-0 invert" />
             </div>
           </button>
         </div>
@@ -162,7 +162,7 @@ export default function ProfileSummary({
         <button
           type="button"
           onClick={() => navigate('/settings')}
-          className="absolute left-5 top-4 h-10 rounded-xl bg-[#f7f7f8] px-5 text-[15px] font-bold text-[#575765] transition-colors hover:bg-[#eeeeef]"
+          className="absolute right-8 top-8 h-10 rounded-xl border border-[#dfe3ec] bg-[#f7f7f8] px-5 text-[15px] font-bold text-[#575765] transition-colors hover:bg-[#eeeeef]"
         >
           프로필 수정
         </button>
