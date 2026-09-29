@@ -14,7 +14,7 @@ public class WeatherClothesFilter {
     private static final Map<String, TemperatureRange> WARMTH_RANGES = Map.of(
             "얇음", new TemperatureRange(18.0, 35.0),
             "보통", new TemperatureRange(10.0, 27.0),
-            "두꺼움", new TemperatureRange(-5.0, 15.0),
+            "두꺼움", new TemperatureRange(-5.0, 12.0),
             "매우 두꺼움", new TemperatureRange(Double.NEGATIVE_INFINITY, 5.0));
 
     public boolean isSuitable(WeatherDto weather, Integer temperatureSensitivity, ClothesType type) {
