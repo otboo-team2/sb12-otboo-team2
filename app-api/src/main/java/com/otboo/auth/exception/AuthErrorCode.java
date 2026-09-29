@@ -17,6 +17,9 @@ public enum AuthErrorCode implements ErrorCode {
     // 403
     ACCOUNT_LOCKED("AUTH_110", HttpStatus.FORBIDDEN, "잠긴 계정입니다. 관리자에게 문의하세요."),
 
+    // 503 — 비밀번호 해싱 대기 줄이 한도를 넘었다. 수십 초 붙잡아 두느니 바로 알려준다.
+    PASSWORD_HASH_BUSY("AUTH_120", HttpStatus.SERVICE_UNAVAILABLE, "요청이 몰리고 있습니다. 잠시 후 다시 시도해주세요."),
+
     // 400 — 소셜 로그인. 메시지가 그대로 로그인 화면에 뜨므로 사용자가 뭘 해야 하는지 적는다.
     OAUTH_EMAIL_REQUIRED("AUTH_001", HttpStatus.BAD_REQUEST,
             "이메일 제공에 동의해야 가입할 수 있습니다. 다시 시도해주세요."),

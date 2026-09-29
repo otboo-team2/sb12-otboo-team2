@@ -3,6 +3,9 @@ package com.otboo.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.otboo.auth.exception.AuthErrorCode;
+import com.otboo.common.exception.BusinessException;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,7 +21,7 @@ class BoundedPasswordEncoderTest {
     @DisplayName("동시에 몰려도 상한 수만큼만 해싱하고, 나머지는 기다렸다가 전부 처리된다")
     void limitsConcurrency() throws Exception {
         SlowEncoder slow = new SlowEncoder();
-        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(slow, 2);
+        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(slow, 2, Duration.ofSeconds(10));
         int callers = 16;
         CountDownLatch start = new CountDownLatch(1);
         AtomicInteger matched = new AtomicInteger();
@@ -43,9 +46,26 @@ class BoundedPasswordEncoderTest {
     }
 
     @Test
+    @DisplayName("대기 한도를 넘기면 해싱하지 않고 503 으로 돌려준다")
+    void rejectsAfterMaxWait() throws Exception {
+        SlowEncoder slow = new SlowEncoder(500);
+        BoundedPasswordEncoder encoder = new BoundedPasswordEncoder(slow, 1, Duration.ofMillis(50));
+        Thread holder = new Thread(() -> encoder.matches("pw", "pw"));
+        holder.start();
+        Thread.sleep(100); // holder 가 자리를 잡을 때까지
+
+        assertThatThrownBy(() -> encoder.matches("pw", "pw"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(AuthErrorCode.PASSWORD_HASH_BUSY));
+        assertThat(encoder.rejected()).isEqualTo(1);
+        holder.join();
+        assertThat(slow.maxRunning.get()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("상한은 1 이상이어야 한다")
     void rejectsZero() {
-        assertThatThrownBy(() -> new BoundedPasswordEncoder(new SlowEncoder(), 0))
+        assertThatThrownBy(() -> new BoundedPasswordEncoder(new SlowEncoder(), 0, Duration.ofSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -54,6 +74,15 @@ class BoundedPasswordEncoderTest {
 
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger maxRunning = new AtomicInteger();
+        private final long sleepMillis;
+
+        SlowEncoder() {
+            this(50);
+        }
+
+        SlowEncoder(long sleepMillis) {
+            this.sleepMillis = sleepMillis;
+        }
 
         @Override
         public String encode(CharSequence rawPassword) {
@@ -64,7 +93,7 @@ class BoundedPasswordEncoderTest {
         public boolean matches(CharSequence rawPassword, String encodedPassword) {
             maxRunning.accumulateAndGet(running.incrementAndGet(), Math::max);
             try {
-                Thread.sleep(50);
+                Thread.sleep(sleepMillis);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } finally {
