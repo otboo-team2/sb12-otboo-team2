@@ -13,12 +13,13 @@ import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 /** RecommendationClothesDocument content를 OpenAI embedding으로 변환한다. */
-@Component
+@Component("recommendationQueryEmbeddingClient")
 public class OpenAiEmbeddingClient {
 
     private static final String EMBEDDINGS_PATH = "/embeddings";
@@ -26,16 +27,26 @@ public class OpenAiEmbeddingClient {
     private final ExternalApiClient api;
     private final ObjectReader jsonReader;
 
+    @Autowired
     public OpenAiEmbeddingClient(
             ExternalApiClientFactory factory,
             RecommendationAiProperties properties,
             ObjectMapper objectMapper
     ) {
+        this(factory, properties, objectMapper, "llm");
+    }
+
+    public OpenAiEmbeddingClient(
+            ExternalApiClientFactory factory,
+            RecommendationAiProperties properties,
+            ObjectMapper objectMapper,
+            String apiName
+    ) {
         this.properties = properties;
         this.jsonReader = objectMapper.reader()
                 .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
-        this.api = factory.create("llm", HttpClient.Redirect.NEVER, builder -> {
+        this.api = factory.create(apiName, HttpClient.Redirect.NEVER, builder -> {
             builder.baseUrl(properties.baseUrl())
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
             if (properties.apiKey() != null && !properties.apiKey().isBlank()) {
