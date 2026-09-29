@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDmConversationStore } from '@/lib/stores/useDmConversationStore';
 import { useInfiniteScroll } from '@/lib/hooks/useInfiniteScroll.ts';
 import type { DmConversationDto } from '@/lib/api/types';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 
 interface DmDropdownListProps {
     isOpen: boolean;
@@ -102,11 +102,11 @@ export const DmDropdownList = ({ isOpen, onClose, anchorElement }: DmDropdownLis
                                 onClick={() => openConversation(conv)}
                                 className="flex items-center gap-3 w-full px-5 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 text-left transition-colors"
                             >
-                                <div className="bg-[#a9a9b1] relative rounded-full shrink-0 size-[44px] overflow-hidden">
+                                <div className="bg-[#f1f4f8] relative rounded-full shrink-0 size-[44px] overflow-hidden">
                                     <img
                                         src={conv.partner.profileImageUrl || profileIcon}
                                         alt={conv.partner.name}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-contain"
                                     />
                                 </div>
                                 <div className="flex-1 min-w-0">

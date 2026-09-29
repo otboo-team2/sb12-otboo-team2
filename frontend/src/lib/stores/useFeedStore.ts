@@ -14,7 +14,7 @@ export const useFeedStore = create<FeedStore>((set, get) => ({
       params: {
         cursor: undefined,
         idAfter: undefined,
-        limit: 10,
+        limit: 12,
         sortBy: 'createdAt',
         sortDirection: 'DESCENDING',
       }

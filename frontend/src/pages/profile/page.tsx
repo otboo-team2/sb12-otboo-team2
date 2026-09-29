@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/lib/stores/useAuthStore';
 import ProfileSummary from '@/components/profile/ProfileSummary';
 import UserFeedList from '@/components/profile/UserFeedList';
@@ -8,9 +8,16 @@ import ClosetToggleButton from '@/components/profile/ClosetToggleButton';
 
 export default function ProfilePage() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const userId = searchParams.get('userId');
   const currentUser = useAuthStore((state) => state.data);
   const [isClosetOpen, setIsClosetOpen] = useState(false);
+
+  useEffect(() => {
+    if (location.hash === '#posts') {
+      requestAnimationFrame(() => document.getElementById('profile-posts')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  }, [location.hash]);
   
   // 실제로 표시할 사용자 ID (본인 프로필이면 현재 사용자 ID 사용)
   const targetUserId = userId || currentUser?.userDto?.id;
@@ -32,22 +39,20 @@ export default function ProfilePage() {
       {/* 메인 콘텐츠 영역 - 고정 너비와 중앙 정렬 */}
       <div className="flex-1 flex justify-center">
         <div 
-          className={`w-full max-w-4xl transition-all duration-300 ease-out ${
+          className={`w-full max-w-[1600px] transition-all duration-300 ease-out ${
             isClosetOpen ? 'mr-[228px]' : 'mr-0'
           }`}
         >
           <div className="flex flex-col px-8 py-6 gap-6">
             {/* ProfileSummary 컴포넌트 - 고정 */}
-            <div className="bg-white overflow-hidden rounded-lg shadow-sm flex-shrink-0">
-              <div className="border-b border-gray-100 py-5">
-                <ProfileSummary userId={targetUserId} />
-              </div>
+            <div className="overflow-hidden rounded-lg border border-[#f0f4fa] bg-[#fbfcff] flex-shrink-0">
+              <ProfileSummary userId={targetUserId} />
             </div>
             
             {/* 사용자 피드 목록 - 스크롤 가능 */}
-            <div className="bg-white rounded-lg shadow-sm">
+            <div id="profile-posts">
               <div className="p-6">
-                <UserFeedList userId={targetUserId} />
+                <UserFeedList userId={targetUserId} wide />
               </div>
             </div>
           </div>

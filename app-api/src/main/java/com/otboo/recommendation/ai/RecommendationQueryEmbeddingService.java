@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class RecommendationQueryEmbeddingService {
     private static final String CACHE_VERSION = "v1";
     private static final String CACHE_PREFIX = "recommendation:embedding:";
 
+    @Qualifier("recommendationQueryEmbeddingClient")
     private final OpenAiEmbeddingClient embeddingClient;
     private final RecommendationAiProperties properties;
     private final ObjectMapper objectMapper;
@@ -33,7 +35,8 @@ public class RecommendationQueryEmbeddingService {
     private final Duration cacheTtl;
 
     @Autowired
-    public RecommendationQueryEmbeddingService(OpenAiEmbeddingClient embeddingClient,
+    public RecommendationQueryEmbeddingService(
+            @Qualifier("recommendationQueryEmbeddingClient") OpenAiEmbeddingClient embeddingClient,
             RecommendationAiProperties properties, ObjectMapper objectMapper,
             StringRedisTemplate redis,
             @Value("${otboo.recommendation.ai.embedding-cache-ttl:30m}") Duration cacheTtl) {

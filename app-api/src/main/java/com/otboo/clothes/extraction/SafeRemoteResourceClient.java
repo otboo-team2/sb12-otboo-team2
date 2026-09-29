@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
@@ -19,6 +21,7 @@ import org.springframework.web.client.RestClient;
 @Component
 public class SafeRemoteResourceClient {
 
+    private static final Logger log = LoggerFactory.getLogger(SafeRemoteResourceClient.class);
     private static final String USER_AGENT = "OtbooProductExtractor/1.0";
     private static final String ACCEPT = "text/html,application/xhtml+xml,image/*";
     private static final String PRODUCT_PAGE_ENDPOINT = "GET product-page";
@@ -76,12 +79,13 @@ public class SafeRemoteResourceClient {
             }
 
             if (response.status() < 200 || response.status() >= 300) {
+                logRejected(image ? "image" : "html", response.status(), response.contentType());
                 throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
             }
 
             String contentType = image
                     ? detectImageContentType(response.body())
-                    : validateHtmlContentType(response.contentType());
+                    : validateHtmlContentType(response.status(), response.contentType());
             return new RemoteResource(current, contentType, response.body());
         }
     }
@@ -153,13 +157,29 @@ public class SafeRemoteResourceClient {
         return output.toByteArray();
     }
 
-    private static String validateHtmlContentType(String contentType) {
+    private String validateHtmlContentType(int status, String contentType) {
         if (contentType != null
                 && !contentType.toLowerCase().startsWith("text/html")
                 && !contentType.toLowerCase().startsWith("application/xhtml+xml")) {
+            logRejected("html", status, contentType);
             throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
         }
         return contentType;
+    }
+
+    private void logRejected(String resourceType, int status, String contentType) {
+        log.warn(
+                "remote_resource_rejected resource_type={} status={} content_type={}",
+                resourceType,
+                status,
+                safeContentType(contentType));
+    }
+
+    private String safeContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return "none";
+        }
+        return contentType.replace('\r', '_').replace('\n', '_');
     }
 
     private static String detectImageContentType(byte[] bytes) {

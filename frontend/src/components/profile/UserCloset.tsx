@@ -12,7 +12,7 @@ interface UserClosetProps {
 }
 
 export default function UserCloset({ userId }: UserClosetProps) {
-  const { data: clothes, loading, fetch, fetchMore, params, updateParams } = useClothesStore();
+  const { data: clothes, loading, fetch, fetchMore, params, updateParams, clear } = useClothesStore();
   const { data: profileData, fetch: fetchProfile, updateParams: updateProfileParams } = useProfileStore();
   const currentUser = useAuthStore((state) => state.data);
 
@@ -26,15 +26,15 @@ export default function UserCloset({ userId }: UserClosetProps) {
 
   useEffect(() => {
     // 옷장 데이터 가져오기
+    clear();
     updateParams({ ownerId: userId });
-    fetch();
 
     // 프로필 데이터 가져오기 (사용자 이름을 위해)
     if (!isOwnProfile && userId) {
       updateProfileParams({ userId });
       fetchProfile();
     }
-  }, [userId, updateParams, fetch, isOwnProfile, updateProfileParams, fetchProfile]);
+  }, [userId, updateParams, clear, isOwnProfile, updateProfileParams, fetchProfile]);
 
   // 카테고리 매핑
   const categoryMap: Record<string, ClothesType | undefined> = {

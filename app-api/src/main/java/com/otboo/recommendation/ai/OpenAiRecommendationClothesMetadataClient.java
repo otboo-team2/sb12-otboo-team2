@@ -46,7 +46,7 @@ public class OpenAiRecommendationClothesMetadataClient {
         this.jsonReader = objectMapper.reader()
                 .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                 .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
-        this.api = factory.create("llm", HttpClient.Redirect.NEVER, builder -> {
+        this.api = factory.create("llm-reindex", HttpClient.Redirect.NEVER, builder -> {
             builder.baseUrl(properties.baseUrl())
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
             if (properties.apiKey() != null && !properties.apiKey().isBlank()) {

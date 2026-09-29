@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import heartIcon from '@/assets/icons/ic_heart.svg';
 import heartFilledIcon from '@/assets/icons/ic_heart_filled.svg';
 import commentIcon from '@/assets/icons/ic_comment.svg';
@@ -179,18 +179,18 @@ export default function FeedCard({ feed, onClick }: FeedCardProps) {
       <div className="box-border content-stretch flex items-center justify-between px-1.5 py-0 relative shrink-0 w-full">
         <div className="content-stretch flex gap-1.5 items-start justify-start relative shrink-0">
           <div className="box-border content-stretch flex gap-2 items-center justify-start px-0 py-[3px] relative shrink-0">
-            <div className="bg-[var(--color-gray-400)] relative rounded-[100px] shrink-0 size-5">
+            <div className="bg-[#f1f4f8] relative rounded-[100px] shrink-0 size-5">
               {feed.author.profileImageUrl ? (
                 <img 
                   src={feed.author.profileImageUrl} 
                   alt={feed.author.name} 
-                  className="w-full h-full rounded-[100px] object-cover"
+                  className="w-full h-full rounded-[100px] object-contain"
                 />
               ) : (
                 <img 
                   src={profileIcon} 
                   alt={feed.author.name} 
-                  className="w-full h-full rounded-[100px] object-cover"
+                  className="w-full h-full rounded-[100px] object-contain"
                 />
               )}
             </div>

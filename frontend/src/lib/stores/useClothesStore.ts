@@ -17,6 +17,7 @@ export const useClothesStore = create<ClothesStore>((set, get) => ({
         ownerId: '',
         typeEqual: undefined,
         favorite: undefined,
+        nameLike: undefined,
         limit: 20
       }
     }
@@ -24,6 +25,7 @@ export const useClothesStore = create<ClothesStore>((set, get) => ({
 
   isEmpty: () => {
     const {data, params} = get();
-    return params.typeEqual == undefined && params.favorite == undefined && data.length === 0;
+    return params.typeEqual == undefined && params.favorite == undefined
+      && !params.nameLike && data.length === 0;
   },
 }));

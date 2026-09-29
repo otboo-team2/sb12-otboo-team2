@@ -1,5 +1,6 @@
 package com.otboo.pinterest;
 
+import com.otboo.common.exception.BusinessException;
 import com.otboo.pinterest.client.PinterestClient;
 import com.otboo.pinterest.client.PinterestPageResponse;
 import com.otboo.pinterest.client.PinterestPinResponse;
@@ -64,11 +65,24 @@ public class PinterestSyncService {
      *                 핀들이 같은 값을 가져야 "이번에 안 들어온 핀"을 나중에 골라낼 수 있다
      */
     public SyncResult syncBoard(String boardId, Instant syncedAt) {
+        String boardDescription;
+        try {
+            boardDescription = client.getBoard(boardId).description();
+        } catch (BusinessException e) {
+            // 여기서 null 로 폴백해 핀만으로 계속 동기화.
+            // 이번 실행에서 MALFORMED 로 재판정되어 DB 에 그대로 덮어써짐.
+            // 일시 장애 한 번에 이미 정상이던 핀들이 추천에서 빠지는 상황 방지.
+            // 이번 실행을 통째로 건너뛰어 기존 값을 건드리지 않는다. 새 핀은 다음 정상 실행 때 들어온다.
+            log.warn("Pinterest board description fetch failed; skipping this board for this run. "
+                            + "board_id={}, error_code={}",
+                    boardId, e.getErrorCode().getCode());
+            return SyncResult.EMPTY;
+        }
         SyncResult result = SyncResult.EMPTY;
         String bookmark = null;
         for (int page = 1; page <= MAX_PAGES_PER_BOARD; page++) {
             PinterestPageResponse<PinterestPinResponse> response = client.listBoardPins(boardId, bookmark);
-            result = result.plus(upsertPage(boardId, response.items(), syncedAt));
+            result = result.plus(upsertPage(boardId, boardDescription, response.items(), syncedAt));
             if (!response.hasNext()) {
                 return result;
             }
@@ -79,7 +93,8 @@ public class PinterestSyncService {
         return result;
     }
 
-    private SyncResult upsertPage(String boardId, List<PinterestPinResponse> items, Instant syncedAt) {
+    private SyncResult upsertPage(
+            String boardId, String boardDescription, List<PinterestPinResponse> items, Instant syncedAt) {
         List<PinterestPinResponse> usable = new ArrayList<>(items.size());
         for (PinterestPinResponse item : items) {
             if (isUsable(item)) {
@@ -102,7 +117,8 @@ public class PinterestSyncService {
         int notSearchable = 0;
         for (PinterestPinResponse item : usable) {
             // 파싱은 원문 전체로 한다. 저장할 때 자르는 것과 순서가 바뀌면 @otboo 줄이 잘려 나갈 수 있다.
-            OutfitTagParseResult parsed = OutfitTagParser.parse(item.description());
+            // 핀 자체에 네 가지를 다 적었으면(기존 방식) 핀 값이 그대로 이기므로 동작이 안 바뀐다.
+            OutfitTagParseResult parsed = OutfitTagParser.parseMerged(boardDescription, item.description());
             if (!parsed.isTagged()) {
                 notSearchable++;
                 log.info("Pin is not searchable. board_id={}, pin_id={}, tag_status={}, errors={}",

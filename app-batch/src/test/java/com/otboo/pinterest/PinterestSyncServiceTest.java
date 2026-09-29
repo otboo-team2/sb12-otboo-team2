@@ -10,13 +10,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.otboo.common.exception.BusinessException;
 import com.otboo.pinterest.PinterestSyncService.SyncResult;
+import com.otboo.pinterest.client.PinterestBoardResponse;
 import com.otboo.pinterest.client.PinterestClient;
 import com.otboo.pinterest.client.PinterestPageResponse;
 import com.otboo.pinterest.client.PinterestPinResponse;
 import com.otboo.pinterest.entity.PinterestPin;
+import com.otboo.pinterest.exception.PinterestErrorCode;
 import com.otboo.pinterest.repository.PinterestPinRepository;
+import com.otboo.pinterest.tag.GenderTag;
 import com.otboo.pinterest.tag.OutfitTagParser;
+import com.otboo.pinterest.tag.SkyTag;
+import com.otboo.pinterest.tag.StyleTag;
 import com.otboo.pinterest.tag.TagStatus;
 import com.otboo.pinterest.tag.TempBand;
 import java.time.Instant;
@@ -41,6 +47,9 @@ class PinterestSyncServiceTest {
         client = mock(PinterestClient.class);
         repository = mock(PinterestPinRepository.class);
         when(repository.findAllByPinIdIn(any())).thenReturn(List.of());
+        // 보드 description 이 없는(= @otboo 줄 없는) 보드로 기본 세팅한다.
+        // 핀이 스스로 네 가지를 전부 적는 기존 방식 테스트들은 이걸로 그대로 통과해야 한다.
+        when(client.getBoard(BOARD_ID)).thenReturn(new PinterestBoardResponse(BOARD_ID, "board", null));
         service = new PinterestSyncService(client, repository);
     }
 
@@ -123,6 +132,67 @@ class PinterestSyncServiceTest {
         assertThat(savedPins()).extracting(PinterestPin::getTagStatus)
                 .containsExactly(TagStatus.MALFORMED, TagStatus.UNTAGGED, TagStatus.TAGGED);
         assertThat(savedPins().getFirst().getTagErrors()).isEqualTo("'temp' 에 쓸 수 없는 값: 5~8");
+    }
+
+    @Test
+    @DisplayName("보드 description 이 style·temp 를 주면, 핀은 sky·gender 만 적어도 태깅된다")
+    void inheritsStyleAndTempFromBoardDescription() {
+        when(client.getBoard(BOARD_ID))
+                .thenReturn(new PinterestBoardResponse(BOARD_ID, "board", "@otboo style:minimal temp:5-8"));
+        when(client.listBoardPins(BOARD_ID, null))
+                .thenReturn(new PinterestPageResponse<>(List.of(pin("50", "@otboo sky:cloudy gender:unisex")), null));
+
+        service.syncBoard(BOARD_ID, NOW);
+
+        PinterestPin saved = savedPins().getFirst();
+        assertThat(saved.getTagStatus()).isEqualTo(TagStatus.TAGGED);
+        assertThat(saved.getTempBand()).isEqualTo(TempBand.T5_8);
+        assertThat(saved.getSky()).isEqualTo(SkyTag.CLOUDY);
+        assertThat(saved.getGender()).isEqualTo(GenderTag.UNISEX);
+        assertThat(saved.getTags()).extracting("tagValue").containsExactly(StyleTag.MINIMAL.name());
+    }
+
+    @Test
+    @DisplayName("핀이 자기만의 스타일을 적으면 보드 스타일을 덮는다 — 보드 안 예외 핀")
+    void pinStyleOverridesBoardStyle() {
+        when(client.getBoard(BOARD_ID))
+                .thenReturn(new PinterestBoardResponse(BOARD_ID, "board", "@otboo style:minimal temp:5-8"));
+        when(client.listBoardPins(BOARD_ID, null)).thenReturn(new PinterestPageResponse<>(
+                List.of(pin("51", "@otboo sky:cloudy gender:unisex style:street")), null));
+
+        service.syncBoard(BOARD_ID, NOW);
+
+        PinterestPin saved = savedPins().getFirst();
+        assertThat(saved.getTagStatus()).isEqualTo(TagStatus.TAGGED);
+        assertThat(saved.getTempBand()).isEqualTo(TempBand.T5_8); // temp 는 보드 값 그대로
+        assertThat(saved.getTags()).extracting("tagValue").containsExactly(StyleTag.STREET.name()); // style 은 핀이 덮음
+    }
+
+    @Test
+    @DisplayName("보드가 style·temp 를 줘도 핀에 sky·gender 가 없으면 여전히 MALFORMED 다")
+    void stillMalformedWhenPinMissesItsOwnRequiredTags() {
+        when(client.getBoard(BOARD_ID))
+                .thenReturn(new PinterestBoardResponse(BOARD_ID, "board", "@otboo style:minimal temp:5-8"));
+        when(client.listBoardPins(BOARD_ID, null))
+                .thenReturn(new PinterestPageResponse<>(List.of(pin("52", "태그 없는 핀")), null));
+
+        service.syncBoard(BOARD_ID, NOW);
+
+        PinterestPin saved = savedPins().getFirst();
+        assertThat(saved.getTagStatus()).isEqualTo(TagStatus.MALFORMED);
+        assertThat(saved.getTagErrors()).contains("sky").contains("gender");
+    }
+
+    @Test
+    @DisplayName("보드 description 조회가 실패하면 배치는 멈추지 않되, 이 보드는 이번 실행에서 건너뛰고 기존 핀을 건드리지 않는다")
+    void skipsBoardForThisRunWhenBoardFetchFails() {
+        when(client.getBoard(BOARD_ID)).thenThrow(new BusinessException(PinterestErrorCode.INVALID_BOARD_ID));
+
+        SyncResult result = service.syncBoard(BOARD_ID, NOW);
+
+        assertThat(result).isEqualTo(SyncResult.EMPTY);
+        verify(client, never()).listBoardPins(any(), any());
+        verify(repository, never()).saveAll(any());
     }
 
     @Test

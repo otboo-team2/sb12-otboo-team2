@@ -277,8 +277,18 @@ export interface VirtualTryOnJobDto {
     jobId: string;
     status: VirtualTryOnJobStatus;
     resultImageUrl: string | null;
+    topClothes: SelectedVirtualTryOnClothes | null;
+    bottomClothes: SelectedVirtualTryOnClothes | null;
+    additionalClothes: SelectedVirtualTryOnClothes | null;
     failureReason: string | null;
     retryable: boolean;
+}
+
+export interface SelectedVirtualTryOnClothes {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    type: string;
 }
 
 export interface JwtDto {
@@ -412,6 +422,7 @@ export interface ClothesListParams extends CursorParams {
   typeEqual?: ClothesType;
   ownerId: string;
   favorite?: boolean;
+  nameLike?: string;
 }
 
 export interface ClothesAttributeDefListParams extends CursorParams, SortParams {

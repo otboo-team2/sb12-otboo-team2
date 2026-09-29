@@ -51,6 +51,15 @@ class PinterestClientTest {
             }
             """;
 
+    private static final String BOARD_DETAIL = """
+            {
+              "id": "549755885175",
+              "name": "미니멀-5_8",
+              "description": "@otboo style:minimal temp:5-8",
+              "owner": {"unexpected": "shape"}
+            }
+            """;
+
     private HttpServer server;
     private final AtomicReference<String> requestedUri = new AtomicReference<>();
     private final AtomicReference<String> authorization = new AtomicReference<>();
@@ -63,7 +72,8 @@ class PinterestClientTest {
             requestCount.incrementAndGet();
             requestedUri.set(exchange.getRequestURI().getRawPath() + "?" + exchange.getRequestURI().getRawQuery());
             authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
-            byte[] body = PIN_PAGE.getBytes(StandardCharsets.UTF_8);
+            boolean isBoardDetail = !exchange.getRequestURI().getRawPath().endsWith("/pins");
+            byte[] body = (isBoardDetail ? BOARD_DETAIL : PIN_PAGE).getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
             exchange.getResponseBody().write(body);
@@ -123,6 +133,36 @@ class PinterestClientTest {
     @DisplayName("보드 ID 가 숫자가 아니면 경로에 넣지 않는다")
     void rejectsNonNumericBoardId() {
         assertThatThrownBy(() -> client("token").listBoardPins("../../user_account", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(PinterestErrorCode.INVALID_BOARD_ID);
+        assertThat(requestCount).hasValue(0);
+    }
+
+    @Test
+    @DisplayName("보드 상세를 토큰과 함께 요청하고 description 을 그대로 매핑한다")
+    void getsBoardDetail() {
+        var board = client("token-123").getBoard("549755885175");
+
+        assertThat(requestedUri.get()).isEqualTo("/v5/boards/549755885175?null");
+        assertThat(authorization.get()).isEqualTo("Bearer token-123");
+        assertThat(board.id()).isEqualTo("549755885175");
+        assertThat(board.name()).isEqualTo("미니멀-5_8");
+        assertThat(board.description()).isEqualTo("@otboo style:minimal temp:5-8");
+    }
+
+    @Test
+    @DisplayName("보드 상세도 토큰이 없으면 Pinterest 를 부르지 않고 실패한다")
+    void getBoardFailsWithoutTokenBeforeCalling() {
+        assertThatThrownBy(() -> client("").getBoard("1"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(PinterestErrorCode.ACCESS_TOKEN_NOT_CONFIGURED);
+        assertThat(requestCount).hasValue(0);
+    }
+
+    @Test
+    @DisplayName("보드 상세도 보드 ID 가 숫자가 아니면 경로에 넣지 않는다")
+    void getBoardRejectsNonNumericBoardId() {
+        assertThatThrownBy(() -> client("token").getBoard("../../user_account"))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(PinterestErrorCode.INVALID_BOARD_ID);
         assertThat(requestCount).hasValue(0);
