@@ -24,7 +24,7 @@ const getNotificationPath = (notification: NotificationDto): string | null => {
         case 'FOLLOW_CREATED':
             return `/profiles?userId=${notification.relatedEntityId}`;
         case 'DM_RECEIVED':
-            return notification.actorId ? `/dm/${notification.actorId}` : '/dm';
+            return notification.actorId ? `/dm/${notification.actorId}` : null;
         case 'CLOTHES_ATTRIBUTE_ADDED':
         case 'ROLE_CHANGED':
         default:

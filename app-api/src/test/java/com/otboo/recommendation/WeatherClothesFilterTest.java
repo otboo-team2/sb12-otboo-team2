@@ -11,10 +11,10 @@ class WeatherClothesFilterTest {
     private final WeatherClothesFilter filter = new WeatherClothesFilter();
 
     @Test
-    void hotWeatherExcludesOuterAndScarf() {
+    void hotWeatherExcludesOuterAndHat() {
         assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.OUTER))
                 .isFalse();
-        assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.SCARF))
+        assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.HAT))
                 .isFalse();
         assertThat(filter.isSuitable(30.0, PrecipitationType.NONE, 3, ClothesType.TOP))
                 .isTrue();
@@ -84,11 +84,11 @@ class WeatherClothesFilterTest {
     }
 
     @Test
-    void thickWarmthCoversColdWeatherButNotSeventeenDegreesForColdSensitiveUser() {
+    void thickWarmthCoversColdWeatherButNotAboveTwelveDegrees() {
         assertThat(filter.isSuitable(-5.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isFalse();
         assertThat(filter.isSuitable(-5.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
-        assertThat(filter.isSuitable(15.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
-        assertThat(filter.isSuitable(15.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isFalse();
+        assertThat(filter.isSuitable(12.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(12.01, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isFalse();
         assertThat(filter.isSuitable(17.0, PrecipitationType.NONE, 5, ClothesType.OUTER, "두꺼움"))
                 .isFalse();
     }
@@ -110,8 +110,8 @@ class WeatherClothesFilterTest {
         assertThat(filter.isSuitable(18.0, PrecipitationType.NONE, 5, ClothesType.TOP, "얇음")).isFalse();
 
         assertThat(filter.isSuitable(16.0, PrecipitationType.NONE, 1, ClothesType.TOP, "두꺼움")).isFalse();
-        assertThat(filter.isSuitable(15.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
-        assertThat(filter.isSuitable(16.0, PrecipitationType.NONE, 5, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(12.0, PrecipitationType.NONE, 3, ClothesType.TOP, "두꺼움")).isTrue();
+        assertThat(filter.isSuitable(13.0, PrecipitationType.NONE, 5, ClothesType.TOP, "두꺼움")).isTrue();
     }
 
     @Test

@@ -1,7 +1,6 @@
 import RecommendationItem from './RecommendationItem';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
 import {LoaderCircle} from 'lucide-react';
-import {useRef} from 'react';
 
 interface RecommendationGridProps {
   showLoadingMessage?: boolean;
@@ -9,9 +8,7 @@ interface RecommendationGridProps {
 
 export default function RecommendationGrid({showLoadingMessage = false}: RecommendationGridProps) {
   const {data: recommendations, loading} = useRecommendationStore();
-  const lastRecommendations = useRef(recommendations);
-  if (recommendations?.clothes?.length) lastRecommendations.current = recommendations;
-  const displayedRecommendations = recommendations ?? lastRecommendations.current;
+  const displayedRecommendations = recommendations;
 
   if (loading && (showLoadingMessage || !displayedRecommendations?.clothes?.length)) {
     return (

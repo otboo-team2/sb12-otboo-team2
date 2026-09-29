@@ -123,4 +123,76 @@ class OutfitTagParserTest {
         assertThat(result.status()).isEqualTo(TagStatus.MALFORMED);
         assertThat(result.errors()).containsExactly("@otboo 줄이 2개다. 하나만 남겨야 한다");
     }
+
+    @Test
+    @DisplayName("[병합] 보드가 style·temp 를, 핀이 sky·gender 를 주면 합쳐서 TAGGED 다")
+    void mergedTagsFromBoardAndPin() {
+        OutfitTagParseResult result = OutfitTagParser.parseMerged(
+                "@otboo style:minimal temp:5-8",
+                "@otboo sky:cloudy gender:unisex");
+
+        assertThat(result.status()).isEqualTo(TagStatus.TAGGED);
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.tags().temp()).isEqualTo(TempBand.T5_8);
+        assertThat(result.tags().sky()).isEqualTo(SkyTag.CLOUDY);
+        assertThat(result.tags().gender()).isEqualTo(GenderTag.UNISEX);
+        assertThat(result.tags().styles()).containsExactly(StyleTag.MINIMAL);
+    }
+
+    @Test
+    @DisplayName("[병합] 핀이 자기만의 style 을 주면 보드 style 을 통째로 덮는다")
+    void pinStyleOverridesBoardStyle() {
+        OutfitTagParseResult result = OutfitTagParser.parseMerged(
+                "@otboo style:minimal temp:5-8",
+                "@otboo sky:cloudy gender:unisex style:street");
+
+        assertThat(result.tags().styles()).containsExactly(StyleTag.STREET);
+        assertThat(result.tags().temp()).isEqualTo(TempBand.T5_8); // temp 는 핀이 안 줬으니 보드 값 그대로
+    }
+
+    @Test
+    @DisplayName("[병합] 보드에 태그가 없으면(대다수 보드) 핀 혼자 적는 기존 parse() 와 결과·메시지가 같다")
+    void mergedFallsBackToPinOnlyBehaviorWhenBoardHasNoTagLine() {
+        String pinDescription = "@otboo temp:5~8 sky:cloudy style:minimal gender:unisex";
+
+        OutfitTagParseResult merged = OutfitTagParser.parseMerged(null, pinDescription);
+        OutfitTagParseResult plain = OutfitTagParser.parse(pinDescription);
+
+        assertThat(merged.status()).isEqualTo(plain.status());
+        assertThat(merged.errors()).isEqualTo(plain.errors()); // "[핀]" 접두어 없이 그대로
+        assertThat(merged.tags()).isEqualTo(plain.tags());
+    }
+
+    @Test
+    @DisplayName("[병합] 둘 다 @otboo 줄이 없으면 UNTAGGED 다")
+    void mergedUntaggedWhenNeitherHasTagLine() {
+        OutfitTagParseResult result = OutfitTagParser.parseMerged("그냥 보드 설명", "그냥 핀 설명");
+
+        assertThat(result.status()).isEqualTo(TagStatus.UNTAGGED);
+        assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("[병합] 보드가 style·temp 를 줘도 핀이 sky·gender 를 안 주면 여전히 MALFORMED 다")
+    void mergedStillRequiresPinOwnTags() {
+        OutfitTagParseResult result = OutfitTagParser.parseMerged(
+                "@otboo style:minimal temp:5-8",
+                "그냥 핀 설명, 태그 없음");
+
+        assertThat(result.status()).isEqualTo(TagStatus.MALFORMED);
+        assertThat(result.errors()).containsExactlyInAnyOrder(
+                "필수 키가 없다: sky",
+                "필수 키가 없다: gender");
+    }
+
+    @Test
+    @DisplayName("[병합] 값이 틀린 쪽은 출처(보드/핀)를 접두어로 구분해서 알린다")
+    void mergedErrorsArePrefixedBySource() {
+        OutfitTagParseResult result = OutfitTagParser.parseMerged(
+                "@otboo style:minimal temp:이상한값",
+                "@otboo sky:cloudy gender:unisex");
+
+        assertThat(result.status()).isEqualTo(TagStatus.MALFORMED);
+        assertThat(result.errors()).containsExactly("[보드] 'temp' 에 쓸 수 없는 값: 이상한값");
+    }
 }

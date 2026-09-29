@@ -41,13 +41,15 @@ public class ClothesController {
             @RequestParam(required = false) UUID idAfter,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) ClothesType typeEqual,
-            @RequestParam(required = false) Boolean favorite
+            @RequestParam(required = false) Boolean favorite,
+            @RequestParam(required = false) String nameLike
     ) {
         int requestedLimit = limit == null ? CursorRequest.DEFAULT_LIMIT : limit;
         return clothesService.findAll(
                 ownerId,
                 typeEqual,
                 favorite,
+                nameLike,
                 new CursorRequest(cursor, idAfter, requestedLimit, "id", SortDirection.DESCENDING));
     }
 

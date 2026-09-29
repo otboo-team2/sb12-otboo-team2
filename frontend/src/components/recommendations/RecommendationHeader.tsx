@@ -2,21 +2,21 @@ import { useState } from 'react';
 import hangerIcon from '@/assets/icons/il_hanger.svg';
 import refreshIcon from '@/assets/icons/ic_refresh.svg';
 import {useRecommendationStore} from "@/lib/stores/useRecommendationStore.ts";
-import AddFeedModal from './AddFeedModal';
-import FeedDetailModal from "@/components/feeds/FeedDetailModal.tsx";
-import type {FeedDto} from "@/lib/api";
+import AddFeedModal from '@/components/feeds/AddFeedModal';
+import FeedDetailModal from '@/components/feeds/FeedDetailModal';
+import type {FeedDto} from '@/lib/api';
 
 export default function RecommendationHeader() {
-  const {loading, fetchAlternative} = useRecommendationStore();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const {loading, fetch, data: recommendations} = useRecommendationStore();
+  const [isAddFeedModalOpen, setIsAddFeedModalOpen] = useState(false);
   const [createdFeed, setCreatedFeed] = useState<FeedDto | undefined>();
 
-  const handleRegister = () => {
-    setIsModalOpen(true);
+  const handleRefresh = () => {
+    fetch();
   }
 
-  const handleRefresh = () => {
-    fetchAlternative();
+  const handleOotdRegister = () => {
+    setIsAddFeedModalOpen(true);
   }
 
   return (
@@ -38,6 +38,18 @@ export default function RecommendationHeader() {
 
       {/* 버튼 섹션 */}
       <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+        {/* OOTD 등록 버튼 */}
+        <button
+          type="button"
+          className="bg-[#1e89f4] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#1e89f4]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handleOotdRegister}
+          disabled={!recommendations?.clothes.length}
+        >
+          <div className="font-bold leading-none not-italic relative shrink-0 text-white text-[16px] text-nowrap tracking-[-0.4px]">
+            <p className="leading-normal whitespace-pre">OOTD 등록</p>
+          </div>
+        </button>
+
         {/* 다른 옷 추천 버튼 */}
         <button
           className="bg-white box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-gray-50 transition-colors disabled:cursor-not-allowed border border-[#d4d4d9] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]"
@@ -51,34 +63,23 @@ export default function RecommendationHeader() {
           </div>
           <img alt="새로고침" className="size-5" src={refreshIcon} />
         </button>
-
-        {/* OOTD 등록 버튼 */}
-        <button
-          className="bg-[#1e89f4] box-border content-stretch flex gap-1.5 h-[46px] items-center justify-center px-[18px] py-2.5 relative rounded-[12px] shrink-0 hover:bg-[#1e89f4]/90 transition-colors"
-          onClick={handleRegister}
-        >
-          <div className="font-bold leading-none not-italic relative shrink-0 text-white text-[18px] text-nowrap tracking-[-0.45px]">
-            <p className="leading-normal whitespace-pre">OOTD 등록</p>
-          </div>
-        </button>
       </div>
 
-      {/* 피드 등록 모달 */}
-      <AddFeedModal 
-        open={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+      {/* OOTD 등록 모달 */}
+      <AddFeedModal
+        open={isAddFeedModalOpen}
+        onClose={() => setIsAddFeedModalOpen(false)}
         onCreated={setCreatedFeed}
+        fixedClothesIds={recommendations?.clothes.map(clothes => clothes.clothesId)}
       />
-      {/* 피드 상세 모달 */}
-      {
-        createdFeed &&
-          <FeedDetailModal
-              feed={createdFeed}
-              open={true}
-              onOpenChange={() => setCreatedFeed(undefined)}
-          />
-      }
-
+      {/* 등록한 OOTD 상세 모달 */}
+      {createdFeed && (
+        <FeedDetailModal
+          feed={createdFeed}
+          open={true}
+          onOpenChange={() => setCreatedFeed(undefined)}
+        />
+      )}
     </div>
   );
 }

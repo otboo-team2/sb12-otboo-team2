@@ -7,7 +7,7 @@ import { useFeedStore } from '@/lib/stores/useFeedStore';
 import { updateFeed, deleteFeed } from '@/lib/api/feeds';
 import type { FeedDto } from '@/lib/api/types';
 import FeedComments from './FeedComments';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import sunnyIcon from '@/assets/illust_logos/il_Sunny.svg';
 import overcastIcon from '@/assets/illust_logos/il_Overcast.svg';
 import cloudyIcon from '@/assets/illust_logos/il_cloudy.svg';
@@ -112,18 +112,18 @@ export default function FeedDetailRightSection({ feed, onDelete }: FeedDetailRig
           <div aria-hidden="true" className="absolute border-[#e7e7e9] border-[0px_0px_1px] border-solid inset-0 pointer-events-none" />
           <div className="content-stretch flex gap-1.5 items-start justify-start relative shrink-0">
             <div className="box-border content-stretch flex gap-2 items-center justify-start px-0 py-[3px] relative shrink-0">
-              <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-5">
+              <div className="bg-[#f1f4f8] relative rounded-[100px] shrink-0 size-5">
                 {feed.author.profileImageUrl ? (
                   <img 
                     src={feed.author.profileImageUrl} 
                     alt={feed.author.name} 
-                    className="w-full h-full rounded-[100px] object-cover"
+                    className="w-full h-full rounded-[100px] object-contain"
                   />
                 ) : (
                   <img 
                     src={profileIcon} 
                     alt={feed.author.name} 
-                    className="w-full h-full rounded-[100px] object-cover"
+                    className="w-full h-full rounded-[100px] object-contain"
                   />
                 )}
               </div>

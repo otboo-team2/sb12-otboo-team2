@@ -15,9 +15,9 @@ import ProfilePage from '@/pages/profile/page';
 import UserManagementPage from '@/pages/admin/users/page';
 import ClothesAttributeManagementPage from '@/pages/admin/clothes-attributes/page';
 import MyProfileSettingsPage from '@/pages/settings/page';
-import DmInboxPage from '@/pages/dm/page';
 import DmConversationPage from '@/pages/dm/conversation/page';
 import VirtualFittingPage from '@/pages/virtual-fitting/page';
+import VirtualFittingGuidePage from '@/pages/virtual-fitting/guide';
 import NotFoundPage from '@/pages/404/page';
 import CsrfInitializer from "@/components/auth/CsrfInitializer.tsx";
 
@@ -42,9 +42,9 @@ function App() {
           <Route index element={<Navigate to="/recommendations" replace />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="closet" element={<ClosetPage />} />
-          <Route path="virtual-fitting" element={<VirtualFittingPage />} />
+          <Route path="virtual-fitting" element={<VirtualFittingGuidePage />} />
+          <Route path="virtual-fitting/start" element={<VirtualFittingPage />} />
           <Route path="feeds" element={<FeedsPage />} />
-          <Route path="dm" element={<DmInboxPage />} />
           <Route path="dm/:userId" element={<DmConversationPage />} />
           <Route path="profiles" element={<ProfilePage />} />
           <Route path="admin/users" element={<UserManagementPage />} />

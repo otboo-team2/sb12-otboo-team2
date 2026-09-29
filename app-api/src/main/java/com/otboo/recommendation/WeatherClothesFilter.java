@@ -14,7 +14,7 @@ public class WeatherClothesFilter {
     private static final Map<String, TemperatureRange> WARMTH_RANGES = Map.of(
             "얇음", new TemperatureRange(18.0, 35.0),
             "보통", new TemperatureRange(10.0, 27.0),
-            "두꺼움", new TemperatureRange(-5.0, 15.0),
+            "두꺼움", new TemperatureRange(-5.0, 12.0),
             "매우 두꺼움", new TemperatureRange(Double.NEGATIVE_INFINITY, 5.0));
 
     public boolean isSuitable(WeatherDto weather, Integer temperatureSensitivity, ClothesType type) {
@@ -49,18 +49,15 @@ public class WeatherClothesFilter {
         int sensitivity = temperatureSensitivity == null
                 ? 3 : Math.clamp(temperatureSensitivity, 1, 5);
         double sensitivityOffset = (sensitivity - 3) * 0.5;
-        double perceivedTemperature = currentTemperature - sensitivityOffset;
-        if (perceivedTemperature >= HOT_TEMPERATURE
-                && (type == ClothesType.OUTER || type == ClothesType.SCARF)) {
+        double hotThreshold = HOT_TEMPERATURE + sensitivityOffset;
+        if (currentTemperature >= hotThreshold
+                && (type == ClothesType.OUTER || type == ClothesType.HAT)) {
             return false;
         }
 
         TemperatureRange range = warmth == null ? null : WARMTH_RANGES.get(warmth);
-        if (range != null && !range.includes(perceivedTemperature)) {
-            return false;
-        }
-
-        return true;
+        double perceivedTemperature = currentTemperature - sensitivityOffset;
+        return range == null || range.includes(perceivedTemperature);
     }
 
     double suitabilityDistance(Double currentTemperature, Integer temperatureSensitivity, String warmth) {

@@ -123,14 +123,27 @@ public class ClothesService {
             Boolean favorite,
             CursorRequest request
     ) {
+        return findAll(ownerId, typeEqual, favorite, null, request);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorResponse<ClothesDto> findAll(
+            UUID ownerId,
+            ClothesType typeEqual,
+            Boolean favorite,
+            String nameLike,
+            CursorRequest request
+    ) {
         CursorRequest normalizedRequest = normalizeListRequest(request);
         UUID cursorId = CursorCodec.asUuid(normalizedRequest.cursor());
+        String normalizedName = nameLike == null || nameLike.isBlank() ? null : nameLike.trim();
         long totalCount = clothesRepository.countByOwnerIdAndTypeAndFavorite(
-                ownerId, typeEqual, favorite);
+                ownerId, typeEqual, favorite, normalizedName);
         List<Clothes> clothes = clothesRepository.findAfterIdDescending(
                 ownerId,
                 typeEqual,
                 favorite,
+                normalizedName,
                 cursorId,
                 PageRequest.of(0, normalizedRequest.fetchSize()));
 

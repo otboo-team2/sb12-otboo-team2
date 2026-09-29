@@ -17,13 +17,10 @@ const CLOTHES_TYPES = [
   { label: '하의', value: 'BOTTOM' as ClothesType },
   { label: '원피스', value: 'DRESS' as ClothesType },
   { label: '아우터', value: 'OUTER' as ClothesType },
-  { label: '속옷', value: 'UNDERWEAR' as ClothesType },
   { label: '신발', value: 'SHOES' as ClothesType },
   { label: '악세서리', value: 'ACCESSORY' as ClothesType },
-  { label: '양말', value: 'SOCKS' as ClothesType },
   { label: '모자', value: 'HAT' as ClothesType },
   { label: '가방', value: 'BAG' as ClothesType },
-  { label: '스카프', value: 'SCARF' as ClothesType },
   { label: '기타', value: 'ETC' as ClothesType },
 ];
 
@@ -38,7 +35,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
   const { data: attributeDefs, fetchAll: fetchAttributes } = useClothesAttributeDefStore();
   const [loading, setLoading] = useState(false);
   const { selectedImage, imagePreview, handleImageChange, clearImage } = useImageUpload();
-  
+
   const [formData, setFormData] = useState({
     name: '',
     type: '' as ClothesType,
@@ -62,7 +59,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
         type: clothes.type,
         attributes: clothes.attributes
       });
-      
+
       // 기존 속성들을 selectedAttributes로 변환
       const existingAttributes: Record<string, string> = {};
       clothes.attributes.forEach(attr => {
@@ -71,7 +68,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
         }
       });
       setSelectedAttributes(existingAttributes);
-      
+
       clearImage();
     }
   }, [open, clothes, clearImage]);
@@ -98,7 +95,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
         type: formData.type,
         attributes: attributes
       }, selectedImage || undefined);
-      
+
       update(updatedClothes.id, updatedClothes);
       toast.success('옷이 성공적으로 수정되었습니다.');
       handleClose();
@@ -156,7 +153,7 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
                   </div>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="bg-blue-500 hover:bg-blue-600 box-border content-stretch flex flex-col gap-2 items-center justify-center mb-[-26px] overflow-clip px-3 py-1.5 relative rounded-[100px] shrink-0 transition-colors"
               >
@@ -216,9 +213,9 @@ export default function EditClothesModal({ open, onClose, clothes }: EditClothes
                       <div className="font-bold leading-none not-italic relative shrink-0 text-gray-500 text-[14px] tracking-[-0.35px] w-full">
                         <p className="leading-normal truncate">{attrDef.name}</p>
                       </div>
-                      <Select 
-                        value={selectedAttributes[attrDef.id] || ""} 
-                        onValueChange={(value) => 
+                      <Select
+                        value={selectedAttributes[attrDef.id] || ""}
+                        onValueChange={(value) =>
                           setSelectedAttributes(prev => ({ ...prev, [attrDef.id]: value }))
                         }
                       >

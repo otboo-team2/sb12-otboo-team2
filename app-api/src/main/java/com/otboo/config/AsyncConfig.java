@@ -1,5 +1,6 @@
 package com.otboo.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
@@ -11,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.concurrent.Executor;
 
+@Slf4j
 @EnableAsync
 @Configuration
 public class AsyncConfig implements AsyncConfigurer {
@@ -34,6 +36,23 @@ public class AsyncConfig implements AsyncConfigurer {
                 }
             };
         });
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * FASHN 요청은 한 건에 수 초~십수 초 걸린다(이미지 업로드). 알림용 eventTaskExecutor 와 섞이면
+     * 알림이 밀리므로 따로 둔다. 가득 차서 못 받은 job 은 PENDING 으로 남아 스케줄러가 줍는다.
+     */
+    @Bean(name = "fittingDispatchExecutor")
+    public TaskExecutor fittingDispatchExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("fitting-dispatch-");
+        executor.setRejectedExecutionHandler((task, pool) ->
+            log.warn("virtual_try_on_dispatch_rejected — 스케줄러가 이어서 처리한다"));
         executor.initialize();
         return executor;
     }
