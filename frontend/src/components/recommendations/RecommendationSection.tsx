@@ -14,7 +14,7 @@ export default function RecommendationSection() {
   const [isStyleModalOpen, setIsStyleModalOpen] = useState(false);
   const { selectedWeather } = useWeatherStore();
   const userId = useAuthStore((state) => state.data?.userDto.id);
-  const previousUserId = useRef(userId);
+  const previousUserId = useRef<string | undefined>(undefined);
   const {
     data: recommendations, params, updateParams, fetchAiRecommendation, loading, error,
     inputPrompt, setInputPrompt, clearData,
@@ -27,11 +27,14 @@ export default function RecommendationSection() {
   ];
 
   useEffect(() => {
-    if (previousUserId.current !== undefined && previousUserId.current !== userId) {
+    if (userId && previousUserId.current !== userId) {
       clearData();
+      if (selectedWeather?.id) {
+        updateParams({ weatherId: selectedWeather.id });
+      }
     }
     previousUserId.current = userId;
-  }, [userId, clearData]);
+  }, [userId, selectedWeather?.id, clearData, updateParams]);
 
   useEffect(() => {
     if (selectedWeather?.id && params.weatherId !== selectedWeather.id) {
