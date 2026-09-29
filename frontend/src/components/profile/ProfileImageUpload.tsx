@@ -1,6 +1,6 @@
 import {useState, useRef} from 'react';
 import { Button } from '@/components/ui/button';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 
 interface ProfileImageUploadProps {
   currentImageUrl?: string;
@@ -53,19 +53,19 @@ export default function ProfileImageUpload({
     <div className={`flex flex-col items-center ${className}`}>
       <div className="relative w-[100px] flex flex-col items-end pb-[27px]">
         {/* 프로필 이미지 */}
-        <div className="aspect-square bg-[var(--color-gray-400)] rounded-full w-full overflow-hidden border border-[var(--color-gray-300)] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)] mb-[-27px]">
+        <div className="aspect-square bg-[#f1f4f8] rounded-full w-full overflow-hidden border border-[var(--color-gray-300)] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)] mb-[-27px]">
           {currentImageUrl && !imageError ? (
             <img
               src={currentImageUrl}
               alt={name || '프로필'}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={handleImageError}
             />
           ) : (
             <img
               src={profileIcon}
               alt={name || '프로필'}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           )}
         </div>

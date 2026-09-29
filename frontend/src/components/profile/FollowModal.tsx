@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Dialog, DialogContent} from '@/components/ui/dialog';
-import profileIcon from '@/assets/icons/profile.svg';
+import profileIcon from '@/assets/profile/default-profile.png';
 import searchIcon from '@/assets/icons/ic_search.svg';
 import {useFollowerStore} from '@/lib/stores/useFollowerStore';
 import {useFollowingStore} from '@/lib/stores/useFollowingStore';
@@ -147,18 +147,18 @@ export default function FollowModal({ open, onOpenChange, type, targetUserId }: 
                       <div key={follow.id} className="flex gap-3 items-center justify-between py-3">
                         <div className="flex gap-3 items-center flex-1">
                           {/* 프로필 이미지 */}
-                          <div className="bg-[#a9a9b1] relative rounded-[100px] shrink-0 size-[40px] overflow-hidden">
+                          <div className="bg-[#f1f4f8] relative rounded-[100px] shrink-0 size-[40px] overflow-hidden">
                             {user.profileImageUrl ? (
                               <img 
                                 src={user.profileImageUrl} 
                                 alt={user.name} 
-                                className="w-full h-full object-cover rounded-[100px]"
+                                className="w-full h-full object-contain rounded-[100px]"
                               />
                             ) : (
                               <img 
                                 src={profileIcon} 
                                 alt={user.name} 
-                                className="w-full h-full object-cover rounded-[100px]"
+                                className="w-full h-full object-contain rounded-[100px]"
                               />
                             )}
                             <div aria-hidden="true" className="absolute border-[#a9a9b1] border-[1.5px] border-solid inset-0 pointer-events-none rounded-[100px] shadow-[0px_2px_4px_0px_rgba(55,55,64,0.03)]" />
