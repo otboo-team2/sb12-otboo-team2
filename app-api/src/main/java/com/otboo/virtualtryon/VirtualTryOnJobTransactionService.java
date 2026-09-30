@@ -19,6 +19,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.otboo.virtualtryon.util.VirtualTryOnPrompt;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -75,7 +77,7 @@ public class VirtualTryOnJobTransactionService {
         String modelImage = imageStorage.readAsDataUri(job.getModelImageKey());
         Clothes product = getProductClothes(job, job.getCurrentStep());
         String productImage = imageStorage.readAsDataUri(product.getImageUrl());
-        return new DispatchTarget(modelImage, productImage);
+        return new DispatchTarget(modelImage, productImage, VirtualTryOnPrompt.forType(product.getType()));
     }
 
     /** FASHN에 요청을 보낸 직후, 받은 prediction id를 저장하고 상태를 PROCESSING으로 바꾼다. */
@@ -199,8 +201,8 @@ public class VirtualTryOnJobTransactionService {
         };
     }
 
-    /** FASHN 요청에 필요한 모델 이미지 + 상품 이미지 쌍. */
-    public record DispatchTarget(String modelImage, String productImage) {}
+    /** FASHN 요청에 필요한 모델 이미지 + 상품 이미지 + 이번 단계 의상만 입히라는 프롬프트. */
+    public record DispatchTarget(String modelImage, String productImage, String prompt) {}
 
     /** 폴링에 필요한 job 생성 시각 + FASHN prediction id. */
     public record PollTarget(Instant createdAt, String predictionId) {}
