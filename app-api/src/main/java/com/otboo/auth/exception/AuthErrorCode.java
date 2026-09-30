@@ -21,8 +21,6 @@ public enum AuthErrorCode implements ErrorCode {
     PASSWORD_HASH_BUSY("AUTH_120", HttpStatus.SERVICE_UNAVAILABLE, "요청이 몰리고 있습니다. 잠시 후 다시 시도해주세요."),
 
     // 400 — 소셜 로그인. 메시지가 그대로 로그인 화면에 뜨므로 사용자가 뭘 해야 하는지 적는다.
-    OAUTH_EMAIL_REQUIRED("AUTH_001", HttpStatus.BAD_REQUEST,
-            "이메일 제공에 동의해야 가입할 수 있습니다. 다시 시도해주세요."),
     OAUTH_EMAIL_ALREADY_REGISTERED("AUTH_002", HttpStatus.BAD_REQUEST,
             "이미 가입된 이메일입니다. 비밀번호로 로그인해주세요."),
     OAUTH_PROVIDER_ID_MISSING("AUTH_003", HttpStatus.BAD_REQUEST,
