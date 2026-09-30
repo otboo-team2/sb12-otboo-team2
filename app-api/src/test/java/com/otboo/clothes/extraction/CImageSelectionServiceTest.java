@@ -8,6 +8,9 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.otboo.clothes.extraction.TextRegionDetector.TextBox;
 import com.otboo.clothes.extraction.TextRegionDetector.TextDetectionResult;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -28,6 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.LoggerFactory;
 
 class CImageSelectionServiceTest {
 
@@ -44,6 +48,8 @@ class CImageSelectionServiceTest {
     private CImageAnalysisExecutor analysisExecutor;
     private CImageSelectionService service;
     private SimpleMeterRegistry meterRegistry;
+    private Logger logger;
+    private ListAppender<ILoggingEvent> logAppender;
 
     @BeforeEach
     void setUp() {
@@ -72,10 +78,16 @@ class CImageSelectionServiceTest {
                 properties,
                 clothesProperties,
                 new ClothesExtractionMetrics(meterRegistry));
+        logger = (Logger) LoggerFactory.getLogger(CImageSelectionService.class);
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        logger.addAppender(logAppender);
     }
 
     @AfterEach
     void tearDown() throws Exception {
+        logger.detachAppender(logAppender);
+        logAppender.stop();
         analysisExecutor.close();
         mocks.close();
     }
@@ -158,6 +170,31 @@ class CImageSelectionServiceTest {
         assertThat(result.downloadFailures()).hasSize(1);
         assertThat(result.images()).hasSize(2);
         verify(remoteResourceClient).getImage(detailUrl(3));
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message)
+                        .contains("c_image_selection_completed discovered_count=8 downloaded_count=7"));
+    }
+
+    @Test
+    void logsSelectedCandidateIndexesWithoutRemoteImageData() throws Exception {
+        ProductPageData page = pageWithDetails(8);
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
+        given(featureScorer.score(any(CImageCandidate.class)))
+                .willAnswer(invocation -> score(invocation.getArgument(0)));
+
+        service.selectDetails(page, Set.of(IMAGE_URL), 10_000);
+
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> {
+                    assertThat(message).contains(
+                            "c_image_selection_completed discovered_count=8 "
+                                    + "downloaded_count=8 selector_count=8 db18_count=2 "
+                                    + "failed_download_count=0 selected_candidate_indexes=[1, 7]");
+                    assertThat(message).doesNotContain("cdn.example.com");
+                });
     }
 
     @Test
@@ -188,31 +225,27 @@ class CImageSelectionServiceTest {
     }
 
     @Test
-    void failsInsteadOfFallingBackWhenDownloadedCandidatesAreAllFilteredOut() throws Exception {
+    void continuesWithoutDetailImagesWhenDownloadedCandidatesAreAllFilteredOut() throws Exception {
         ProductPageData page = pageWithDetails(1);
         given(remoteResourceClient.getImage(any(URI.class)))
                 .willAnswer(invocation -> resource(invocation.getArgument(0)));
         given(featureScorer.score(any(CImageCandidate.class)))
                 .willAnswer(invocation -> score(invocation.getArgument(0)));
 
-        assertThatThrownBy(() -> service.selectDetails(page, Set.of(IMAGE_URL), 10_000))
-                .isInstanceOfSatisfying(CImageAnalysisException.class, exception ->
-                        assertThat(exception.reason())
-                                .isEqualTo(CImageAnalysisException.Reason.ANALYSIS_ERROR));
+        CImageSelectionResult result = service.selectDetails(page, Set.of(IMAGE_URL), 10_000);
+
+        assertThat(result.selectedCandidateIndexes()).isEmpty();
+        assertThat(result.images()).isEmpty();
         assertThat(meterRegistry.get("otboo_clothes_extraction_stage")
                 .tag("shop", "other")
                 .tag("mode", "c")
                 .tag("stage", "db18")
-                .tag("outcome", "error")
+                .tag("outcome", "partial")
                 .timer()
                 .count()).isEqualTo(1);
-        assertThat(meterRegistry.get("otboo_clothes_extraction_stage_failures")
-                .tag("shop", "other")
-                .tag("mode", "c")
-                .tag("stage", "db18")
-                .tag("reason", "model_error")
-                .counter()
-                .count()).isEqualTo(1);
+        assertThat(meterRegistry.getMeters())
+                .noneMatch(meter -> meter.getId().getName()
+                        .equals("otboo_clothes_extraction_stage_failures"));
     }
 
     @Test

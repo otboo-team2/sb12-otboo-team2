@@ -112,12 +112,18 @@ public class ProductPageExtractor {
             throw new BusinessException(ClothesErrorCode.PRODUCT_DATA_NOT_FOUND);
         }
 
-        LinkedHashSet<URI> mergedDetailImages = new LinkedHashSet<>();
-        mergedDetailImages.addAll(supplementalDetailImages);
-        mergedDetailImages.addAll(imageCandidates);
-        mergedDetailImages.remove(primaryImage);
-        mergedDetailImages.remove(genericPrimaryImage);
-        List<URI> detailImages = capDiscoveredImageCandidates(List.copyOf(mergedDetailImages));
+        LinkedHashSet<URI> detailCandidates = new LinkedHashSet<>(supplementalDetailImages);
+        for (URI imageCandidate : imageCandidates) {
+            if (!supplementalDetailImages.isEmpty()
+                    && (isLikelyThumbnail(imageCandidate)
+                    || isLikelySiteAsset(imageCandidate))) {
+                continue;
+            }
+            detailCandidates.add(imageCandidate);
+        }
+        detailCandidates.remove(primaryImage);
+        detailCandidates.remove(genericPrimaryImage);
+        List<URI> detailImages = capDiscoveredImageCandidates(List.copyOf(detailCandidates));
         return new ProductPageData(
                 resource.finalUri(),
                 name,
@@ -251,9 +257,10 @@ public class ProductPageExtractor {
                 continue;
             }
             List<String> rawSources = new ArrayList<>();
-            rawSources.add(imageElement.attr("src"));
+            rawSources.add(imageElement.attr("data-original"));
             rawSources.add(imageElement.attr("data-src"));
-            rawSources.add(firstSrcsetCandidate(imageElement.attr("srcset")));
+            rawSources.add(largestSrcsetCandidate(imageElement.attr("srcset")));
+            rawSources.add(imageElement.attr("src"));
             for (String rawSource : rawSources) {
                 URI image = resolveImage(rawSource, baseUri);
                 if (image != null
@@ -291,6 +298,54 @@ public class ProductPageExtractor {
         return DECOY_KEYWORDS.stream().anyMatch(normalized::contains);
     }
 
+    private boolean isLikelyThumbnail(URI imageUri) {
+        String path = imageUri.getPath() == null
+                ? ""
+                : imageUri.getPath().toLowerCase(Locale.ROOT);
+        if (path.contains("/thumbnail")
+                || path.contains("/thumb/")
+                || path.contains("/thumb_")
+                || path.contains("_thumb")) {
+            return true;
+        }
+
+        String query = imageUri.getQuery();
+        if (query == null || query.isBlank()) {
+            return false;
+        }
+        for (String parameter : query.split("&")) {
+            int separator = parameter.indexOf('=');
+            String name = separator < 0 ? parameter : parameter.substring(0, separator);
+            String normalizedName = name.toLowerCase(Locale.ROOT);
+            if (normalizedName.equals("w")
+                    || normalizedName.equals("width")
+                    || normalizedName.equals("h")
+                    || normalizedName.equals("height")
+                    || normalizedName.equals("size")
+                    || normalizedName.equals("resize")
+                    || normalizedName.equals("fit")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isLikelySiteAsset(URI imageUri) {
+        String host = imageUri.getHost() == null
+                ? ""
+                : imageUri.getHost().toLowerCase(Locale.ROOT);
+        if (!host.endsWith("msscdn.net")) {
+            return false;
+        }
+        String path = imageUri.getPath() == null
+                ? ""
+                : imageUri.getPath().toLowerCase(Locale.ROOT);
+        return path.contains("/display/images/common/")
+                || path.contains("/musinsaui/")
+                || path.contains("/mfile_s01/")
+                || path.contains("/static/");
+    }
+
     private boolean isTiny(Element imageElement) {
         return isBelowMinimum(imageElement.attr("width"))
                 || isBelowMinimum(imageElement.attr("height"));
@@ -307,15 +362,45 @@ public class ProductPageExtractor {
         }
     }
 
-    private String firstSrcsetCandidate(String srcset) {
+    private String largestSrcsetCandidate(String srcset) {
         if (isBlank(srcset)) {
             return null;
         }
-        String firstCandidate = srcset.split(",", 2)[0].trim();
-        if (firstCandidate.isEmpty()) {
-            return null;
+
+        String firstSource = null;
+        String largestSource = null;
+        double largestSize = -1;
+        for (String candidate : srcset.split(",")) {
+            String[] parts = candidate.trim().split("\\s+", 2);
+            if (parts.length == 0 || parts[0].isBlank()) {
+                continue;
+            }
+            if (firstSource == null) {
+                firstSource = parts[0];
+            }
+            if (parts.length < 2) {
+                continue;
+            }
+
+            double size = srcsetSize(parts[1]);
+            if (size > largestSize) {
+                largestSource = parts[0];
+                largestSize = size;
+            }
         }
-        return firstCandidate.split("\\s+", 2)[0];
+        return largestSource == null ? firstSource : largestSource;
+    }
+
+    private double srcsetSize(String descriptor) {
+        String normalized = descriptor.trim().toLowerCase(Locale.ROOT);
+        if (normalized.endsWith("w") || normalized.endsWith("x")) {
+            try {
+                return Double.parseDouble(normalized.substring(0, normalized.length() - 1));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private URI resolveImage(String rawSource, URI baseUri) {
