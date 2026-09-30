@@ -15,6 +15,8 @@ import com.otboo.notification.entity.NotificationLevel;
 import com.otboo.user.entity.User;
 import com.otboo.user.exception.UserErrorCode;
 import com.otboo.user.repository.UserRepository;
+
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -42,14 +44,14 @@ public class NotificationEventListener {
         Slice<UUID> slice;
         do {
             slice = userRepository.findAllIds(pageable);
-            for (UUID userId : slice.getContent()) {
-                User receiver = userRepository.getReferenceById(userId);
-                notificationService.create(
-                    receiver, null, event.type(), event.definitionId().toString(),
-                    "새 의상 속성",
-                    "\"" + event.attributeName() + "\" 속성이 추가됐습니다.",
-                    NotificationLevel.INFO);
-            }
+            List<User> receivers = slice.getContent().stream()
+                .map(userRepository::getReferenceById)
+                .toList();
+            notificationService.createAll(
+                receivers, null, event.type(), event.definitionId().toString(),
+                "새 의상 속성",
+                "\"" + event.attributeName() + "\" 속성이 추가됐습니다.",
+                NotificationLevel.INFO);
             pageable = slice.nextPageable();
         } while (slice.hasNext());
     }
@@ -135,14 +137,14 @@ public class NotificationEventListener {
         Slice<UUID> slice;
         do {
             slice = followRepository.findFollowerIdsByFolloweeId(event.authorId(), pageable);
-            for (UUID followerId : slice.getContent()) {
-                User receiver = userRepository.getReferenceById(followerId);
-                notificationService.create(
-                    receiver, author, event.type(), event.feedId().toString(),
-                    "새 피드",
-                    author.getName() + "님이 새 피드를 올렸습니다.",
-                    NotificationLevel.INFO);
-            }
+            List<User> receivers = slice.getContent().stream()
+                .map(userRepository::getReferenceById)
+                .toList();
+            notificationService.createAll(
+                receivers, author, event.type(), event.feedId().toString(),
+                "새 피드",
+                author.getName() + "님이 새 피드를 올렸습니다.",
+                NotificationLevel.INFO);
             pageable = slice.nextPageable();
         } while (slice.hasNext());
     }
