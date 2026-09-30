@@ -5,6 +5,7 @@ import { useActiveDmStore } from '@/lib/stores/useActiveDmStore';
 import { readNotification } from '@/lib/api/notifications.ts';
 import { NotificationList } from './NotificationList.tsx';
 import bellIcon from '@/assets/icons/ic_bell.svg';
+import { useFittingStore } from '@/lib/stores/useFittingStore';
 import { useSseStore } from "@/lib/stores/sseStore.ts";
 import type { NotificationDto } from "@/lib/api";
 
@@ -33,6 +34,9 @@ export default function NotificationIcon() {
             subscribe('notifications', (notification: NotificationDto) => {
                 if (notification.type === 'DM_RECEIVED') {
                     useDmConversationStore.getState().fetch();
+                }
+                if (notification.type === 'VIRTUAL_TRY_ON_COMPLETED' && notification.relatedEntityId) {
+                    useFittingStore.getState().refresh(notification.relatedEntityId);
                 }
 
                 const isCurrentlyViewingThisChat =

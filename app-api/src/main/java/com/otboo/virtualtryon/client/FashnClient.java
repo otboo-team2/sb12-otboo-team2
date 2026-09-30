@@ -23,8 +23,8 @@ public class FashnClient {
             : webhookBaseUrl + "/api/fittings/webhook/" + webhookToken;
     }
 
-    public String predict(String modelImage, String productImage) {
-        FashnRunRequest body = FashnRunRequest.of(modelImage, productImage);
+    public String predict(String modelImage, String productImage, String prompt) {
+        FashnRunRequest body = FashnRunRequest.of(modelImage, productImage, prompt);
         if (webhookUrl == null) {
             return api.post("/v1/run", body, FashnRunResponse.class).id();
         }
