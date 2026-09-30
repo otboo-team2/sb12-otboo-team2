@@ -1,8 +1,12 @@
 import { create } from 'zustand';
 import { getFittingJob } from '@/lib/api/fittings';
 import type { VirtualTryOnJobDto } from '@/lib/api/types';
+import { useSseStore } from '@/lib/stores/sseStore';
 
-const POLL_INTERVAL_MS = 4000;
+// 완료는 SSE 알림(VIRTUAL_TRY_ON_COMPLETED)으로 받는다.
+// SSE 가 연결돼 있으면 폴링은 알림을 놓쳤을 때를 위한 안전장치라 느리게, 끊겨 있으면 예전처럼 빠르게 돈다.
+const TICK_MS = 4000;
+const SLOW_POLL_MS = 30000;
 const MAX_POLL_DURATION_MS = 11 * 60 * 1000;
 const STORAGE_KEY = 'otboo:virtual-fitting:job';
 
@@ -57,10 +61,12 @@ interface FittingState {
     start: (job: VirtualTryOnJobDto) => void;
     resume: () => void;
     reset: () => void;
+    refresh: (jobId: string) => void;
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let startedAt = 0;
+let lastFetchedAt = 0;
 let generation = 0;
 
 export const useFittingStore = create<FittingState>((set, get) => {
@@ -80,9 +86,18 @@ export const useFittingStore = create<FittingState>((set, get) => {
         }
     };
 
+    const applyLatest = (latest: VirtualTryOnJobDto) => {
+        set({ job: latest });
+        if (isTerminal(latest.status)) {
+            stopPolling();
+            if (!keepsAfterFinish(latest.status)) clearStoredJob();
+        }
+    };
+
     const beginPolling = (jobId: string) => {
         if (intervalId) clearInterval(intervalId);
         const myGeneration = generation;
+        lastFetchedAt = Date.now();
         set({ polling: true });
 
         intervalId = setInterval(async () => {
@@ -95,15 +110,15 @@ export const useFittingStore = create<FittingState>((set, get) => {
                 return;
             }
 
+            // SSE 로 완료 알림을 받을 수 있으면 30초에 한 번만 확인한다
+            const sseConnected = useSseStore.getState().isConnected;
+            if (sseConnected && Date.now() - lastFetchedAt < SLOW_POLL_MS) return;
+            lastFetchedAt = Date.now();
+
             try {
                 const latest = await getFittingJob(jobId);
                 if (myGeneration !== generation) return;
-
-                set({ job: latest });
-                if (isTerminal(latest.status)) {
-                    stopPolling();
-                    if (!keepsAfterFinish(latest.status)) clearStoredJob();
-                }
+                applyLatest(latest);
             } catch (error) {
                 if (myGeneration !== generation) return;
 
@@ -112,7 +127,7 @@ export const useFittingStore = create<FittingState>((set, get) => {
                 clearStoredJob();
                 failCurrent(POLL_ERROR_MESSAGE);
             }
-        }, POLL_INTERVAL_MS);
+        }, TICK_MS);
     };
 
     return {
@@ -174,6 +189,23 @@ export const useFittingStore = create<FittingState>((set, get) => {
             stopPolling();
             clearStoredJob();
             set({ job: null });
+        },
+
+        // SSE 로 완료 알림이 오면 호출된다. 지금 진행 중인 job 일 때만 한 번 조회해서 반영한다.
+        refresh: (jobId) => {
+            const current = get().job;
+            if (!current || current.jobId !== jobId || isTerminal(current.status)) return;
+
+            const myGeneration = generation;
+            getFittingJob(jobId)
+                .then((latest) => {
+                    if (myGeneration !== generation) return;
+                    applyLatest(latest);
+                })
+                .catch((error) => {
+                    // 실패해도 안전장치 폴링이 이어서 확인한다
+                    console.error('가상피팅 결과 조회 실패:', error);
+                });
         },
     };
 });

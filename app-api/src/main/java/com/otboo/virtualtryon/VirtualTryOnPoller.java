@@ -48,7 +48,7 @@ public class VirtualTryOnPoller {
 
     private void dispatch(UUID jobId) {
         DispatchTarget target = transactionService.loadDispatchTarget(jobId);
-        String predictionId = fashnClient.predict(target.modelImage(), target.productImage());
+        String predictionId = fashnClient.predict(target.modelImage(), target.productImage(), target.prompt());
         transactionService.markRequested(jobId, predictionId);
     }
 
