@@ -17,11 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 소셜 로그인으로 들어온 사람을 우리 계정에 연결한다.
  *
- * <h2>결정 1 — 이메일이 없으면 가입시키지 않는다</h2>
- * {@code users.email} 이 {@code NOT NULL UNIQUE} 인데 <b>카카오는 이메일이 선택 동의</b>라
- * 동의하지 않으면 오지 않는다. 대체 이메일({@code kakao_123@otboo.local})을 만들어 넣으면
- * 스키마는 지켜지지만 존재하지 않는 주소가 DB 에 쌓이고, 나중에 비밀번호 찾기·알림 메일이
- * 전부 걸림돌이 된다. 그래서 받지 않고 돌려보낸다.
+ * <h2>결정 1 — 이메일이 없으면 배달되지 않는 대체 주소로 가입시킨다</h2>
+ * {@code users.email} 이 {@code NOT NULL UNIQUE} 인데 카카오 이메일은 비즈 앱이어야 받을 수 있고,
+ * 이 앱은 비즈 앱 전환이 안 된다(9/30). 그래서 카카오는 닉네임만 받는다.
+ *
+ * <p>처음엔 "대체 주소가 DB 에 쌓이면 메일 발송이 걸림돌"이라며 이메일 없는 가입을 막았다. 그대로 두면
+ * 카카오 로그인 자체가 불가능해서 뒤집었다. 대신 대체 주소는 {@code kakao_{id}@users.invalid} 로 만든다 —
+ * {@code .invalid} 는 RFC 2606 예약 도메인이라 <b>어디로도 배달되지 않는다.</b> 실수로 발송해도 남의
+ * 주소로 새지 않고, 주소만 봐도 "진짜 메일이 아님"이 드러난다. 이메일이 없으니 기존 계정 연결은 하지 않는다.
  *
  * <h2>결정 2 — 이미 가입된 이메일은 구글만 자동 연결한다</h2>
  * {@code me@gmail.com} 으로 일반 가입한 계정이 있는데 같은 이메일로 소셜 로그인을 하면?
@@ -39,6 +42,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class OAuthLoginService {
+
+    static final String PLACEHOLDER_EMAIL_DOMAIN = "users.invalid";
 
     private final UserRepository userRepository;
     private final UserOAuthAccountRepository oauthAccountRepository;
@@ -66,14 +71,18 @@ public class OAuthLoginService {
     private User linkOrCreate(OAuthProvider provider, OAuthAttributes attributes) {
         String email = attributes.email();
         if (email == null || email.isBlank()) {
-            throw new BusinessException(AuthErrorCode.OAUTH_EMAIL_REQUIRED)
-                    .addDetail("provider", provider.code());
+            return createUser(provider, attributes, placeholderEmail(provider, attributes.providerUserId()));
         }
         String normalizedEmail = email.trim().toLowerCase();
 
         return userRepository.findByEmail(normalizedEmail)
                 .map(existing -> linkToExisting(provider, attributes, existing))
                 .orElseGet(() -> createUser(provider, attributes, normalizedEmail));
+    }
+
+    /** 배달되지 않는 대체 주소. 제공자 식별자가 들어가 사람마다 다르다 */
+    static String placeholderEmail(OAuthProvider provider, String providerUserId) {
+        return provider.code() + "_" + providerUserId + "@" + PLACEHOLDER_EMAIL_DOMAIN;
     }
 
     /** 이미 있는 계정에 소셜을 붙인다. 제공자가 이메일 소유를 보증할 때만 허용한다. */
