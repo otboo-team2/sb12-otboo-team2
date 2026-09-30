@@ -40,7 +40,8 @@ public class MusinsaEmbeddedDataExtractor implements ProductPageSupplementExtrac
         }
 
         try {
-            JsonNode product = objectMapper.readTree(nextData.data()).at(PRODUCT_DATA_PATH);
+            JsonNode nextDataRoot = objectMapper.readTree(nextData.data());
+            JsonNode product = findProductData(nextDataRoot);
             if (!product.isObject()) {
                 return ProductPageSupplement.empty();
             }
@@ -58,6 +59,33 @@ public class MusinsaEmbeddedDataExtractor implements ProductPageSupplementExtrac
         } catch (JsonProcessingException ignored) {
             return ProductPageSupplement.empty();
         }
+    }
+
+    private JsonNode findProductData(JsonNode nextDataRoot) {
+        JsonNode legacyProduct = nextDataRoot.at(PRODUCT_DATA_PATH);
+        if (looksLikeProductData(legacyProduct)) {
+            return legacyProduct;
+        }
+
+        JsonNode queries = nextDataRoot.at(
+                "/props/pageProps/dehydratedState/queries");
+        if (queries.isArray()) {
+            for (JsonNode query : queries) {
+                JsonNode dehydratedProduct = query.at("/state/data/data");
+                if (looksLikeProductData(dehydratedProduct)) {
+                    return dehydratedProduct;
+                }
+            }
+        }
+        return legacyProduct;
+    }
+
+    private boolean looksLikeProductData(JsonNode node) {
+        return node.isObject()
+                && (node.has("goodsContents")
+                || node.has("goodsMaterial")
+                || node.has("goodsImages")
+                || node.has("mdOpinion"));
     }
 
     private void collectDetailImageFields(

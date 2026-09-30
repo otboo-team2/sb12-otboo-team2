@@ -9,6 +9,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -20,6 +22,8 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
 
     private static final String TWENTY_NINE_CM_HOST = "29cm.co.kr";
     private static final String FLIGHT_DATA_PREFIX = "self.__next_f.push(";
+    private static final Pattern FLIGHT_IMAGE_URL_PATTERN = Pattern.compile(
+            "\\\"imageUrl\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
     private static final List<String> DECOY_KEYWORDS = List.of("notice", "banner");
 
     private final ObjectMapper objectMapper;
@@ -108,6 +112,7 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
         if (fragment == null || fragment.isBlank()) {
             return;
         }
+        collectImageUrlsFromFlightFragment(fragment, baseUri, images);
         Document detailDocument = Jsoup.parseBodyFragment(fragment, baseUri.toString());
         if (detailDocument.body() == null || detailDocument.body().children().isEmpty()) {
             return;
@@ -122,6 +127,20 @@ public class TwentyNineCmEmbeddedDataExtractor implements ProductPageSupplementE
                     ? image.attr("data-image-url")
                     : firstNonBlank(image.attr("src"), image.attr("data-src"));
             URI resolved = resolveTwentyNineCmImage(source, baseUri);
+            if (resolved != null && !containsDecoyKeyword(resolved)) {
+                images.add(resolved);
+            }
+        }
+    }
+
+    private void collectImageUrlsFromFlightFragment(
+            String fragment,
+            URI baseUri,
+            Set<URI> images
+    ) {
+        Matcher matcher = FLIGHT_IMAGE_URL_PATTERN.matcher(fragment);
+        while (matcher.find()) {
+            URI resolved = resolveTwentyNineCmImage(matcher.group(1), baseUri);
             if (resolved != null && !containsDecoyKeyword(resolved)) {
                 images.add(resolved);
             }
