@@ -49,8 +49,9 @@ class VirtualTryOnPollerTest {
         void dispatchesClaimedJob() {
             UUID jobId = UUID.randomUUID();
             given(transactionService.claimPendingJobs(10)).willReturn(List.of(jobId));
-            given(transactionService.loadDispatchTarget(jobId)).willReturn(new DispatchTarget("model", "product"));
-            given(fashnClient.predict("model", "product")).willReturn("prediction-1");
+            given(transactionService.loadDispatchTarget(jobId))
+                .willReturn(new DispatchTarget("model", "product", "prompt"));
+            given(fashnClient.predict("model", "product", "prompt")).willReturn("prediction-1");
 
             poller.dispatchPendingJobs();
 
@@ -74,8 +75,9 @@ class VirtualTryOnPollerTest {
         void dispatchesNowWhenClaimed() {
             UUID jobId = UUID.randomUUID();
             given(transactionService.claimJob(jobId)).willReturn(true);
-            given(transactionService.loadDispatchTarget(jobId)).willReturn(new DispatchTarget("model", "product"));
-            given(fashnClient.predict("model", "product")).willReturn("prediction-1");
+            given(transactionService.loadDispatchTarget(jobId))
+                .willReturn(new DispatchTarget("model", "product", "prompt"));
+            given(fashnClient.predict("model", "product", "prompt")).willReturn("prediction-1");
 
             poller.dispatchNow(jobId);
 
@@ -91,7 +93,7 @@ class VirtualTryOnPollerTest {
             poller.dispatchNow(jobId);
 
             verify(transactionService, never()).loadDispatchTarget(jobId);
-            verify(fashnClient, never()).predict(anyString(), anyString());
+            verify(fashnClient, never()).predict(anyString(), anyString(), anyString());
         }
     }
 
