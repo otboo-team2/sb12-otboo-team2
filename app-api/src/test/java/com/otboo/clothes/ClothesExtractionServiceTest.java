@@ -134,6 +134,33 @@ class ClothesExtractionServiceTest {
     }
 
     @Test
+    void cModeContinuesWithPageTextAndPrimaryImageWhenNoDetailImageSurvivesDb18() {
+        service = createService(withMode(CImageSelectionProperties.Mode.C));
+        ProductPageData page = pageWithDetails(8);
+        given(productUrlValidator.validate(RAW_URL)).willReturn(PRODUCT_URL);
+        given(productPageExtractor.extract(PRODUCT_URL)).willReturn(page);
+        given(remoteResourceClient.getImage(PRIMARY_URL)).willReturn(resource(PRIMARY_URL));
+        given(cImageSelectionServiceProvider.getIfAvailable()).willReturn(cImageSelectionService);
+        given(cImageSelectionService.selectDetails(any(), any(), org.mockito.ArgumentMatchers.anyLong()))
+                .willReturn(new CImageSelectionResult(
+                        List.of(), List.of(), List.of(), 8, 8, 0, 16,
+                        Duration.ZERO, Duration.ZERO));
+        given(definitionRepository.findAll(any(Sort.class))).willReturn(List.of());
+        given(geminiClient.extract(any(), anyList(), anyList()))
+                .willReturn(new GeminiExtractionCandidate("상품", "TOP", List.of(), List.of()));
+        ClothesExtractionDto expected = new ClothesExtractionDto(
+                "상품", null, List.of(), PRIMARY_URL.toString(), List.of());
+        given(extractionValidator.validate(any(), any(), anyList(), anyString())).willReturn(expected);
+
+        ClothesExtractionDto result = service.extract(RAW_URL);
+
+        assertThat(result).isSameAs(expected);
+        verify(geminiClient).extract(any(), org.mockito.ArgumentMatchers.argThat(images ->
+                images.size() == 1
+                        && images.getFirst().finalUri().equals(PRIMARY_URL)), anyList());
+    }
+
+    @Test
     void cModeDoesNotRunB0OrGeminiWhenAnalysisFails() {
         service = createService(withMode(CImageSelectionProperties.Mode.C));
         given(productUrlValidator.validate(RAW_URL)).willReturn(PRODUCT_URL);
