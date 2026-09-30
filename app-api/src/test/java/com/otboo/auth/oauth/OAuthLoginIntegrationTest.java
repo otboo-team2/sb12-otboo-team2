@@ -158,17 +158,19 @@ class OAuthLoginIntegrationTest extends IntegrationTestSupport {
     class EmailRules {
 
         @Test
-        @DisplayName("이메일이 없으면 가입시키지 않는다 — 카카오 선택 동의 대응")
-        void 이메일이_없으면_거부() {
+        @DisplayName("이메일이 없으면 배달되지 않는 대체 주소로 가입시킨다 — 카카오는 닉네임만 받는다")
+        void 이메일이_없으면_대체_주소() {
             OAuthAttributes noEmail = OAuthAttributes.of(OAuthProvider.KAKAO, Map.of(
                     "id", "k-1", "kakao_account", Map.of("profile", Map.of("nickname", "카카오"))));
 
-            assertThatThrownBy(() -> oauthLoginService.login(OAuthProvider.KAKAO, noEmail))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting(e -> ((BusinessException) e).getErrorCode())
-                    .isEqualTo(AuthErrorCode.OAUTH_EMAIL_REQUIRED);
+            User first = oauthLoginService.login(OAuthProvider.KAKAO, noEmail);
+            User second = oauthLoginService.login(OAuthProvider.KAKAO, noEmail);
 
-            assertThat(userRepository.count()).isZero();
+            assertThat(first.getEmail()).isEqualTo("kakao_k-1@users.invalid");
+            assertThat(first.getName()).isEqualTo("카카오");
+            assertThat(second.getId()).isEqualTo(first.getId()); // 다음 로그인은 제공자 식별자로 찾는다
+            assertThat(userRepository.count()).isEqualTo(1);
+            assertThat(profileRepository.count()).isEqualTo(1);
         }
     }
 
