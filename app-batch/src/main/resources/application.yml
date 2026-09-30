@@ -35,14 +35,30 @@ otboo:
   # ─────────── Pinterest 코디 핀 ───────────
   # 추천은 Pinterest 를 실시간으로 부르지 않는다. 배치가 아래 보드의 핀을 pinterest_pins 로 옮기고,
   # 추천은 그 테이블에서 검색한다. 토큰이 비어 있어도 앱은 뜬다(호출할 때만 실패).
+  #
+  # 실행: 기동만으로는 돌지 않는다. 잡 이름을 줘야 한다.
+  #   --spring.batch.job.name=pinterestSyncJob
+  # 정상이면 로그 끝에 이 줄이 남는다. not_searchable 이 0 이 아니면 태그가 빠졌거나 틀린 핀이 있다.
+  #   Finished Pinterest sync. fetched=.., upserted=.., skipped=.., not_searchable=0, failed_boards=0
+  # 실행 전 점검: scripts/pinterest-check.sh (토큰이 있다 ≠ API 가 열려 있다)
+  #
+  # 태그: 핀이 추천에 나오려면 temp · sky · style · gender 네 가지가 다 있어야 한다.
+  # 보드 description 의 @otboo 줄을 그 보드의 핀 전체가 물려받고, 핀에 적은 값이 있으면 핀이 이긴다.
+  #   @otboo style:minimal temp:20-22 sky:clear gender:unisex
+  # temp · sky · gender 는 값 하나만 받는다(sky:clear,cloudy 는 오류). 여러 개는 style · item 만 된다.
+  # Trial 등급은 핀 수정(pin_edit)이 막혀 있어 핀 description 을 API 로 못 바꾼다.
+  # 그래서 지금은 보드 description 에 네 가지를 전부 적는다.
   pinterest:
-    # sandbox 로 붙일 때만 바꾼다: https://api-sandbox.pinterest.com
-    # sandbox 는 보드·핀이 운영과 완전히 분리돼 있다. 큐레이션한 실제 보드는 보이지 않고,
-    # sandbox 안에서 만든 보드만 조회된다. 토큰도 환경별로 따로다.
+    # 비워두면 운영(https://api.pinterest.com)으로 붙는다.
     base-url: ${PINTEREST_BASE_URL:}
+    # Trial 등급의 운영 토큰은 발급 후 24시간이면 만료된다. 만료되면 401(code 2)로 실패한다.
+    # 핀은 DB 에 남으므로 추천은 계속 나온다 — 새 핀을 받아오려면 토큰을 다시 발급해 넣고 돌린다.
     access-token: ${PINTEREST_ACCESS_TOKEN:}
-    # 쉼표로 구분한 보드 ID. 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
+    # 쉼표로 구분한 보드 ID. 보드 URL 이 아니라 숫자 ID 다.
+    # 토큰 계정의 보드이거나 토큰 계정이 멤버인 그룹 보드여야 한다.
+    # 보드 이름·description 을 바꿔도 ID 는 그대로다. 보드를 새로 만들면 ID 가 새로 생기니 여기도 고친다.
     board-ids: ${PINTEREST_BOARD_IDS:}
+    # 한 번에 받을 핀 수. Pinterest 상한은 250 이다.
     page-size: 100
 
   # ─────────── 외부 API 호출 정책 ───────────
