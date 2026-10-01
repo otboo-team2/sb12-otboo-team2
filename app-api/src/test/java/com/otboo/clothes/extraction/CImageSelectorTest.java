@@ -97,7 +97,30 @@ class CImageSelectorTest {
     }
 
     @Test
-    void reservesLongTextCandidateByReplacingDensityOnlySlotWithoutAddingANinthImage() {
+    void reservesLongTextCandidateAtMinimumScoreWithoutAddingANinthImage() {
+        CSelectorResult result = selector.select(textReserveCandidates(0.65));
+
+        assertThat(result.selected()).extracting(CImageFeatureScore::candidateIndex)
+                .containsExactly(1, 2, 9, 4, 5, 6, 7, 8);
+        assertThat(result.textDetailReserveCandidateIndex()).isEqualTo(9);
+        assertThat(result.textDetailReserveReplacedCandidateIndex()).isEqualTo(3);
+        assertThat(result.selectedBy().get(9))
+                .containsExactly(SelectionReason.TEXT_DETAIL_RESERVE);
+        assertThat(result.selected()).hasSize(8);
+    }
+
+    @Test
+    void doesNotReserveLongTextCandidateBelowMinimumScore() {
+        CSelectorResult result = selector.select(textReserveCandidates(0.649));
+
+        assertThat(result.selected()).extracting(CImageFeatureScore::candidateIndex)
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8)
+                .doesNotContain(9);
+        assertThat(result.textDetailReserveCandidateIndex()).isNull();
+        assertThat(result.textDetailReserveReplacedCandidateIndex()).isNull();
+    }
+
+    private static List<CImageFeatureScore> textReserveCandidates(double reserveTextScore) {
         List<CImageFeatureScore> candidates = List.of(
                 score(1, 0.99, 0.01, 0.01, 100, 100),
                 score(2, 0.01, 1.00, 0.01, 100, 100),
@@ -107,19 +130,10 @@ class CImageSelectorTest {
                 score(6, 0.02, 0.02, 0.90, 100, 100),
                 score(7, 0.97, 0.01, 0.01, 100, 100),
                 score(8, 0.01, 0.80, 0.01, 100, 100),
-                score(9, 0.96, 0.01, 0.01, 100, 300),
+                score(9, reserveTextScore, 0.01, 0.01, 100, 300),
                 score(10, 0.01, 0.01, 0.80, 100, 100),
                 score(11, 0.10, 0.02, 0.02, 100, 100));
-
-        CSelectorResult result = selector.select(candidates);
-
-        assertThat(result.selected()).extracting(CImageFeatureScore::candidateIndex)
-                .containsExactly(1, 2, 9, 4, 5, 6, 7, 8);
-        assertThat(result.textDetailReserveCandidateIndex()).isEqualTo(9);
-        assertThat(result.textDetailReserveReplacedCandidateIndex()).isEqualTo(3);
-        assertThat(result.selectedBy().get(9))
-                .containsExactly(SelectionReason.TEXT_DETAIL_RESERVE);
-        assertThat(result.selected()).hasSize(8);
+        return candidates;
     }
 
     @Test
