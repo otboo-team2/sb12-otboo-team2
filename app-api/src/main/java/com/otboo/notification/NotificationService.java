@@ -59,6 +59,23 @@ public class NotificationService {
         eventPublisher.publishEvent(NotificationBroadcastMessage.from(notification));
     }
 
+    @Transactional
+    public void createAll(
+        List<User> receivers, User actor,
+        NotificationType type, String relatedEntityId,
+        String title, String content,
+        NotificationLevel level
+    ) {
+        List<Notification> notifications = receivers.stream()
+            .map(receiver -> Notification.create(
+                receiver, actor, type, relatedEntityId, title, content, level))
+            .toList();
+        notificationRepository.saveAll(notifications);
+
+        notifications.forEach(notification ->
+            eventPublisher.publishEvent(NotificationBroadcastMessage.from(notification)));
+    }
+
     @Async
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
