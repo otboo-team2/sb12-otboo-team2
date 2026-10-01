@@ -11,6 +11,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @EnableAsync
@@ -53,6 +54,21 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setThreadNamePrefix("fitting-dispatch-");
         executor.setRejectedExecutionHandler((task, pool) ->
             log.warn("virtual_try_on_dispatch_rejected — 스케줄러가 이어서 처리한다"));
+        executor.initialize();
+        return executor;
+    }
+
+    /**
+     * outbox Relay 를 커밋 직후 깨우는 전용 실행기. 한 번에 하나만 돌고 하나만 기다린다.
+     */
+    @Bean(name = "outboxRelayExecutor")
+    public TaskExecutor outboxRelayExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(1);
+        executor.setThreadNamePrefix("outbox-relay-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();
         return executor;
     }

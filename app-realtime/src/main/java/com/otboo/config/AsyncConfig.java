@@ -1,6 +1,8 @@
 package com.otboo.config;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -29,6 +31,18 @@ public class AsyncConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(50);
         executor.setQueueCapacity(5000);
         executor.setThreadNamePrefix("heartbeat-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Bean
+    public Executor outboxRelayExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(1);
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+        executor.setThreadNamePrefix("outbox-relay-");
         executor.initialize();
         return executor;
     }
