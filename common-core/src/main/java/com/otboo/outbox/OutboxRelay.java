@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -15,6 +14,8 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -24,14 +25,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>커밋 직후 한 번 깨어나고(onAppended), 5초마다 다시 돈다. Kafka 가 멈춰 있던 동안 쌓인
  * 메시지는 복구 후 다음 주기에 나간다. 전송 성공 후 기록 전에 죽으면 한 번 더 보낸다
+ * (at-least-once). 중복은 받는 쪽이 메시지 id 로 거른다.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")
 public class OutboxRelay {
 
     private static final int BATCH_SIZE = 100;
+    // producer 의 delivery.timeout.ms(5초)보다 길게 기다려야 성공/실패가 확정된다.
+    // 더 짧으면 "실패"로 보고 다시 보냈는데 앞의 것도 나중에 전송돼 중복이 생긴다.
     private static final long SEND_TIMEOUT_MS = 10_000;
     private static final int CLEANUP_LIMIT = 10_000;
     private static final Duration RETENTION = Duration.ofDays(7);
@@ -40,6 +43,19 @@ public class OutboxRelay {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+
+    public OutboxRelay(
+        OutboxEventRepository outboxEventRepository,
+        KafkaTemplate<String, Object> kafkaTemplate,
+        ObjectMapper objectMapper,
+        PlatformTransactionManager transactionManager
+    ) {
+        this.outboxEventRepository = outboxEventRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+    }
 
     /** 전용 실행기(1개 실행 + 1개 대기, 넘치면 버림)라 공용 비동기 풀을 막지 않는다. */
     @Async("outboxRelayExecutor")
@@ -132,6 +148,7 @@ public class OutboxRelay {
             return CompletableFuture.failedFuture(e);
         }
     }
+
     private Class<?> payloadClass(OutboxEvent event) throws ClassNotFoundException {
         String type = event.getPayloadType();
         if (!type.startsWith("com.otboo.")) {

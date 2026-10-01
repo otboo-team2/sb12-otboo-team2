@@ -28,6 +28,7 @@ dependencies {
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     compileOnly 'org.springframework.kafka:spring-kafka'
+    testImplementation 'org.springframework.kafka:spring-kafka'
 
     // MockMvc 로 예외 핸들러 응답 형식을 검증하기 위한 테스트 전용 의존성
     testImplementation 'org.springframework.boot:spring-boot-starter-web'

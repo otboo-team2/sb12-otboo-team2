@@ -3,7 +3,6 @@ package com.otboo.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,9 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class OutboxRelayTest {
@@ -28,14 +25,12 @@ class OutboxRelayTest {
 
     @Mock OutboxEventRepository repository;
     @Mock KafkaTemplate<String, Object> kafkaTemplate;
-    @Mock TransactionTemplate transactionTemplate;
+    @Mock PlatformTransactionManager transactionManager;
     OutboxRelay relay;
 
     @BeforeEach
     void setUp() {
-        relay = new OutboxRelay(repository, kafkaTemplate, new ObjectMapper(), transactionTemplate);
-        when(transactionTemplate.execute(any())).thenAnswer(inv ->
-            inv.<TransactionCallback<?>>getArgument(0).doInTransaction(mock(TransactionStatus.class)));
+        relay = new OutboxRelay(repository, kafkaTemplate, new ObjectMapper(), transactionManager);
     }
 
     private OutboxEvent event() {
