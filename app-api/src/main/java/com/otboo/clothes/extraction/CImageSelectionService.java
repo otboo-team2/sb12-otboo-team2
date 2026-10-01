@@ -74,6 +74,7 @@ public class CImageSelectionService {
             metrics.recordStageImageCount(page.productUrl(), "c", "db18", 0);
             metrics.recordStageImageBytes(page.productUrl(), "c", "download", 0);
             metrics.recordStageImageBytes(page.productUrl(), "c", "db18", 0);
+            logDirectGeminiRoute(0, 0, 0);
             return emptyResult(0, 0, Duration.ZERO, Duration.ZERO);
         }
 
@@ -160,6 +161,7 @@ public class CImageSelectionService {
                 metrics.recordStageImageCount(productUrl, "c", "selector", 0);
                 metrics.recordStageImageCount(productUrl, "c", "db18", 0);
                 metrics.recordStageImageBytes(productUrl, "c", "db18", 0);
+                logDirectGeminiRoute(detailImageUrls.size(), 0, failedDownloads);
                 return new CImageSelectionResult(
                         List.of(), List.of(), downloadFailures,
                         detailImageUrls.size(), 0, failedDownloads, spool.scannedBytes(),
@@ -167,60 +169,89 @@ public class CImageSelectionService {
             }
 
             long analysisStart = System.nanoTime();
-            long selectorStart = System.nanoTime();
-            List<CImageCandidate> topCandidates;
-            try {
-                List<CImageFeatureScore> scores = candidates.stream()
-                        .map(featureScorer::score)
-                        .toList();
-                CSelectorResult selectorResult = selector.select(scores);
-                topCandidates = selectorResult.selected().stream()
-                        .map(CImageFeatureScore::candidate)
-                        .toList();
-                if (topCandidates.size() > MAX_DB18_CANDIDATES) {
-                    throw new CImageAnalysisException(CImageAnalysisException.Reason.ANALYSIS_ERROR);
-                }
-            } catch (RuntimeException exception) {
-                metrics.recordStageImageCount(productUrl, "c", "selector", 0);
-                recordCFailure(
-                        productUrl, "selector", failureReason(exception), elapsedSince(selectorStart));
-                throw exception;
-            }
-            metrics.recordStageImageCount(
-                    productUrl, "c", "selector", topCandidates.size());
-            metrics.recordStage(
-                    productUrl, "c", "selector", "success", elapsedSince(selectorStart));
+            String route = candidates.size() <= extractionProperties.maxDetailImages()
+                    ? "gemini_direct"
+                    : "opencv_db18";
+            boolean selectorExecuted = "opencv_db18".equals(route);
+            boolean db18Executed = !"gemini_direct".equals(route);
 
-            long db18InputBytes = topCandidates.stream().mapToLong(CImageCandidate::bytes).sum();
-            metrics.recordStageImageBytes(productUrl, "c", "db18", db18InputBytes);
-            long db18Start = System.nanoTime();
-            List<CImageCandidate> selected;
-            try {
-                CFilterResult filterResult = filter.filter(topCandidates);
-                selected = filterResult.selected();
-            } catch (RuntimeException exception) {
-                metrics.recordStageImageCount(productUrl, "c", "db18", 0);
-                recordCFailure(
-                        productUrl, "db18", failureReason(exception), elapsedSince(db18Start));
-                throw exception;
+            List<CImageCandidate> db18Candidates = candidates;
+            int selectorCount = 0;
+            int selectorInputCount = 0;
+            if (selectorExecuted) {
+                long selectorStart = System.nanoTime();
+                try {
+                    List<CImageFeatureScore> scores = candidates.stream()
+                            .map(featureScorer::score)
+                            .toList();
+                    CSelectorResult selectorResult = selector.select(scores);
+                    db18Candidates = selectorResult.selected().stream()
+                            .map(CImageFeatureScore::candidate)
+                            .toList();
+                    if (db18Candidates.size() > MAX_DB18_CANDIDATES) {
+                        throw new CImageAnalysisException(
+                                CImageAnalysisException.Reason.ANALYSIS_ERROR);
+                    }
+                } catch (RuntimeException exception) {
+                    metrics.recordStageImageCount(productUrl, "c", "selector", 0);
+                    recordCFailure(
+                            productUrl, "selector", failureReason(exception),
+                            elapsedSince(selectorStart));
+                    throw exception;
+                }
+                selectorInputCount = candidates.size();
+                selectorCount = db18Candidates.size();
+                metrics.recordStageImageCount(productUrl, "c", "selector", selectorCount);
+                metrics.recordStage(
+                        productUrl, "c", "selector", "success", elapsedSince(selectorStart));
+            } else {
+                metrics.recordStageImageCount(productUrl, "c", "selector", 0);
             }
-            metrics.recordStageImageCount(productUrl, "c", "db18", selected.size());
-            metrics.recordStage(
-                    productUrl,
-                    "c",
-                    "db18",
-                    selected.isEmpty() ? "partial" : "success",
-                    elapsedSince(db18Start));
+
+            int db18InputCount = db18Executed ? db18Candidates.size() : 0;
+            long db18InputBytes = db18Executed
+                    ? db18Candidates.stream().mapToLong(CImageCandidate::bytes).sum()
+                    : 0;
+            metrics.recordStageImageBytes(productUrl, "c", "db18", db18InputBytes);
+            List<CImageCandidate> selected;
+            if (db18Executed) {
+                long db18Start = System.nanoTime();
+                try {
+                    CFilterResult filterResult = filter.filter(db18Candidates);
+                    selected = filterResult.selected();
+                } catch (RuntimeException exception) {
+                    metrics.recordStageImageCount(productUrl, "c", "db18", 0);
+                    recordCFailure(
+                            productUrl, "db18", failureReason(exception), elapsedSince(db18Start));
+                    throw exception;
+                }
+                metrics.recordStageImageCount(productUrl, "c", "db18", selected.size());
+                metrics.recordStage(
+                        productUrl,
+                        "c",
+                        "db18",
+                        selected.isEmpty() ? "partial" : "success",
+                        elapsedSince(db18Start));
+            } else {
+                selected = candidates;
+                metrics.recordStageImageCount(productUrl, "c", "db18", 0);
+            }
             log.info(
                     "c_image_selection_completed discovered_count={} downloaded_count={} "
                             + "selector_count={} db18_count={} failed_download_count={} "
-                            + "selected_candidate_indexes={}",
+                            + "selected_candidate_indexes={} route={} selector_executed={} "
+                            + "selector_input_count={} db18_executed={} db18_input_count={}",
                     detailImageUrls.size(),
                     candidates.size(),
-                    topCandidates.size(),
-                    selected.size(),
+                    selectorCount,
+                    db18Executed ? selected.size() : 0,
                     failedDownloads,
-                    selected.stream().map(CImageCandidate::candidateIndex).toList());
+                    selected.stream().map(CImageCandidate::candidateIndex).toList(),
+                    route,
+                    selectorExecuted,
+                    selectorInputCount,
+                    db18Executed,
+                    db18InputCount);
             List<RemoteResource> images = spool.toRemoteResources(selected, remainingGeminiBytes);
             Duration analysisDuration = elapsedSince(analysisStart);
             return new CImageSelectionResult(
@@ -255,6 +286,22 @@ public class CImageSelectionService {
     ) {
         metrics.recordStage(productUrl, "c", stage, "error", duration);
         metrics.recordFailureReason(productUrl, "c", stage, reason);
+    }
+
+    private void logDirectGeminiRoute(
+            int discoveredCount,
+            int downloadedCount,
+            int failedDownloadCount
+    ) {
+        log.info(
+                "c_image_selection_completed discovered_count={} downloaded_count={} "
+                        + "selector_count=0 db18_count=0 failed_download_count={} "
+                        + "selected_candidate_indexes=[] route=gemini_direct "
+                        + "selector_executed=false selector_input_count=0 "
+                        + "db18_executed=false db18_input_count=0",
+                discoveredCount,
+                downloadedCount,
+                failedDownloadCount);
     }
 
     private static boolean isExecutorFailure(CImageAnalysisException.Reason reason) {
