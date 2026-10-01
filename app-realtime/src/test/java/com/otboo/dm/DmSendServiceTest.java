@@ -3,17 +3,18 @@ package com.otboo.dm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.otboo.common.broadcast.EventBroadcaster;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.exception.CommonErrorCode;
 import com.otboo.dm.broadcast.DirectMessageBroadcastMessage;
 import com.otboo.dm.entity.DirectMessage;
 import com.otboo.dm.repository.DirectMessageRepository;
+import com.otboo.outbox.OutboxAppender;
 import com.otboo.user.entity.Profile;
 import com.otboo.user.entity.User;
 import com.otboo.user.repository.ProfileRepository;
@@ -26,15 +27,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 
 class DmSendServiceTest {
 
     private DirectMessageRepository directMessageRepository;
     private UserRepository userRepository;
     private ProfileRepository profileRepository;
-    private EventBroadcaster eventBroadcaster;
-    private ApplicationEventPublisher eventPublisher;
+    private OutboxAppender outboxAppender;
     private DmSendService dmSendService;
 
     @BeforeEach
@@ -42,10 +41,9 @@ class DmSendServiceTest {
         directMessageRepository = mock(DirectMessageRepository.class);
         userRepository = mock(UserRepository.class);
         profileRepository = mock(ProfileRepository.class);
-        eventBroadcaster = mock(EventBroadcaster.class);
-        eventPublisher = mock(ApplicationEventPublisher.class);
+        outboxAppender = mock(OutboxAppender.class);
         dmSendService = new DmSendService(
-            directMessageRepository, userRepository, profileRepository, eventBroadcaster, eventPublisher);
+            directMessageRepository, userRepository, profileRepository, outboxAppender);
     }
 
     @Nested
@@ -78,7 +76,7 @@ class DmSendServiceTest {
 
             ArgumentCaptor<DirectMessageBroadcastMessage> captor =
                 ArgumentCaptor.forClass(DirectMessageBroadcastMessage.class);
-            verify(eventPublisher).publishEvent(captor.capture());
+            verify(outboxAppender).append(eq("dm-broadcast"), any(), captor.capture());
 
             DirectMessageBroadcastMessage published = captor.getValue();
             assertThat(published.content()).isEqualTo("안녕하세요");
@@ -147,30 +145,11 @@ class DmSendServiceTest {
 
             ArgumentCaptor<DirectMessageBroadcastMessage> captor =
                 ArgumentCaptor.forClass(DirectMessageBroadcastMessage.class);
-            verify(eventPublisher).publishEvent(captor.capture());
+            verify(outboxAppender).append(eq("dm-broadcast"), any(), captor.capture());
 
             DirectMessageBroadcastMessage published = captor.getValue();
             assertThat(published.sender().profileImageUrl()).isEqualTo("https://example.com/me.png");
             assertThat(published.receiver().profileImageUrl()).isNull();
-        }
-    }
-
-    @Nested
-    @DisplayName("onMessageSent")
-    class OnMessageSent {
-
-        @Test
-        @DisplayName("전달받은 메시지를 dm-broadcast 채널로 브로드캐스트한다")
-        void broadcastsMessage() {
-            DirectMessageBroadcastMessage message = new DirectMessageBroadcastMessage(
-                UUID.randomUUID(), Instant.now(), "dmKey",
-                new DirectMessageBroadcastMessage.UserSummary(UUID.randomUUID(), "발신", null),
-                new DirectMessageBroadcastMessage.UserSummary(UUID.randomUUID(), "수신", null),
-                "내용");
-
-            dmSendService.onMessageSent(message);
-
-            verify(eventBroadcaster).broadcast("dm-broadcast", message);
         }
     }
 }

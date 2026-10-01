@@ -1,6 +1,5 @@
 package com.otboo.notification;
 
-import com.otboo.common.broadcast.EventBroadcaster;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorCodec;
 import com.otboo.common.pagination.CursorRequest;
@@ -13,18 +12,14 @@ import com.otboo.notification.entity.NotificationLevel;
 import com.otboo.notification.entity.NotificationType;
 import com.otboo.notification.exception.NotificationErrorCode;
 import com.otboo.notification.repository.NotificationRepository;
+import com.otboo.outbox.OutboxAppender;
 import com.otboo.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,9 +33,12 @@ public class NotificationService {
     private static final String NOTIFICATION_CHANNEL = "notification-broadcast";
 
     private final NotificationRepository notificationRepository;
-    private final EventBroadcaster eventBroadcaster;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxAppender outboxAppender;
 
+    /**
+     * 알림 저장과 발행 메시지 등록을 한 트랜잭션으로 묶는다(Transactional Outbox).
+     * 실제 Kafka 발행은 커밋 후 OutboxRelay 가 한다. Kafka 가 멈춰 있어도 메시지는 outbox 에 남는다.
+     */
     @Transactional
     public void create(
         User receiver, User actor,
@@ -54,9 +52,29 @@ public class NotificationService {
             title, content,
             level);
         notificationRepository.save(notification);
-        // log.info("[NOTIFICATION] save() 완료, id={}", notification.getId());
 
-        eventPublisher.publishEvent(NotificationBroadcastMessage.from(notification));
+        outboxAppender.append(NOTIFICATION_CHANNEL,
+            notification.getReceiver().getId().toString(),
+            NotificationBroadcastMessage.from(notification));
+    }
+
+    /**
+     * 같은 대상(relatedEntityId)으로 이미 만든 알림이 있으면 건너뛴다.
+     * outbox 는 at-least-once 라 같은 메시지가 두 번 올 수 있다(DM 등).
+     */
+    @Transactional
+    public void createOnce(
+        User receiver, User actor,
+        NotificationType type, String relatedEntityId,
+        String title, String content,
+        NotificationLevel level
+    ) {
+        if (notificationRepository.existsByReceiverIdAndTypeAndRelatedEntityId(
+            receiver.getId(), type, relatedEntityId)) {
+            log.info("notification_duplicate_skipped type={} relatedEntityId={}", type, relatedEntityId);
+            return;
+        }
+        create(receiver, actor, type, relatedEntityId, title, content, level);
     }
 
     @Transactional
@@ -72,16 +90,9 @@ public class NotificationService {
             .toList();
         notificationRepository.saveAll(notifications);
 
-        notifications.forEach(notification ->
-            eventPublisher.publishEvent(NotificationBroadcastMessage.from(notification)));
-    }
-
-    @Async
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onNotificationCreated(NotificationBroadcastMessage message) {
-        eventBroadcaster.broadcast(NOTIFICATION_CHANNEL, message);
-        // log.info("[NOTIFICATION] broadcast() 완료, id={}", message.id());
+        outboxAppender.appendAll(NOTIFICATION_CHANNEL,
+            notifications.stream().map(NotificationBroadcastMessage::from).toList(),
+            message -> message.receiverId().toString());
     }
 
     public CursorResponse<NotificationDto> getNotifications(UUID receiverId, CursorRequest request) {
