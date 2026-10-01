@@ -77,9 +77,9 @@ class NotificationEventListenerTest {
 
             listener.on(event);
 
-            verify(notificationService).create(receiver1, null, NotificationType.CLOTHES_ATTRIBUTE_ADDED,
+            verify(notificationService).createAll(List.of(receiver1), null, NotificationType.CLOTHES_ATTRIBUTE_ADDED,
                 definitionId.toString(), "새 의상 속성", "\"색상\" 속성이 추가됐습니다.", NotificationLevel.INFO);
-            verify(notificationService).create(receiver2, null, NotificationType.CLOTHES_ATTRIBUTE_ADDED,
+            verify(notificationService).createAll(List.of(receiver2), null, NotificationType.CLOTHES_ATTRIBUTE_ADDED,
                 definitionId.toString(), "새 의상 속성", "\"색상\" 속성이 추가됐습니다.", NotificationLevel.INFO);
         }
     }
@@ -272,9 +272,9 @@ class NotificationEventListenerTest {
 
             listener.on(event);
 
-            verify(notificationService).create(receiver1, author, NotificationType.FEED_CREATED,
+            verify(notificationService).createAll(List.of(receiver1), author, NotificationType.FEED_CREATED,
                 feedId.toString(), "새 피드", "작성자님이 새 피드를 올렸습니다.", NotificationLevel.INFO);
-            verify(notificationService).create(receiver2, author, NotificationType.FEED_CREATED,
+            verify(notificationService).createAll(List.of(receiver2), author, NotificationType.FEED_CREATED,
                 feedId.toString(), "새 피드", "작성자님이 새 피드를 올렸습니다.", NotificationLevel.INFO);
         }
     }
