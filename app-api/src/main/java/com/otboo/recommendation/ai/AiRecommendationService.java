@@ -34,6 +34,7 @@ public class AiRecommendationService {
     private final RecommendationQueryEmbeddingService queryEmbeddingService;
     private final ObjectProvider<RecommendationClothesVectorSearch> vectorSearch;
     private final RecommendationClothesVerifier clothesVerifier;
+    private final RecommendationAiConcurrencyLimit aiConcurrency;
 
     public RecommendationDto find(UUID userId, RecommendationAiRequest request) {
         return findInternal(userId, request);
@@ -65,6 +66,21 @@ public class AiRecommendationService {
         if (search == null) {
             return basic;
         }
+        // OpenAI 를 기다리는 요청 수를 묶는다. 넘치면 기다리지 않고 기본 추천으로 보낸다.
+        if (!aiConcurrency.tryEnter()) {
+            log.warn("recommendation_ai_fallback reason=busy");
+            return basic;
+        }
+        try {
+            return findWithAi(userId, request, candidates, excludedIds, excludedOutfits, basic, search);
+        } finally {
+            aiConcurrency.exit();
+        }
+    }
+
+    private RecommendationDto findWithAi(UUID userId, RecommendationAiRequest request,
+            RecommendationCandidates candidates, Set<UUID> excludedIds, Set<Set<UUID>> excludedOutfits,
+            RecommendationDto basic, RecommendationClothesVectorSearch search) {
         List<UUID> candidateIds = candidates.clothes().stream().map(clothes -> clothes.id()).toList();
         List<UUID> retrievedIds = List.of();
         RecommendationCondition condition = null;

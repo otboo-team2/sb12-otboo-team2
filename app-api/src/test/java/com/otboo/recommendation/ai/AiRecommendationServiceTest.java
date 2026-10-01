@@ -40,6 +40,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.beans.factory.ObjectProvider;
@@ -55,6 +56,7 @@ class AiRecommendationServiceTest {
     @Mock RecommendationQueryEmbeddingService queryEmbeddingService;
     @Mock ObjectProvider<RecommendationClothesVectorSearch> vectorSearch;
     @Mock RecommendationClothesVerifier clothesVerifier;
+    @Spy RecommendationAiConcurrencyLimit aiConcurrency = new RecommendationAiConcurrencyLimit(20);
     @InjectMocks AiRecommendationService service;
 
     private final UUID userId = UUID.randomUUID();
@@ -93,6 +95,32 @@ class AiRecommendationServiceTest {
         verify(vectorSearch).getIfAvailable();
         verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, clothesVerifier);
         verifyNoMoreInteractions(recommendationService, vectorSearch);
+    }
+
+    @Test
+    void returnsBasicWithoutCallingOpenAiWhenConcurrencyLimitIsFull() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        given(vectorSearch.getIfAvailable()).willReturn(mock(RecommendationClothesVectorSearch.class));
+        for (int i = 0; i < 20; i++) {
+            assertThat(aiConcurrency.tryEnter()).isTrue(); // 다른 요청 20개가 OpenAI 를 기다리는 중
+        }
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, clothesVerifier);
+        assertThat(aiConcurrency.rejected()).isEqualTo(1);
+    }
+
+    @Test
+    void releasesConcurrencySlotEvenWhenOpenAiFails() {
+        given(recommendationService.findCandidates(userId, weatherId)).willReturn(candidates);
+        given(recommendationService.recommend(candidates)).willReturn(basic);
+        given(vectorSearch.getIfAvailable()).willReturn(mock(RecommendationClothesVectorSearch.class));
+        given(openAiRecommendationClient.extractCondition(request.prompt()))
+                .willThrow(new BusinessException(CommonErrorCode.EXTERNAL_API_TIMEOUT));
+
+        assertThat(service.find(userId, request)).isSameAs(basic);
+        assertThat(aiConcurrency.inFlight()).isZero();
     }
 
     @Test
@@ -435,7 +463,7 @@ class AiRecommendationServiceTest {
         given(search.search(userId, ids, List.of(0.1f))).willReturn(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
         var realService = new AiRecommendationService(recommendationService, realClient,
-                queryEmbeddingService, vectorSearch, clothesVerifier);
+                queryEmbeddingService, vectorSearch, clothesVerifier, aiConcurrency);
 
         assertThat(realService.find(userId, request)).isSameAs(basic);
         verify(api, times(2)).post(eq("/responses"), any(), eq(String.class));

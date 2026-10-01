@@ -237,7 +237,9 @@ otboo:
 
       # 박교현 — 추천 LLM
       llm:
-        read-timeout: 60s     # TODO(담당자): 실제 응답 시간 재보고 조정
+        # 사용자 요청 중에 동기로 기다린다. 운영 실측 /responses p95 10.2 s · /embeddings 최대 3.3 s.
+        # 60 s 이던 때 OpenAI 가 느려진 날(9/30) 호출 하나가 60 s 동안 스레드를 쥐었다. 넘으면 기본 추천으로 간다.
+        read-timeout: 12s
         max-retries: 0        # TODO(담당자): 재시도 = 토큰 재과금입니다. 올릴 거면 1 까지만
         daily-limit: 500      # TODO(담당자): 남은 크레딧 기준으로 확정. 없으면 무제한
       llm-reindex:
