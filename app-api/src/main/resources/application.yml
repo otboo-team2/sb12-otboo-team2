@@ -126,6 +126,10 @@ otboo:
         max-concurrent-analyses: 1
         acquire-timeout: 250ms
         analysis-timeout: 45s
+  # 요청 처리 스레드만 가상 스레드로. 기본 꺼짐 — TomcatVirtualThreadConfig 참고
+  web:
+    virtual-threads:
+      enabled: ${VIRTUAL_THREADS_ENABLED:false}
   # 박교현 — 추천 LLM 연결 설정
   recommendation:
     search:
@@ -139,6 +143,8 @@ otboo:
       base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
       embedding-dimensions: ${OPENAI_EMBEDDING_DIMENSIONS:1536}
+      # OpenAI 를 동시에 기다릴 수 있는 추천 요청 수. 넘치면 기다리지 않고 기본 추천 (RecommendationAiConcurrencyLimit)
+      max-concurrent: ${RECOMMENDATION_AI_MAX_CONCURRENT:20}
   fashn:
     api-key: ${FASHN_API_KEY:}
   # ─────────── Pinterest 코디 핀 ───────────
