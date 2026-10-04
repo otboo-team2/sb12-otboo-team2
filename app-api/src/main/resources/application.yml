@@ -293,6 +293,12 @@ management:
         # 의상 링크 자동입력 전체와 Gemini 구간을 분리해 p95 를 비교한다.
         otboo_clothes_extraction: true
         otboo_clothes_gemini: true
+        # AI 추천 전체(outcome·reason 별)와 단계별. 45 s 지연 실험까지 버킷에 담기도록 상한을 늘린다.
+        otboo_recommendation_ai_duration: true
+        otboo_recommendation_ai_stage: true
+      maximum-expected-value:
+        otboo_recommendation_ai_duration: 60s
+        otboo_recommendation_ai_stage: 60s
       slo:
         # 이 경계로 버킷이 생긴다. "300ms 안에 몇 %가 끝났나"를 바로 볼 수 있다.
         http.server.requests: 100ms, 300ms, 1s, 3s

@@ -27,6 +27,7 @@ import com.otboo.recommendation.RecommendationDto;
 import com.otboo.recommendation.RecommendationService;
 import com.otboo.recommendation.search.elasticsearch.RecommendationClothesVectorSearch;
 import com.otboo.recommendation.search.RecommendationClothesVerifier;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +58,8 @@ class AiRecommendationServiceTest {
     @Mock ObjectProvider<RecommendationClothesVectorSearch> vectorSearch;
     @Mock RecommendationClothesVerifier clothesVerifier;
     @Spy RecommendationAiConcurrencyLimit aiConcurrency = new RecommendationAiConcurrencyLimit(20);
+    final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    @Spy RecommendationAiMetrics aiMetrics = new RecommendationAiMetrics(registry);
     @InjectMocks AiRecommendationService service;
 
     private final UUID userId = UUID.randomUUID();
@@ -109,6 +112,7 @@ class AiRecommendationServiceTest {
         assertThat(service.find(userId, request)).isSameAs(basic);
         verifyNoInteractions(openAiRecommendationClient, queryEmbeddingService, clothesVerifier);
         assertThat(aiConcurrency.rejected()).isEqualTo(1);
+        assertThat(requestCount("fallback", "busy")).isEqualTo(1);
     }
 
     @Test
@@ -121,6 +125,11 @@ class AiRecommendationServiceTest {
 
         assertThat(service.find(userId, request)).isSameAs(basic);
         assertThat(aiConcurrency.inFlight()).isZero();
+        // 상한 초과(busy)와 외부 지연(timeout)을 다른 사유로 센다
+        assertThat(requestCount("fallback", "timeout")).isEqualTo(1);
+        assertThat(requestCount("fallback", "busy")).isZero();
+        assertThat(registry.get(RecommendationAiMetrics.STAGE_METRIC)
+                .tags("stage", "condition", "result", "fail").timer().count()).isEqualTo(1);
     }
 
     @Test
@@ -148,6 +157,11 @@ class AiRecommendationServiceTest {
         var result = service.find(userId, request);
         assertThat(result.clothes()).extracting(OotdDto::clothesId).containsExactlyElementsOf(ids);
         assertThat(result.reason()).isEqualTo("데이트에 어울리는 셔츠입니다.");
+        assertThat(requestCount("ai", "none")).isEqualTo(1);
+        for (String stage : List.of("condition", "embedding", "search", "metadata", "generation")) {
+            assertThat(registry.get(RecommendationAiMetrics.STAGE_METRIC)
+                    .tags("stage", stage, "result", "ok").timer().count()).isEqualTo(1);
+        }
 
         var order = inOrder(recommendationService, openAiRecommendationClient, queryEmbeddingService);
         order.verify(recommendationService).findCandidates(userId, weatherId);
@@ -355,6 +369,8 @@ class AiRecommendationServiceTest {
                 .willReturn(new RecommendationGenerationResult(List.of(UUID.randomUUID()), "허위 추천"));
 
         assertThat(service.find(userId, request)).isSameAs(basic);
+        assertThat(requestCount("fallback", "invalid_result")).isEqualTo(1);
+        assertThat(requestCount("ai", "none")).isZero();
     }
 
     @Test
@@ -463,7 +479,7 @@ class AiRecommendationServiceTest {
         given(search.search(userId, ids, List.of(0.1f))).willReturn(ids);
         given(clothesVerifier.verify(userId, ids, ids)).willReturn(ids);
         var realService = new AiRecommendationService(recommendationService, realClient,
-                queryEmbeddingService, vectorSearch, clothesVerifier, aiConcurrency);
+                queryEmbeddingService, vectorSearch, clothesVerifier, aiConcurrency, aiMetrics);
 
         assertThat(realService.find(userId, request)).isSameAs(basic);
         verify(api, times(2)).post(eq("/responses"), any(), eq(String.class));
@@ -692,6 +708,22 @@ class AiRecommendationServiceTest {
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_INPUT_VALUE));
         verifyNoInteractions(recommendationService, openAiRecommendationClient, queryEmbeddingService);
+    }
+
+    @Test
+    void countsPropagatedFailureAsError() {
+        given(recommendationService.findCandidates(userId, weatherId))
+                .willThrow(new DataAccessResourceFailureException("db down"));
+
+        assertThatThrownBy(() -> service.find(userId, request))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        assertThat(requestCount("error", "exception")).isEqualTo(1);
+    }
+
+    private long requestCount(String outcome, String reason) {
+        var timer = registry.find(RecommendationAiMetrics.DURATION_METRIC)
+                .tags("outcome", outcome, "reason", reason).timer();
+        return timer == null ? 0 : timer.count();
     }
 
     private void enableSearch() {
