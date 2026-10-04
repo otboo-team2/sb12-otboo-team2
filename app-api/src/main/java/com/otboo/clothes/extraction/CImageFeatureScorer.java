@@ -139,124 +139,13 @@ public class CImageFeatureScorer {
         }
         int targetHeight = Math.max(1, (int) Math.rint(
                 source.rows() * (double) TARGET_WIDTH / source.cols()));
-        byte[] resizedBytes = resizeLanczos3(source, TARGET_WIDTH, targetHeight);
-        destination.create(targetHeight, TARGET_WIDTH, CvType.CV_8UC3);
-        destination.put(0, 0, resizedBytes);
-    }
-
-    private static byte[] resizeLanczos3(Mat source, int targetWidth, int targetHeight) {
-        int sourceWidth = source.cols();
-        int sourceHeight = source.rows();
-        int channels = source.channels();
-        int rowByteCount = checkedByteCount(sourceWidth, channels);
-        int intermediateByteCount = checkedByteCount(sourceHeight, targetWidth, channels);
-        int outputByteCount = checkedByteCount(targetHeight, targetWidth, channels);
-        AxisWeights horizontal = axisWeights(sourceWidth, targetWidth);
-        AxisWeights vertical = axisWeights(sourceHeight, targetHeight);
-        byte[] sourceRow = new byte[rowByteCount];
-        byte[] intermediate = new byte[intermediateByteCount];
-        byte[] output = new byte[outputByteCount];
-
-        for (int y = 0; y < sourceHeight; y++) {
-            source.get(y, 0, sourceRow);
-            int outputRow = y * targetWidth * channels;
-            for (int x = 0; x < targetWidth; x++) {
-                int weightOffset = horizontal.offsets()[x];
-                int first = horizontal.starts()[x];
-                int count = horizontal.counts()[x];
-                for (int channel = 0; channel < channels; channel++) {
-                    double value = 0.0;
-                    for (int tap = 0; tap < count; tap++) {
-                        int sourceOffset = (first + tap) * channels + channel;
-                        value += Byte.toUnsignedInt(sourceRow[sourceOffset])
-                                * horizontal.coefficients()[weightOffset + tap];
-                    }
-                    intermediate[outputRow + x * channels + channel] = clipByte(value);
-                }
-            }
-        }
-
-        for (int y = 0; y < targetHeight; y++) {
-            int weightOffset = vertical.offsets()[y];
-            int first = vertical.starts()[y];
-            int count = vertical.counts()[y];
-            for (int x = 0; x < targetWidth; x++) {
-                int outputOffset = (y * targetWidth + x) * channels;
-                for (int channel = 0; channel < channels; channel++) {
-                    double value = 0.0;
-                    for (int tap = 0; tap < count; tap++) {
-                        int sourceOffset = ((first + tap) * targetWidth + x) * channels + channel;
-                        value += Byte.toUnsignedInt(intermediate[sourceOffset])
-                                * vertical.coefficients()[weightOffset + tap];
-                    }
-                    output[outputOffset + channel] = clipByte(value);
-                }
-            }
-        }
-        return output;
-    }
-
-    private static int checkedByteCount(int... factors) {
-        long byteCount = 1;
-        for (int factor : factors) {
-            byteCount *= factor;
-            if (byteCount > Integer.MAX_VALUE) {
-                throw new CImageAnalysisException(CImageAnalysisException.Reason.SCAN_LIMIT);
-            }
-        }
-        return (int) byteCount;
-    }
-
-    private static AxisWeights axisWeights(int sourceSize, int targetSize) {
-        double scale = sourceSize / (double) targetSize;
-        double filterScale = Math.max(scale, 1.0);
-        double support = 3.0 * filterScale;
-        int[] starts = new int[targetSize];
-        int[] counts = new int[targetSize];
-        int[] offsets = new int[targetSize];
-        List<Double> allCoefficients = new ArrayList<>();
-
-        for (int output = 0; output < targetSize; output++) {
-            double center = (output + 0.5) * scale;
-            int first = Math.max(0, (int) (center - support + 0.5));
-            int end = Math.min(sourceSize, (int) (center + support + 0.5));
-            starts[output] = first;
-            counts[output] = Math.max(1, end - first);
-            offsets[output] = allCoefficients.size();
-            double[] weights = new double[counts[output]];
-            double sum = 0.0;
-            for (int tap = 0; tap < weights.length; tap++) {
-                double distance = (first + tap - center + 0.5) / filterScale;
-                weights[tap] = lanczos3(distance);
-                sum += weights[tap];
-            }
-            for (double weight : weights) {
-                allCoefficients.add(weight / sum);
-            }
-        }
-
-        double[] coefficients = new double[allCoefficients.size()];
-        for (int index = 0; index < coefficients.length; index++) {
-            coefficients[index] = allCoefficients.get(index);
-        }
-        return new AxisWeights(starts, counts, offsets, coefficients);
-    }
-
-    private static double lanczos3(double value) {
-        double absolute = Math.abs(value);
-        if (absolute < 1.0e-8) {
-            return 1.0;
-        }
-        if (absolute >= 3.0) {
-            return 0.0;
-        }
-        double piValue = Math.PI * value;
-        double thirdPiValue = piValue / 3.0;
-        return (Math.sin(piValue) / piValue) * (Math.sin(thirdPiValue) / thirdPiValue);
-    }
-
-    private static byte clipByte(double value) {
-        return (byte) Math.max(0, Math.min(255, (int) Math.floor(value + 0.5)));
+        Imgproc.resize(
+                source,
+                destination,
+                new Size(TARGET_WIDTH, targetHeight),
+                0,
+                0,
+                Imgproc.INTER_LANCZOS4);
     }
 
     private static WindowScore scoreWindow(Mat rgb) {
@@ -435,8 +324,6 @@ public class CImageFeatureScorer {
             }
         }
     }
-
-    private record AxisWeights(int[] starts, int[] counts, int[] offsets, double[] coefficients) {}
 
     private record Component(double centerY, int area) {}
 

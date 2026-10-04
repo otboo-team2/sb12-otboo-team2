@@ -15,7 +15,7 @@ public class CImageSelector {
 
     private static final int TABLE_RESERVE_RANK = 4;
     private static final int TEXT_DETAIL_RANK_LIMIT = 20;
-    private static final double MINIMUM_TEXT_DETAIL_SCORE = 0.95;
+    private static final double MINIMUM_TEXT_DETAIL_SCORE = 0.65;
     private static final double MINIMUM_TEXT_DETAIL_ASPECT_RATIO = 2.0;
     private static final List<Channel> CHANNELS = List.of(
             Channel.TEXT,
