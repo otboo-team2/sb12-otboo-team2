@@ -56,7 +56,8 @@ class ExternalApiSettingsBindingTest {
     @DisplayName("담당자가 적은 값이 그대로 들어온다")
     void 개별_설정이_바인딩된다() {
         withProperties(properties -> {
-            assertThat(properties.forApi("llm").readTimeout()).isEqualTo(Duration.ofSeconds(60));
+            assertThat(properties.forApi("llm").readTimeout()).isEqualTo(Duration.ofSeconds(12));
+            assertThat(properties.forApi("llm-reindex").readTimeout()).isEqualTo(Duration.ofSeconds(60));
             assertThat(properties.forApi("llm").dailyLimit()).isEqualTo(500L);
             assertThat(properties.forApi("virtual-try-on").readTimeout())
                     .isEqualTo(Duration.ofSeconds(120));
