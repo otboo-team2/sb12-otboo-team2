@@ -1,6 +1,7 @@
 package com.otboo.notification.repository;
 
 import com.otboo.notification.entity.Notification;
+import com.otboo.notification.entity.NotificationType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +29,7 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     long countByReceiverId(UUID receiverId);
 
     int deleteByIdAndReceiverId(UUID id, UUID receiverId);
+
+    boolean existsByReceiverIdAndTypeAndRelatedEntityId(
+        UUID receiverId, NotificationType type, String relatedEntityId);
 }

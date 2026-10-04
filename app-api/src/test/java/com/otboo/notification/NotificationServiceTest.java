@@ -3,7 +3,6 @@ package com.otboo.notification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.otboo.common.broadcast.EventBroadcaster;
 import com.otboo.common.exception.BusinessException;
 import com.otboo.common.pagination.CursorRequest;
 import com.otboo.common.pagination.CursorResponse;
@@ -14,8 +13,13 @@ import com.otboo.notification.entity.NotificationLevel;
 import com.otboo.notification.entity.NotificationType;
 import com.otboo.notification.exception.NotificationErrorCode;
 import com.otboo.notification.repository.NotificationRepository;
+import com.otboo.outbox.OutboxEvent;
+import com.otboo.outbox.OutboxEventRepository;
+import com.otboo.outbox.OutboxRelay;
 import com.otboo.user.entity.User;
 import com.otboo.user.repository.UserRepository;
+
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +33,8 @@ class NotificationServiceTest extends IntegrationTestSupport {
     @Autowired NotificationService notificationService;
     @Autowired NotificationRepository notificationRepository;
     @Autowired UserRepository userRepository;
-    @MockitoBean EventBroadcaster eventBroadcaster;
+    @Autowired OutboxEventRepository outboxEventRepository;
+    @MockitoBean OutboxRelay outboxRelay;
 
     private User user1;
     private User user2;
@@ -37,6 +42,7 @@ class NotificationServiceTest extends IntegrationTestSupport {
 
     @BeforeEach
     void setUp() {
+        outboxEventRepository.deleteAll();
         notificationRepository.deleteAll();
         userRepository.deleteAll();
         user1 = userRepository.save(User.createOAuth("user111@otboo.io", "사용자1"));
@@ -59,6 +65,53 @@ class NotificationServiceTest extends IntegrationTestSupport {
             );
 
             assertThat(notificationRepository.countByReceiverId(user1.getId())).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("알림과 같은 트랜잭션에 발행 메시지를 outbox 에 등록한다")
+        void appendsToOutbox() {
+            notificationService.create(
+                user1, actor,
+                NotificationType.FOLLOW_CREATED, UUID.randomUUID().toString(),
+                "제목", "내용",
+                NotificationLevel.INFO
+            );
+
+            List<OutboxEvent> events = outboxEventRepository.findAll();
+            assertThat(events).hasSize(1);
+            assertThat(events.getFirst().getTopic()).isEqualTo("notification-broadcast");
+            assertThat(events.getFirst().getMessageKey()).isEqualTo(user1.getId().toString());
+            assertThat(events.getFirst().getPublishedAt()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("createOnce")
+    class CreateOnce {
+
+        @Test
+        @DisplayName("같은 대상의 알림이 이미 있으면 다시 만들지 않는다")
+        void skipsDuplicate() {
+            String dmId = UUID.randomUUID().toString();
+
+            notificationService.createOnce(user1, actor, NotificationType.DM_RECEIVED, dmId,
+                "제목", "내용", NotificationLevel.INFO);
+            notificationService.createOnce(user1, actor, NotificationType.DM_RECEIVED, dmId,
+                "제목", "내용", NotificationLevel.INFO);
+
+            assertThat(notificationRepository.countByReceiverId(user1.getId())).isEqualTo(1);
+            assertThat(outboxEventRepository.count()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("대상이 다르면 각각 만든다")
+        void createsForDifferentTarget() {
+            notificationService.createOnce(user1, actor, NotificationType.DM_RECEIVED,
+                UUID.randomUUID().toString(), "제목", "내용", NotificationLevel.INFO);
+            notificationService.createOnce(user1, actor, NotificationType.DM_RECEIVED,
+                UUID.randomUUID().toString(), "제목", "내용", NotificationLevel.INFO);
+
+            assertThat(notificationRepository.countByReceiverId(user1.getId())).isEqualTo(2);
         }
     }
 

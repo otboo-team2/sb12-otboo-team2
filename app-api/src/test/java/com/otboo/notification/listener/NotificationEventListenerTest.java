@@ -213,7 +213,7 @@ class NotificationEventListenerTest {
 
             listener.on(event);
 
-            verify(notificationService).create(receiver, sender, NotificationType.DM_RECEIVED,
+            verify(notificationService).createOnce(receiver, sender, NotificationType.DM_RECEIVED,
                 dmId.toString(), "정우님의 새 메시지", content, NotificationLevel.INFO);
         }
 
@@ -236,7 +236,7 @@ class NotificationEventListenerTest {
 
             listener.on(event);
 
-            verify(notificationService).create(receiver, sender, NotificationType.DM_RECEIVED,
+            verify(notificationService).createOnce(receiver, sender, NotificationType.DM_RECEIVED,
                 dmId.toString(), "정우님의 새 메시지", content.substring(0, 30) + "...", NotificationLevel.INFO);
         }
     }
