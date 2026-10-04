@@ -121,7 +121,7 @@ public class NotificationEventListener {
         User receiver = userRepository.getReferenceById(event.receiverId());
         User actor = findUser(event.senderId());
 
-        notificationService.create(
+        notificationService.createOnce(
             receiver, actor, event.type(), event.directMessageId().toString(),
             actor.getName() + "님의 새 메시지",
             preview(event.content()),
