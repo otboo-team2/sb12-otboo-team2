@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,7 @@ class CImageSelectionServiceTest {
     private CImageAnalysisExecutor analysisExecutor;
     private CImageSelectionService service;
     private SimpleMeterRegistry meterRegistry;
+    private FixtureTextDetector textDetector;
     private Logger logger;
     private ListAppender<ILoggingEvent> logAppender;
 
@@ -69,11 +71,12 @@ class CImageSelectionServiceTest {
                 "test-key", "test-model", 3, 1024, 1024, 25 * 1024 * 1024, 6, 1000, 200);
         analysisExecutor = new CImageAnalysisExecutor(properties);
         meterRegistry = new SimpleMeterRegistry();
+        textDetector = new FixtureTextDetector();
         service = new CImageSelectionService(
                 remoteResourceClient,
                 featureScorer,
                 new CImageSelector(8),
-                new CImageFilter(new FixtureTextDetector()),
+                new CImageFilter(textDetector),
                 analysisExecutor,
                 properties,
                 clothesProperties,
@@ -107,6 +110,7 @@ class CImageSelectionServiceTest {
         assertThat(stageImageCount("download")).isEqualTo(8);
         assertThat(stageImageCount("selector")).isEqualTo(8);
         assertThat(stageImageCount("db18")).isEqualTo(2);
+        assertThat(textDetector.invocationCount()).isEqualTo(8);
         assertThat(meterRegistry.get("otboo_clothes_extraction_stage_bytes")
                 .tag("shop", "other")
                 .tag("mode", "c")
@@ -190,11 +194,128 @@ class CImageSelectionServiceTest {
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anySatisfy(message -> {
                     assertThat(message).contains(
-                            "c_image_selection_completed discovered_count=8 "
-                                    + "downloaded_count=8 selector_count=8 db18_count=2 "
-                                    + "failed_download_count=0 selected_candidate_indexes=[1, 7]");
+                        "c_image_selection_completed discovered_count=8 "
+                                + "downloaded_count=8 selector_count=8 db18_count=2 "
+                                + "failed_download_count=0 selected_candidate_indexes=[1, 7] "
+                                + "route=opencv_db18 selector_executed=true "
+                                + "selector_input_count=8 db18_executed=true db18_input_count=8");
                     assertThat(message).doesNotContain("cdn.example.com");
                 });
+    }
+
+    @Test
+    void sendsAtMostSixDownloadedCandidatesDirectlyToGemini() throws Exception {
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> {
+                    URI uri = invocation.getArgument(0);
+                    if (uri.equals(detailUrl(7)) || uri.equals(detailUrl(8))) {
+                        throw new IllegalStateException("remote failed");
+                    }
+                    return resource(uri);
+                });
+        given(featureScorer.score(any(CImageCandidate.class)))
+                .willAnswer(invocation -> score(invocation.getArgument(0)));
+
+        CImageSelectionResult result = service.selectDetails(
+                pageWithDetails(8), Set.of(IMAGE_URL), 10_000);
+
+        assertThat(result.downloadedCandidateCount()).isEqualTo(6);
+        assertThat(result.selectedCandidateIndexes()).containsExactly(0, 1, 2, 3, 4, 5);
+        assertThat(result.images()).extracting(RemoteResource::finalUri)
+                .containsExactly(
+                        detailUrl(1), detailUrl(2), detailUrl(3),
+                        detailUrl(4), detailUrl(5), detailUrl(6));
+        assertThat(stageImageCount("selector")).isZero();
+        assertThat(stageImageCount("db18")).isZero();
+        assertThat(textDetector.invocationCount()).isZero();
+        verify(featureScorer, never()).score(any(CImageCandidate.class));
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> {
+                    assertThat(message).contains(
+                            "route=gemini_direct", "db18_count=0", "selector_executed=false",
+                            "db18_executed=false", "downloaded_count=6");
+                    assertThat(message).doesNotContain("cdn.example.com");
+                });
+    }
+
+    @Test
+    void routesSevenDownloadedCandidatesThroughOpenCvAndDb18AfterOneDownloadFails()
+            throws Exception {
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> {
+                    URI uri = invocation.getArgument(0);
+                    if (uri.equals(detailUrl(8))) {
+                        throw new IllegalStateException("remote failed");
+                    }
+                    return resource(uri);
+                });
+        given(featureScorer.score(any(CImageCandidate.class)))
+                .willAnswer(invocation -> score(invocation.getArgument(0)));
+
+        CImageSelectionResult result = service.selectDetails(
+                pageWithDetails(8), Set.of(IMAGE_URL), 10_000);
+
+        assertThat(result.downloadedCandidateCount()).isEqualTo(7);
+        assertThat(result.selectedCandidateIndexes()).containsExactly(1);
+        assertThat(result.images()).extracting(RemoteResource::finalUri)
+                .containsExactly(detailUrl(2));
+        assertThat(stageImageCount("selector")).isEqualTo(7);
+        assertThat(stageImageCount("db18")).isEqualTo(1);
+        assertThat(textDetector.invocationCount()).isEqualTo(7);
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "route=opencv_db18", "selector_executed=true",
+                        "selector_input_count=7", "db18_executed=true",
+                        "db18_input_count=7"));
+    }
+
+    @Test
+    void routesEightDownloadedCandidatesThroughOpenCvAndDb18() throws Exception {
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
+        given(featureScorer.score(any(CImageCandidate.class)))
+                .willAnswer(invocation -> score(invocation.getArgument(0)));
+
+        CImageSelectionResult result = service.selectDetails(
+                pageWithDetails(8), Set.of(IMAGE_URL), 10_000);
+
+        assertThat(result.downloadedCandidateCount()).isEqualTo(8);
+        assertThat(result.selectedCandidateIndexes()).containsExactly(1, 7);
+        assertThat(result.images()).extracting(RemoteResource::finalUri)
+                .containsExactly(detailUrl(2), detailUrl(8));
+        assertThat(stageImageCount("selector")).isEqualTo(8);
+        assertThat(stageImageCount("db18")).isEqualTo(2);
+        assertThat(textDetector.invocationCount()).isEqualTo(8);
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "route=opencv_db18", "selector_executed=true",
+                        "selector_input_count=8", "db18_executed=true",
+                        "db18_input_count=8"));
+    }
+
+    @Test
+    void keepsOpenCvAndDb18ForMoreThanEightDownloadedCandidates() throws Exception {
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
+        given(featureScorer.score(any(CImageCandidate.class)))
+                .willAnswer(invocation -> score(invocation.getArgument(0)));
+
+        CImageSelectionResult result = service.selectDetails(
+                pageWithDetails(9), Set.of(IMAGE_URL), 10_000);
+
+        assertThat(result.downloadedCandidateCount()).isEqualTo(9);
+        assertThat(result.selectedCandidateIndexes()).containsExactly(1, 7);
+        assertThat(stageImageCount("selector")).isEqualTo(8);
+        assertThat(stageImageCount("db18")).isEqualTo(2);
+        assertThat(textDetector.invocationCount()).isEqualTo(8);
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "route=opencv_db18", "selector_executed=true",
+                        "db18_executed=true", "db18_input_count=8"));
     }
 
     @Test
@@ -208,6 +329,12 @@ class CImageSelectionServiceTest {
         assertThat(result.discoveredCandidateCount()).isZero();
         verify(remoteResourceClient, never()).getImage(any(URI.class));
         verify(featureScorer, never()).score(any(CImageCandidate.class));
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "c_image_selection_completed discovered_count=0 downloaded_count=0",
+                        "route=gemini_direct", "selector_executed=false",
+                        "db18_executed=false"));
     }
 
     @Test
@@ -222,11 +349,18 @@ class CImageSelectionServiceTest {
         assertThat(result.failedDownloadCount()).isEqualTo(3);
         assertThat(result.downloadFailures()).hasSize(3);
         verify(featureScorer, never()).score(any(CImageCandidate.class));
+        assertThat(logAppender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message).contains(
+                        "c_image_selection_completed discovered_count=3 downloaded_count=0",
+                        "failed_download_count=3", "route=gemini_direct",
+                        "selector_executed=false", "db18_executed=false"));
     }
 
     @Test
     void continuesWithoutDetailImagesWhenDownloadedCandidatesAreAllFilteredOut() throws Exception {
-        ProductPageData page = pageWithDetails(1);
+        ProductPageData page = pageWithDetails(7);
+        textDetector.suppressText();
         given(remoteResourceClient.getImage(any(URI.class)))
                 .willAnswer(invocation -> resource(invocation.getArgument(0)));
         given(featureScorer.score(any(CImageCandidate.class)))
@@ -246,6 +380,7 @@ class CImageSelectionServiceTest {
         assertThat(meterRegistry.getMeters())
                 .noneMatch(meter -> meter.getId().getName()
                         .equals("otboo_clothes_extraction_stage_failures"));
+        assertThat(textDetector.invocationCount()).isEqualTo(7);
     }
 
     @Test
@@ -290,7 +425,8 @@ class CImageSelectionServiceTest {
                 Duration.ofMillis(150));
         ClothesExtractionProperties clothesProperties = new ClothesExtractionProperties(
                 "test-key", "test-model", 3, 1024, 1024, 25 * 1024 * 1024, 6, 1000, 200);
-        given(remoteResourceClient.getImage(detailUrl(1))).willReturn(resource(detailUrl(1)));
+        given(remoteResourceClient.getImage(any(URI.class)))
+                .willAnswer(invocation -> resource(invocation.getArgument(0)));
         given(featureScorer.score(any(CImageCandidate.class)))
                 .willAnswer(invocation -> score(invocation.getArgument(0)));
         TextRegionDetector slowDetector = candidate -> {
@@ -321,7 +457,7 @@ class CImageSelectionServiceTest {
                     new ClothesExtractionMetrics(new SimpleMeterRegistry()));
 
             assertThatThrownBy(() -> timeoutService.selectDetails(
-                    pageWithDetails(1), Set.of(), 10_000))
+                    pageWithDetails(7), Set.of(), 10_000))
                     .isInstanceOfSatisfying(CImageAnalysisException.class, exception ->
                             assertThat(exception.reason())
                                     .isEqualTo(CImageAnalysisException.Reason.TIMEOUT));
@@ -383,9 +519,14 @@ class CImageSelectionServiceTest {
 
     private static final class FixtureTextDetector implements TextRegionDetector {
 
+        private final AtomicInteger invocations = new AtomicInteger();
+        private volatile boolean textSuppressed;
+
         @Override
         public TextDetectionResult detect(CImageCandidate candidate) {
-            if (candidate.candidateIndex() != 1 && candidate.candidateIndex() != 7) {
+            invocations.incrementAndGet();
+            if (textSuppressed
+                    || candidate.candidateIndex() != 1 && candidate.candidateIndex() != 7) {
                 return new TextDetectionResult(List.of(), Duration.ZERO);
             }
             return new TextDetectionResult(List.of(new TextBox(List.of(
@@ -393,6 +534,14 @@ class CImageSelectionServiceTest {
                     new TextRegionDetector.TextPoint(4, 0),
                     new TextRegionDetector.TextPoint(4, 4),
                     new TextRegionDetector.TextPoint(0, 4)), 0.9)), Duration.ZERO);
+        }
+
+        private int invocationCount() {
+            return invocations.get();
+        }
+
+        private void suppressText() {
+            textSuppressed = true;
         }
     }
 }

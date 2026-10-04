@@ -14,6 +14,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
@@ -103,6 +104,49 @@ class CImageFeatureScorerTest {
             assertThat(score.scoringWindowCount()).isEqualTo(3);
         } finally {
             image.release();
+        }
+    }
+
+    @Test
+    void usesOpenCvLanczos4WhenShrinkingWideImages() throws Exception {
+        Mat source = whiteImage(1_500, 298);
+        Mat nativeResized = new Mat();
+        try {
+            for (int row = 0; row < 6; row++) {
+                Imgproc.putText(
+                        source,
+                        "MELANGE GREY COTTON 100%",
+                        new Point(30, 35 + row * 42),
+                        Imgproc.FONT_HERSHEY_SIMPLEX,
+                        0.45,
+                        new Scalar(0, 0, 0),
+                        1,
+                        Imgproc.LINE_AA);
+            }
+            int targetHeight = Math.max(1, (int) Math.rint(
+                    source.rows() * 640.0 / source.cols()));
+            Imgproc.resize(
+                    source,
+                    nativeResized,
+                    new Size(640, targetHeight),
+                    0,
+                    0,
+                    Imgproc.INTER_LANCZOS4);
+
+            CImageFeatureScore actual = scorer.score(writeCandidate(8, source));
+            CImageFeatureScore expected = scorer.score(writeCandidate(9, nativeResized));
+
+            assertThat(actual.componentScore()).isEqualTo(expected.componentScore());
+            assertThat(actual.rowAlignmentScore()).isEqualTo(expected.rowAlignmentScore());
+            assertThat(actual.coverageScore()).isEqualTo(expected.coverageScore());
+            assertThat(actual.horizontalLineScore()).isEqualTo(expected.horizontalLineScore());
+            assertThat(actual.tableStructureScore()).isEqualTo(expected.tableStructureScore());
+            assertThat(actual.informationDocumentScore())
+                    .isEqualTo(expected.informationDocumentScore());
+            assertThat(actual.scoringWindowCount()).isEqualTo(expected.scoringWindowCount());
+        } finally {
+            source.release();
+            nativeResized.release();
         }
     }
 
