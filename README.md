@@ -17,7 +17,6 @@
 - [AI 기능](#ai-기능)
 - [아키텍처](#아키텍처)
 - [기술 스택](#기술-스택)
-- [기술적 선택과 근거](#기술적-선택과-근거)
 - [로컬 실행](#로컬-실행)
 - [팀](#팀)
 
@@ -138,46 +137,29 @@ flowchart TB
 
 ## 기술 스택
 
-| 구분 | 사용 |
-|---|---|
-| 언어·프레임워크 | Java 21, Spring Boot 3.5.16 (Gradle 멀티모듈) |
-| 데이터 | MySQL 8.0 + Flyway, Redis 7, Elasticsearch 8.18.8 (nori) |
-| 메시징 | Kafka 4.3.1 (+ Transactional Outbox) |
-| 인증 | JWT (Access 30분 / Refresh 14일 회전), OAuth2 (Google·Kakao) |
-| 실시간 | STOMP over WebSocket, SSE |
-| 외부 AI | OpenAI, Google Gemini, FASHN, Pinterest API |
-| 테스트 | JUnit 5, **Testcontainers**, JaCoCo (전체 합산 리포트) |
-| 관측 | Micrometer, Prometheus, Grafana, k6 |
-| 배포 | GitHub Actions, GHCR·ECR, ECS, ALB, EventBridge Scheduler |
+**Backend**
 
----
+![Java 21](https://img.shields.io/badge/Java%2021-007396?style=for-the-badge&logo=openjdk&logoColor=white) ![Spring Boot 3.5.16](https://img.shields.io/badge/Spring%20Boot%203.5.16-6DB33F?style=for-the-badge&logo=springboot&logoColor=white) ![Spring Security](https://img.shields.io/badge/Spring%20Security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white) ![Spring Data JPA](https://img.shields.io/badge/Spring%20Data%20JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Spring Batch](https://img.shields.io/badge/Spring%20Batch-6DB33F?style=for-the-badge&logo=spring&logoColor=white) ![Lombok](https://img.shields.io/badge/Lombok-BC4521?style=for-the-badge)
 
-## 기술적 선택과 근거
+**Data · Search · Messaging**
 
-### 시간은 전부 UTC — 다섯 지점에 못 박았다
+![MySQL 8.0](https://img.shields.io/badge/MySQL%208.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white) ![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge) ![Redis 7](https://img.shields.io/badge/Redis%207-DC382D?style=for-the-badge&logo=redis&logoColor=white) ![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white) ![Elasticsearch 8.18](https://img.shields.io/badge/Elasticsearch%208.18-005571?style=for-the-badge&logo=elasticsearch&logoColor=white) ![nori](https://img.shields.io/badge/nori-005571?style=for-the-badge)
 
-MySQL 서버 · 컨테이너 TZ · JDBC `serverTimezone` · Hibernate `jdbc.time_zone` · JVM `user.timezone`.
-한 군데만 빠져도 **테스트는 통과하고 운영에서 9시간 어긋난다.** 엔티티 시간 타입은 전부 `Instant`이고 `LocalDateTime`은 쓰지 않는다. DDL도 `TIMESTAMP` 대신 `DATETIME(6)`을 쓴다 — `TIMESTAMP`는 세션 타임존에 따라 자동 변환돼 이 규칙을 조용히 우회한다.
+**Realtime · Authentication**
 
-### 테스트 DB는 H2가 아니라 Testcontainers
+![WebSocket](https://img.shields.io/badge/WebSocket-010101?style=for-the-badge) ![STOMP](https://img.shields.io/badge/STOMP-5A2D91?style=for-the-badge) ![SSE](https://img.shields.io/badge/SSE-FF6C37?style=for-the-badge) ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white) ![OAuth 2.0](https://img.shields.io/badge/OAuth%202.0-EB5424?style=for-the-badge&logo=auth0&logoColor=white)
 
-RDB를 MySQL로 확정한 이상 H2는 방언이 달라 JSON 함수·`ON DUPLICATE KEY`를 못 쓴다. **테스트만 통과하고 운영에서 깨지는** 상황을 피하려고 실제 MySQL 컨테이너를 띄운다. Redis·Elasticsearch도 같다.
+**AI · External API**
 
-### 커서 페이지네이션에 타이브레이크를 강제했다
+![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge) ![Google Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white) ![FASHN](https://img.shields.io/badge/FASHN-1A1A1A?style=for-the-badge) ![Pinterest](https://img.shields.io/badge/Pinterest-BD081C?style=for-the-badge&logo=pinterest&logoColor=white) ![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white) ![jsoup](https://img.shields.io/badge/jsoup-2E7D32?style=for-the-badge) ![AWS S3](https://img.shields.io/badge/AWS%20S3-569A31?style=for-the-badge)
 
-`likeCount` 같은 정렬 키는 **값이 변하고 중복된다.** 정렬 키 하나만 커서로 쓰면 페이지 경계에서 항목이 사라지거나 두 번 나온다. 그래서 `(정렬키, id)` 복합 커서를 공통 모듈에 넣고 모든 목록이 쓰게 했다.
+**DevOps · Monitoring**
 
-### 위조 가능한 식별자는 요청 본문에서 받지 않는다
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white) ![AWS ECS / ECR](https://img.shields.io/badge/AWS%20ECS%20%2F%20ECR-FF9900?style=for-the-badge) ![ALB](https://img.shields.io/badge/ALB-8C4FFF?style=for-the-badge) ![NGINX](https://img.shields.io/badge/NGINX-009639?style=for-the-badge&logo=nginx&logoColor=white) ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white) ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white) ![Micrometer](https://img.shields.io/badge/Micrometer-117A8B?style=for-the-badge) ![k6](https://img.shields.io/badge/k6-7D64FF?style=for-the-badge&logo=k6&logoColor=white)
 
-API 스펙이 `authorId`·`ownerId`를 request body에 두고 있다. 그대로 믿으면 **남의 이름으로 글을 쓸 수 있다(IDOR).** `@LoginUser AuthPrincipal`로 인증 주체를 주입받아 대조하고, 위조 차단을 테스트로 증명한다.
+**Test · Build**
 
-### 외부 AI 호출은 공통 클라이언트를 통과해야만 한다
-
-타임아웃·재시도·**일일 호출 상한**·URL 마스킹 로깅이 한 곳에 있다. 재시도 기본값은 **0** — 재시도가 안전한(재호출해도 과금·중복 생성이 없는) API만 담당자가 올린다. 모든 호출은 성공·실패·상한초과가 전부 한 줄로 남아, 로그만 보고 "AI가 실제로 불렸는가"를 판정할 수 있다.
-
-### 측정하지 않은 최적화는 넣지 않는다
-
-의상 속성 **N+1**과 피드 `totalCount`의 `count(*)`는 **의도적으로 남겨둔 측정 대상**이다. before 수치가 사라지면 개선을 증명할 수 없다. 고칠 때는 고치기 전 쿼리 수·응답시간을 먼저 기록하고 PR 본문에 남긴다.
+![JUnit 5](https://img.shields.io/badge/JUnit%205-25A162?style=for-the-badge&logo=junit5&logoColor=white) ![Testcontainers](https://img.shields.io/badge/Testcontainers-291A3E?style=for-the-badge&logo=docker&logoColor=white) ![JaCoCo](https://img.shields.io/badge/JaCoCo-D22128?style=for-the-badge) ![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white)
 
 ---
 
